@@ -1,0 +1,197 @@
+// Views of the model as plain nodes and edges, ported from engine/mermaid.ts's
+// builders. Junction ids come from their position in the model (not a
+// counter), so a junction keeps its id as the view expands.
+import type { AndSet, Elem, Model, Scenario, Section } from './types';
+
+export type NodeKind = Section | 'and' | 'or' | 'unknown';
+export type EdgeKind = 'in' | 'needs' | 'mirror' | 'access' | 'recovery' | 'part';
+export type Status = 'has' | 'maybe' | 'lost' | 'gone' | 'start' | 'none';
+
+export interface VNode {
+  id: string;
+  label: string;
+  kind: NodeKind;
+  status?: Status;
+  row?: string; // the CLI's verdict for this thing in the scenario, if flagged
+  more?: boolean; // has ways in that aren't shown yet
+  expanded?: boolean;
+  root?: boolean;
+  flag?: boolean; // critical (lockout) or sensitive (breach)
+}
+
+export interface VEdge {
+  id: string;
+  source: string;
+  target: string;
+  kind: EdgeKind;
+  live: boolean; // can carry access in the scenario
+}
+
+export interface View {
+  nodes: VNode[];
+  edges: VEdge[];
+}
+
+export const isJunction = (k: NodeKind) => k === 'and' || k === 'or' || k === 'unknown';
+
+function* refs(e: Elem | AndSet[]): Generator<string> {
+  if (Array.isArray(e)) for (const x of e) yield* refs(x);
+  else if (e !== '?') yield e;
+}
+
+/** Every thing with a direct way into tid. */
+export function incoming(m: Model, tid: string): string[] {
+  const t = m.things[tid];
+  const mir = t.mirrors ? [t.mirrors.of] : [];
+  return [...new Set([...t.in, ...t.needs, ...mir, ...refs(t.access), ...refs(t.recovery)])];
+}
+
+class Builder {
+  nodes = new Map<string, VNode>();
+  edges = new Map<string, VEdge>();
+  private reached: Set<string> | null;
+  private gone: Set<string>;
+
+  constructor(private m: Model, private sc?: Scenario) {
+    this.reached = sc ? new Set(Object.keys(sc.reach)) : null;
+    this.gone = new Set(sc?.gone ?? []);
+  }
+
+  ok = (id: string) => this.reached === null || this.reached.has(id);
+  avail = (id: string) => !this.gone.has(id);
+
+  node(id: string): string {
+    if (!this.nodes.has(id)) this.nodes.set(id, { id, label: id, kind: this.m.things[id].section });
+    return id;
+  }
+
+  junction(id: string, kind: 'and' | 'or' | 'unknown'): string {
+    if (!this.nodes.has(id)) this.nodes.set(id, { id, label: kind === 'unknown' ? '?' : kind.toUpperCase(), kind });
+    return id;
+  }
+
+  edge(source: string, target: string, kind: EdgeKind, live = true) {
+    const id = `${source}>${target}:${kind}`;
+    const e = this.edges.get(id);
+    if (e) e.live &&= live;
+    else this.edges.set(id, { id, source, target, kind, live });
+  }
+
+  /** The node standing for one element of an access set, and whether it holds. */
+  element(e: Elem, path: string): [string, boolean] {
+    if (e === '?') return [this.junction(`${path}?`, 'unknown'), true];
+    if (typeof e === 'string') return [this.node(e), this.ok(e)];
+    const j = this.junction(path, 'or');
+    const oks = e.map((x, i) => {
+      const [nid, ok] = this.element(x, `${path}.${i}`);
+      this.edge(nid, j, 'part', ok);
+      return ok;
+    });
+    return [j, oks.some(Boolean)];
+  }
+
+  accessSet(s: AndSet, target: string, kind: 'access' | 'recovery', i: number) {
+    const path = `${target}/${kind}${i}`;
+    // A lone any-of set is just more alternatives into the target.
+    if (s.length === 1 && Array.isArray(s[0])) {
+      s[0].forEach((x, k) => {
+        const [nid, ok] = this.element(x, `${path}.0.${k}`);
+        this.edge(nid, target, kind, ok);
+      });
+    } else if (s.length === 1) {
+      const [nid, ok] = this.element(s[0], `${path}.0`);
+      this.edge(nid, target, kind, ok);
+    } else {
+      const j = this.junction(path, 'and');
+      const oks = s.map((e, k) => {
+        const [nid, ok] = this.element(e, `${path}.${k}`);
+        this.edge(nid, j, 'part', ok);
+        return ok;
+      });
+      this.edge(j, target, kind, oks.every(Boolean));
+    }
+  }
+
+  color() {
+    const sc = this.sc;
+    if (!sc) return;
+    const lockout = sc.kind === 'lockout';
+    const start = new Set(sc.start);
+    for (const n of this.nodes.values()) {
+      if (isJunction(n.kind)) continue;
+      const t = this.m.things[n.id];
+      const r = sc.reach[n.id];
+      n.flag = !!(lockout ? t.critical : t.sensitive);
+      n.row = sc.rows[n.id];
+      if (!this.avail(n.id)) n.status = 'gone';
+      else if (!lockout && start.has(n.id)) n.status = 'start';
+      else if (r) n.status = r.assumptions.length ? 'maybe' : 'has';
+      else if (lockout && t.critical) n.status = 'lost';
+      else n.status = 'none';
+    }
+  }
+
+  view(): View {
+    this.color();
+    return { nodes: [...this.nodes.values()], edges: [...this.edges.values()] };
+  }
+}
+
+/** Containment (in), dependencies (needs) and mirrors, for everything that has them. */
+export function whereView(m: Model, sc?: Scenario): View {
+  const b = new Builder(m, sc);
+  for (const [tid, t] of Object.entries(m.things)) {
+    for (const c of t.in) b.edge(b.node(c), b.node(tid), 'in');
+    for (const n of t.needs) b.edge(b.node(n), b.node(tid), 'needs');
+    if (t.mirrors) b.edge(b.node(t.mirrors.of), b.node(tid), 'mirror');
+  }
+  return b.view();
+}
+
+/**
+ * Every way into the roots, following only expanded nodes ('all' expands
+ * everything). Unexpanded nodes with ways in are marked `more`.
+ */
+export function waysInView(m: Model, roots: string[], expanded: Set<string> | 'all', sc?: Scenario): View {
+  const b = new Builder(m, sc);
+  const seen = new Set<string>();
+  const frontier = [...roots];
+  while (frontier.length) {
+    const tid = frontier.shift()!;
+    if (seen.has(tid)) continue;
+    seen.add(tid);
+    b.node(tid);
+    const ins = incoming(m, tid);
+    const node = b.nodes.get(tid)!;
+    if (expanded !== 'all' && !expanded.has(tid)) {
+      node.more = ins.length > 0;
+      continue;
+    }
+    node.expanded = ins.length > 0;
+    const t = m.things[tid];
+    for (const c of t.in) b.edge(b.node(c), tid, 'in', b.ok(c));
+    for (const n of t.needs) b.edge(b.node(n), tid, 'needs', b.avail(n));
+    if (t.mirrors) b.edge(b.node(t.mirrors.of), tid, 'mirror');
+    t.access.forEach((s, i) => b.accessSet(s, tid, 'access', i));
+    t.recovery.forEach((s, i) => b.accessSet(s, tid, 'recovery', i));
+    frontier.push(...ins);
+  }
+  for (const r of roots) b.nodes.get(r)!.root = true;
+  return b.view();
+}
+
+/** The ids within `depth` steps of the roots whose ways in should show. */
+export function expandToDepth(m: Model, roots: string[], depth: number): Set<string> {
+  const out = new Set<string>();
+  let layer = roots;
+  for (let d = 0; d < depth && layer.length; d++) {
+    const next: string[] = [];
+    for (const tid of layer) {
+      if (out.has(tid)) continue;
+      out.add(tid);
+      next.push(...incoming(m, tid));
+    }
+    layer = next;
+  }
+  return out;
+}

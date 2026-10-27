@@ -1,0 +1,58 @@
+# compiled output
+dist
+tmp
+out-tsc
+*.tsbuildinfo
+
+# dependencies
+node_modules
+
+# IDEs and editors
+/.idea
+.project
+.classpath
+.c9/
+*.launch
+.settings/
+*.sublime-workspace
+
+# IDE - VSCode
+.vscode/*
+
+# misc
+/.sass-cache
+/connect.lock
+/coverage
+/libpeerconnection.log
+npm-debug.log
+yarn-error.log
+testem.log
+/typings
+
+# System Files
+.DS_Store
+Thumbs.db
+
+# Environment variables
+.env
+.env.*
+!.env.template
+
+# Local data
+data/
+spike/dist/
+
+# AI agents
+.agents/
+.claude/
+CLAUDE.md
+.kiro/
+.codex/
+.cursorrules
+.cursor/
+.aider*
+.codeium/
+.opencode/
+opencode.json
+.superpowers/
+.windsurfrules

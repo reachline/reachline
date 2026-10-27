@@ -1,0 +1,72 @@
+:root {
+  color-scheme: light dark;
+  --font: 12px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --bg: #f6f6f4;
+  --surface: #ffffff;
+  --text: #1d1d1f;
+  --muted: #6b6b72;
+  --border: #d9d9de;
+  --focus: #2563eb;
+
+  /* sections */
+  --s-locations: #64748b;
+  --s-devices: #2563eb;
+  --s-states: #7c3aed;
+  --s-secrets: #b45309;
+  --s-services: #0f766e;
+  --s-data: #15803d;
+  --s-accounts: #4338ca;
+  --s-junction: #9ca3af;
+
+  /* scenario status: fill / stroke */
+  --good-fill: #d4edda;  --good-stroke: #2e7d32;
+  --bad-fill: #f8d7da;   --bad-stroke: #c62828;
+  --maybe-fill: #fff3cd; --maybe-stroke: #b8860b;
+  --gone-fill: #eeeeee;  --gone-stroke: #9e9e9e; --gone-text: #9e9e9e;
+  --start-fill: #424242; --start-stroke: #000000; --start-text: #ffffff;
+
+  /* edges */
+  --e-in: #8a8f98;
+  --e-access: #3f4652;
+  --e-recovery: #9333ea;
+  --e-needs: #c2410c;
+  --e-mirror: #0e7490;
+  --e-part: #a3a8b0;
+  --e-dead: #dcdce0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #131315;
+    --surface: #1e1e22;
+    --text: #e7e7ea;
+    --muted: #9a9aa2;
+    --border: #34343a;
+    --focus: #60a5fa;
+    --s-locations: #94a3b8;
+    --s-devices: #60a5fa;
+    --s-states: #a78bfa;
+    --s-secrets: #f59e0b;
+    --s-services: #2dd4bf;
+    --s-data: #4ade80;
+    --s-accounts: #818cf8;
+    --s-junction: #6b7280;
+    --good-fill: #1d3a25;  --good-stroke: #4caf50;
+    --bad-fill: #4a1f23;   --bad-stroke: #ef5350;
+    --maybe-fill: #463a12; --maybe-stroke: #e0b341;
+    --gone-fill: #232327;  --gone-stroke: #5c5c63; --gone-text: #6b6b72;
+    --start-fill: #e7e7ea; --start-stroke: #ffffff; --start-text: #111111;
+    --e-in: #7c818a;
+    --e-access: #b9bec7;
+    --e-recovery: #c084fc;
+    --e-needs: #fb923c;
+    --e-mirror: #22d3ee;
+    --e-part: #6b7079;
+    --e-dead: #34343a;
+  }
+}
+
+* { box-sizing: border-box; }
+html, body, #app { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--text); font: var(--font); }
+button, select, input { font: inherit; color: inherit; }

@@ -1,0 +1,220 @@
+# Example access model: a made-up person's setup, small but using every
+# construct the format has. It is the test fixture, the worked example for the
+# docs, and what the CLI and the UI open when there is no data/model.yml.
+#
+#   ./reach.ts --model examples/model.yml
+#   ./reach.ts --model examples/model.yml --plan plans/spare-key.yml
+#
+# Every entry in every section shares one namespace. Fields:
+#
+#   in:       containers/locations it lives in. Reaching any container reaches
+#             it; it's lost only when every container is lost. Physical
+#             ("laptop in home") and digital ("mail_pw in vault") alike.
+#             `in: "?"` means its home is unknown: reachable only by assuming it.
+#   access:   ways to reach it: a list of AND-sets. An element inside a set may
+#             itself be a list, meaning any-of, and a list inside that is an
+#             AND again:
+#               [[pw, [totp, [key, pin]]]]  = pw AND (totp OR (key AND pin))
+#   recovery: same shape as access, reported separately (account recovery).
+#   needs:    must be *available* (not reached by you): servers it runs on,
+#             DNS it depends on. Lost if any need is lost.
+#   mirrors:  {of: source, by: syncer} - a sync copy. Lost once its source is
+#             lost while the syncer is still running (the next sync empties it).
+#   critical: lockout scenarios check you can still reach it.
+#   sensitive: breach scenarios check the attacker can't.
+#   note, todo: free text; `./reach.ts --todo` lists the todos.
+#
+# "?" means unknown: a fact about the setup you don't know. reach.ts tracks
+# which unknowns each path relies on and reports those paths as UNSURE.
+#
+# Sections are only for reading (and node shapes in charts): a thing behaves
+# the same whichever section it's in. The one exception is `states`.
+
+# The format version. Optional; 1 is the only one so far.
+version: 1
+
+locations:
+  head: {note: memorized}
+  body: {note: biometrics}
+  carried: {note: on my person when out}
+  home: {}
+  safe:
+    in: [home]
+    note: fire-rated box in the hall closet
+  contacts:
+    note: friends and family who would lend a device
+
+# A device has two entries: the device itself (a thief has it, a fire destroys
+# it) and <device>_unlocked (a working session: the device plus an unlock).
+devices:
+  laptop: {in: [home]}
+  laptop_unlocked:
+    access: [[laptop, [laptop_pw, finger]]]
+  phone: {in: [carried]}
+  phone_unlocked:
+    access: [[phone, [phone_pin, face]]]
+  hw_key:
+    in: [carried]
+    note: FIDO2 key on the keyring; the only one
+  id_card: {in: [carried]}
+  loaner:
+    in: [contacts]
+    note: a borrowed or newly bought device, good enough to sign in from
+  nas: {in: [home]}
+  pi:
+    in: [home]
+    note: small always-on server that runs the cloud sync
+  old_drive:
+    in: '?'
+    note: an old backup disk with the tax archive on it
+    todo: find it; either in the attic or at my parents'
+
+# Conditions of the moment rather than facts about the setup. Nothing assumes
+# them either way: results that hinge on one say DEPENDS, and a scenario pins
+# them with assume (true) or deny (false).
+states:
+  pm_open_laptop: {note: password manager unlocked on the laptop}
+  pm_open_phone: {note: password manager unlocked on the phone}
+  mail_session_phone: {note: mail app signed in on the phone}
+
+secrets:
+  laptop_pw: {in: [head]}
+  phone_pin: {in: [head]}
+  finger: {in: [body]}
+  face: {in: [body]}
+  key_pin:
+    in: [head]
+    note: FIDO2 PIN
+  pm_master:
+    in: [head, safe]
+    note: memorized, plus the emergency sheet in the safe
+  mail_pw: {in: [vault]}
+  mail_totp:
+    in: [phone_unlocked]
+    note: authenticator app
+  mail_codes:
+    in: [safe]
+    note: printed recovery codes
+  code_pw: {in: [vault]}
+  code_totp: {in: [phone_unlocked]}
+  bank_pw: {in: [vault]}
+  storage_pw: {in: [vault]}
+  carrier_pw: {in: [vault]}
+  registrar_pw: {in: [vault]}
+
+services:
+  vault:
+    note: the password manager, decrypted
+    sensitive: true
+    access:
+      # A device that already has the vault cached needs only the master
+      # password, or nothing while the app is still unlocked.
+      - [laptop_unlocked, [pm_master, pm_open_laptop]]
+      - [phone_unlocked, [pm_master, pm_open_phone]]
+      # Signing in on a new device also takes the key.
+      - [loaner, pm_master, hw_key]
+  phone_number:
+    note: SMS to my number. The SIM has no PIN, so it works in any phone.
+    access: [[phone], [carrier]]
+    todo: set a SIM PIN
+  domain:
+    note: the custom domain my mail address is on
+    in: [registrar]
+  sync_job:
+    note: one-way sync from the NAS to cloud storage; deletions sync too
+    in: [pi]
+
+data:
+  # Any copy of the documents will do, so the documents live in both.
+  documents:
+    in: [docs_nas, docs_cloud]
+    critical: true
+    sensitive: true
+  docs_nas: {in: [nas]}
+  docs_cloud:
+    in: [storage]
+    mirrors: {of: docs_nas, by: sync_job}
+  tax_archive:
+    in: [old_drive]
+    critical: true
+    sensitive: true
+
+accounts:
+  mail:
+    critical: true
+    sensitive: true
+    needs: [domain]
+    access:
+      - [mail_pw, [mail_totp, hw_key]]
+      - [phone_unlocked, mail_session_phone]
+    recovery: [[mail_codes], [phone_number]]
+  code_host:
+    critical: true
+    sensitive: true
+    access: [[code_pw, [code_totp, [hw_key, key_pin]]]]
+    recovery: '?'
+    todo: what does support ask for once the 2FA is gone?
+  bank:
+    critical: true
+    sensitive: true
+    access: [[bank_pw, phone_number]]
+    recovery: [[id_card, body]]
+    note: recovery is in person at a branch, with photo ID
+  storage:
+    note: cloud storage
+    access: [[storage_pw, hw_key]]
+    recovery: [[mail, '?']]
+    todo: does a reset by email get past the key?
+  carrier:
+    access: [[carrier_pw]]
+    recovery: [[mail], [id_card, body]]
+  registrar:
+    access: [[registrar_pw, hw_key]]
+    recovery: [[mail]]
+
+scenarios:
+  baseline:
+    kind: lockout
+    lost: []
+
+  lose_carried:
+    kind: lockout
+    lost: [carried]
+  house_fire:
+    kind: lockout
+    lost: [home, carried]
+    note: at night, everything is home
+  nas_dies:
+    kind: lockout
+    lost: [nas]
+    note: the pi keeps syncing, so the cloud copy empties too
+  domain_lapses:
+    kind: lockout
+    lost: [domain]
+  forgot_master:
+    kind: lockout
+    lost: [pm_master]
+    note: the sheet is gone too
+  forgot_master_logged_out:
+    kind: lockout
+    lost: [pm_master]
+    deny: [pm_open_laptop, pm_open_phone]
+
+  thief_carried:
+    kind: breach
+    attacker: [carried]
+    note: phone and keys taken while locked
+  laptop_open:
+    kind: breach
+    attacker: [laptop, laptop_unlocked]
+    assume: [pm_open_laptop]
+    note: laptop taken open, password manager unlocked
+  burglary:
+    kind: breach
+    attacker: [home]
+  sim_swap:
+    kind: breach
+    attacker: [carrier]
+
+# Who I am in a lockout scenario before anything is lost.
+me: [head, body, carried, home, contacts]

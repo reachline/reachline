@@ -1,0 +1,21 @@
+# Plan: make the cloud copy a versioned backup instead of a sync, and retire
+# the old drive once the tax archive is in the documents folder (so the backup
+# covers it, and a burglar who gets the NAS gets it too).
+#
+#   ./reach.ts --model examples/model.yml --plan plans/backup.yml
+#   ./reach.ts --model examples/model.yml --plan plans/spare-key.yml --plan plans/backup.yml
+#
+# `id: null` removes a thing; nothing may still refer to it.
+
+services:
+  sync_job:
+    note: nightly versioned backup; a deletion on the NAS keeps old versions
+
+data:
+  docs_cloud:
+    mirrors: null
+  tax_archive:
+    in: [docs_nas, docs_cloud]
+
+devices:
+  old_drive: null
