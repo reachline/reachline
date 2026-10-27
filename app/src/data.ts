@@ -2,8 +2,7 @@
 // any plans in data/plans/, or from examples/ when there's no data/ (or with
 // ?model=example). Vite reads the YAML from disk (and reloads when it changes);
 // nothing leaves 127.0.0.1.
-import { availability, Model as Engine, ReachError, type Spec } from '../../engine/model.ts';
-import type { Model, Scenario, Thing } from './types';
+import { availability, Model, ReachError, type Best, type Row, type Scenario } from '../../engine/model.ts';
 
 // import.meta.glob needs its options written out, so no shared constant.
 const DIRS = {
@@ -31,7 +30,7 @@ const PLAN_PATHS = new Map(Object.keys(planTexts).map((p) => [planName(p), p]));
 /** Plan names (file names without .yml), as `?plan=` takes them. */
 export const PLANS = [...PLAN_PATHS.keys()];
 
-export { ReachError };
+export { Model, ReachError };
 
 /** model.yml with the named plans applied in order. */
 export function loadModel(plans: string[] = []): Model {
@@ -41,28 +40,19 @@ export function loadModel(plans: string[] = []): Model {
     if (!path) throw new ReachError(`unknown plan: ${name} (have ${PLANS.join(', ')})`);
     sources.push({ path: `plans/${name}.yml`, text: planTexts[path] });
   }
-  const m = new Engine(sources);
-  const things: Record<string, Thing> = {};
-  for (const [tid, s] of m.things) things[tid] = thing(s);
-  const scenarios: Record<string, Scenario> = {};
-  for (const [name, sc] of m.scenarios) {
-    const { best } = m.run(name);
-    const avail = availability(m.things, new Set(sc.lost));
-    const pick = <K extends 'note' | 'lost' | 'attacker' | 'assume' | 'deny'>(k: K) => (k in sc ? { [k]: sc[k] } : {});
-    scenarios[name] = {
-      kind: sc.kind as Scenario['kind'],
-      ...pick('note'), ...pick('lost'), ...pick('attacker'), ...pick('assume'), ...pick('deny'),
-      start: m.start(sc),
-      gone: [...avail].filter(([, ok]) => !ok).map(([t]) => t),
-      reach: Object.fromEntries([...best].map(([t, { a, why }]) => [t, { assumptions: [...a], why }])),
-      rows: Object.fromEntries([...m.rows(name)].map(([t, [status]]) => [t, status])),
-    };
-  }
-  return { things, scenarios, me: m.me, states: [...m.states].sort() };
+  return new Model(sources);
 }
 
-function thing(s: Spec): Thing {
-  const t: Thing = { section: s.section, in: s.in, needs: s.needs, access: s.access, recovery: s.recovery, mirrors: s.mirrors };
-  for (const k of ['note', 'todo', 'critical', 'sensitive'] as const) if (s[k]) Object.assign(t, { [k]: s[k] });
-  return t;
+/** One scenario's results, as the views colour them. */
+export interface Outcome {
+  sc: Scenario;
+  start: string[];
+  best: Best;
+  avail: Map<string, boolean>;
+  rows: Map<string, Row>;
+}
+
+export function outcome(m: Model, name: string): Outcome {
+  const { sc, best } = m.run(name);
+  return { sc, start: m.start(sc), best, avail: availability(m.things, new Set(sc.lost)), rows: m.rows(name) };
 }

@@ -6,7 +6,7 @@ const server = await createServer({ server: { middlewareMode: true }, appType: '
 const build = await server.ssrLoadModule('/src/build.ts');
 const { layout } = await server.ssrLoadModule('/src/layout.ts');
 const model = (await server.ssrLoadModule('/src/data.ts')).loadModel();
-const ids = Object.keys(model.things);
+const ids: string[] = [...model.things.keys()];
 const opts = { direction: 'RIGHT', routing: 'ORTHOGONAL', placement: process.env.PLACE ?? 'BRANDES_KOEPF', stable: false };
 
 async function time(view: { nodes: unknown[]; edges: unknown[] }, label: string) {
@@ -35,7 +35,7 @@ for (const t of [...ids].sort((a, b) => deepest(b) - deepest(a)).slice(0, 4)) {
 console.log('\nexpand-on-click: share of on-screen nodes that move per click');
 for (const stable of [false, true]) {
   let moved = 0, kept = 0, shift = 0, clicks = 0;
-  for (const t of ids.filter((id) => model.things[id].critical)) {
+  for (const t of ids.filter((id) => model.things.get(id).critical)) {
     const expanded = build.expandToDepth(model, [t], 2);
     let view = build.waysInView(model, [t], expanded);
     let placed = await layout(view, { ...opts, stable });

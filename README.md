@@ -29,14 +29,14 @@ ReachLine runs entirely on your machine. Your model is a map of your weak points
 
 ## Development Instructions
 
-Requires [Node.js](https://nodejs.org) 22.18 or newer, which runs TypeScript directly with no build step. Development happens on Node 26.
+Requires [Node.js](https://nodejs.org) 22.18 or newer, which runs TypeScript directly with no build step, and [pnpm](https://pnpm.io). Development happens on Node 26.
 
 ### Setup
 
 ```sh
 git clone https://github.com/reachline/reachline.git
 cd reachline
-npm install
+pnpm install
 ```
 
 ### Running
@@ -51,17 +51,17 @@ The repository ships with a synthetic example model in `examples/`. Without a mo
 ./reach.ts --plan plans/spare-key.yml                 # before/after a plan
 ./reach.ts --mermaid mail --scenario house_fire       # a Mermaid chart
 
-npm run dev -w spike                # web UI at http://127.0.0.1:5199
+pnpm dev                            # web UI at http://127.0.0.1:5199
 ```
 
-To model your own setup, create `data/model.yml`, with plans in `data/plans/`. Use `examples/model.yml` as a starting point: its header documents every field. `data/` is gitignored, and once it exists, ReachLine uses it in place of the example. Pass `--model examples/model.yml` on the command line, or open the UI with `?model=example`, to see the example again. See the top of `reach.ts` for every command-line option, and `spike/README.md` for the UI's URL parameters.
+To model your own setup, create `data/model.yml`, with plans in `data/plans/`. Use `examples/model.yml` as a starting point: its header documents every field. `data/` is gitignored, and once it exists, ReachLine uses it in place of the example. Pass `--model examples/model.yml` on the command line, or open the UI with `?model=example`, to see the example again. See the top of `reach.ts` for every command-line option, and `app/README.md` for the UI's URL parameters.
 
 ### Checking
 
 Type-check the engine, CLI and UI.
 
 ```sh
-npm run check
+pnpm check
 ```
 
 ## Contributing

@@ -1,6 +1,7 @@
 // ELK layered layout for a view, plus in-place placement for expanding
 // without moving anything.
-import ELK, { type ElkNode } from 'elkjs/lib/elk.bundled.js';
+import ElkApi, { type ELK, type ElkNode } from 'elkjs/lib/elk-api.js';
+import workerUrl from 'elkjs/lib/elk-worker.min.js?url';
 import { isJunction, type View, type VNode } from './build';
 
 export const FONT = '12px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
@@ -16,7 +17,7 @@ export interface LayoutOpts {
   direction: Direction;
   routing: Routing;
   placement: Placement;
-  stable: boolean; // seed ELK with the previous positions (interactive mode)
+  stable?: boolean; // seed ELK with the previous positions (interactive mode; bench.ts compares it)
 }
 
 export interface Pt { x: number; y: number }
@@ -29,7 +30,14 @@ export interface Placed {
   ms: number;
 }
 
-const elk = new ELK();
+// In the page, ELK runs in a web worker so a big layout doesn't freeze the UI.
+// bench.ts loads this through Vite's SSR in Node, where there are no web
+// workers, so there it runs inline (and the page's build leaves that out).
+let elk: Promise<ELK> | undefined;
+const getElk = () =>
+  (elk ??= import.meta.env.SSR
+    ? import('elkjs/lib/elk.bundled.js').then((m) => new m.default())
+    : Promise.resolve(new ElkApi({ workerUrl })));
 let ctx: CanvasRenderingContext2D | null = null;
 
 export function sizeOf(n: VNode): { w: number; h: number } {
@@ -95,7 +103,7 @@ export async function layout(view: View, opts: LayoutOpts, prev?: Placed | null)
     }),
     edges: view.edges.map((e) => ({ id: e.id, sources: [e.source], targets: [e.target] })),
   };
-  const out = await elk.layout(graph);
+  const out = await (await getElk()).layout(graph);
   const nodes = new Map<string, Box>();
   for (const c of out.children ?? []) nodes.set(c.id, { x: c.x ?? 0, y: c.y ?? 0, w: c.width ?? 0, h: c.height ?? 0 });
   const edges = new Map<string, Pt[]>();

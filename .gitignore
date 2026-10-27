@@ -25,6 +25,7 @@ node_modules
 /coverage
 /libpeerconnection.log
 npm-debug.log
+pnpm-debug.log*
 yarn-error.log
 testem.log
 /typings
@@ -40,7 +41,7 @@ Thumbs.db
 
 # Local data
 data/
-spike/dist/
+app/dist/
 
 # AI agents
 .agents/

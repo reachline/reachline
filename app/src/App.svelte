@@ -3,9 +3,10 @@
   import { expandToDepth, isJunction, waysInView, whereView, type View } from './build';
   import FlowView from './FlowView.svelte';
   import { layout, placeLocally, type Direction, type Placed, type Placement, type Routing } from './layout';
-  import { loadModel, ReachError } from './data';
+  import { fmtWhy, SECTIONS } from '../../engine/model.ts';
+  import { what } from '../../engine/report.ts';
+  import { loadModel, outcome, ReachError, type Model } from './data';
   import { shapePath } from './shapes';
-  import { SECTIONS, type AndSet, type Elem, type Model, type Why } from './types';
 
   type Mode = 'ways' | 'where' | 'all';
   const DEPTH = 2;
@@ -22,7 +23,6 @@
   let routing = $state<Routing>((q.get('routing') as Routing) ?? 'ORTHOGONAL');
   let direction = $state<Direction>((q.get('dir') as Direction) ?? 'RIGHT');
   let placement = $state<Placement>((q.get('place') as Placement) ?? 'BRANDES_KOEPF');
-  let stable = $state(q.get('stable') !== '0');
   let expanded = $state.raw<Set<string>>(new Set());
   let selected = $state<string | null>(q.get('select'));
 
@@ -34,7 +34,7 @@
   try {
     const m = loadModel(plans);
     // Without ?target=, start on the first critical thing.
-    target ||= Object.keys(m.things).find((t) => m.things[t].critical) ?? Object.keys(m.things)[0];
+    target ||= [...m.things].find(([, t]) => t.critical)?.[0] ?? [...m.things.keys()][0];
     expanded = expandToDepth(m, [untrack(() => target)], DEPTH);
     model = m;
   } catch (e) {
@@ -42,30 +42,15 @@
     error = e.message;
   }
 
-  const scenario = $derived(model && scenarioName ? model.scenarios[scenarioName] : undefined);
+  const scenario = $derived(model?.scenarios.has(scenarioName) ? outcome(model, scenarioName) : undefined);
   const vertical = $derived(direction === 'DOWN');
 
   const view = $derived.by(() => {
     if (!model) return null;
     if (mode === 'where') return whereView(model, scenario);
-    if (mode === 'all') return waysInView(model, Object.keys(model.things), 'all', scenario);
+    if (mode === 'all') return waysInView(model, [...model.things.keys()], 'all', scenario);
     return waysInView(model, [target], expanded, scenario);
   });
-
-  // How much the last relayout moved the nodes that were already on screen.
-  let shift = $state.raw<{ moved: number; kept: number; avg: number } | null>(null);
-  function movement(prev: Placed, next: Placed) {
-    let moved = 0, kept = 0, total = 0;
-    for (const [id, a] of prev.nodes) {
-      const b = next.nodes.get(id);
-      if (!b) continue;
-      const d = Math.hypot(b.x - a.x, b.y - a.y);
-      if (d > 1) moved++;
-      else kept++;
-      total += d;
-    }
-    return { moved, kept, avg: Math.round(total / Math.max(1, moved + kept)) };
-  }
 
   // ?expand=a,b clicks those nodes open one at a time (for headless checks).
   const demo = (q.get('expand') ?? '').split(',').filter(Boolean);
@@ -83,10 +68,10 @@
     }
   });
 
-  // 'local' adds nodes without moving anything; ELK runs only on Tidy.
-  let expandMode = $state<'local' | 'relayout'>(q.get('expandmode') === 'relayout' ? 'relayout' : 'local');
+  // Expanding adds nodes without moving anything; ELK runs only on a fresh
+  // view and on Tidy, and always lays out from scratch.
   let tidyKey = $state(0);
-  let elkNext = false; // the next layout runs ELK even in local mode
+  let elkNext = false; // the next layout runs ELK
 
   function tidy() {
     elkNext = true;
@@ -98,15 +83,14 @@
     const v = view;
     if (!v) return;
     void tidyKey;
-    const opts = { direction, routing, placement, stable };
+    const opts = { direction, routing, placement };
     const prev = restarting ? null : untrack(() => shown?.placed);
-    const local = expandMode === 'local' && prev && !elkNext;
+    const local = prev && !elkNext;
     elkNext = false;
     const my = ++seq;
-    const run = local ? Promise.resolve(placeLocally(v, prev, direction)) : layout(v, opts, prev);
+    const run = local ? Promise.resolve(placeLocally(v, prev, direction)) : layout(v, opts);
     run.then((placed) => {
       if (my !== seq) return;
-      shift = prev ? movement(prev, placed) : null;
       shown = { view: v, placed };
       if (restarting) {
         restarting = false;
@@ -141,19 +125,14 @@
 
   const byId = $derived(new Map(shown?.view.nodes.map((n) => [n.id, n]) ?? []));
   const selNode = $derived(selected ? byId.get(selected) : undefined);
-  const selThing = $derived(selected && model ? model.things[selected] : undefined);
-  const selReach = $derived(selected && scenario ? scenario.reach[selected] : undefined);
+  const selThing = $derived(selected ? model?.things.get(selected) : undefined);
+  const selReach = $derived(selected ? scenario?.best.get(selected) : undefined);
 
   const thingsBySection = $derived(
     model
-      ? SECTIONS.map((s) => [s, Object.keys(model!.things).filter((t) => model!.things[t].section === s)] as const)
+      ? SECTIONS.map((s) => [s, [...model!.things].filter(([, t]) => t.section === s).map(([id]) => id)] as const)
       : [],
   );
-
-  const fmtElem = (e: Elem): string => (Array.isArray(e) ? `(${e.map(fmtElem).join(' | ')})` : e);
-  const fmtSet = (s: AndSet) => s.map(fmtElem).join(' + ');
-  const fmtWhy = (w: Why) =>
-    w.kind === 'in' ? `in ${w.via}` : w.via ? `${w.kind} ${fmtSet(w.via as AndSet)}` : w.kind;
 
   const EDGE_KINDS = ['in', 'access', 'recovery', 'needs', 'mirror', 'part'] as const;
 </script>
@@ -177,20 +156,14 @@
           {/each}
         </select>
       </label>
-      <button onclick={() => (expanded = new Set(Object.keys(model?.things ?? {})))}>Expand all</button>
+      <button onclick={() => (expanded = new Set(model?.things.keys()))}>Expand all</button>
       <button onclick={() => waysInto(target)}>Reset</button>
-      <label title="What clicking a + does">Expand
-        <select bind:value={expandMode}>
-          <option value="local">In place</option>
-          <option value="relayout">Re-layout</option>
-        </select>
-      </label>
       <button onclick={tidy} title="Run the full ELK layout now">Tidy</button>
     {/if}
     <label>Scenario
       <select bind:value={scenarioName}>
         <option value="">(none)</option>
-        {#each Object.entries(model?.scenarios ?? {}) as [name, sc] (name)}
+        {#each [...(model?.scenarios ?? [])] as [name, sc] (name)}
           <option value={name}>{name} ({sc.kind})</option>
         {/each}
       </select>
@@ -215,16 +188,13 @@
         <option value="NETWORK_SIMPLEX">Network simplex</option>
       </select>
     </label>
-    <label title="Seed ELK with current positions so expanding doesn't reshuffle">
-      <input type="checkbox" bind:checked={stable} onchange={tidy} /> Stable
-    </label>
     <button onclick={() => fitKey++}>Fit</button>
     {#if plans.length}<span class="muted" title="From ?plan=">with {plans.join(' + ')}</span>{/if}
   </header>
 
   <main class="canvas">
     {#if shown}
-      <FlowView view={shown.view} placed={shown.placed} {vertical} kind={scenario?.kind ?? ''} {selected} {fitKey} {onnode} />
+      <FlowView view={shown.view} placed={shown.placed} {vertical} kind={scenario?.sc.kind ?? ''} {selected} {fitKey} {onnode} />
     {:else}
       <p class="status">{error || 'Loading…'}</p>
     {/if}
@@ -233,11 +203,9 @@
   <aside class="side">
     {#if scenario}
       <section>
-        <h3>{scenarioName} <span class="muted">({scenario.kind})</span></h3>
-        <p class="muted">
-          {scenario.kind === 'lockout' ? `lost ${scenario.lost?.join(', ') || 'nothing'}` : `attacker has ${scenario.attacker?.join(', ')}`}
-        </p>
-        {#if scenario.note}<p>{scenario.note}</p>{/if}
+        <h3>{scenarioName} <span class="muted">({scenario.sc.kind})</span></h3>
+        <p class="muted">{what(scenario.sc)}</p>
+        {#if scenario.sc.note}<p>{scenario.sc.note}</p>{/if}
       </section>
     {/if}
 
@@ -253,17 +221,17 @@
         {#if selThing.note}<p>{selThing.note}</p>{/if}
         {#if selThing.todo}<p class="todo">todo: {selThing.todo}</p>{/if}
         {#if scenario}
-          {#if scenario.gone.includes(selected)}
+          {#if !scenario.avail.get(selected)}
             <p><b>Gone</b> in this scenario.</p>
           {:else if selReach}
             <p>
-              <b>Reached</b>{selReach.assumptions.length ? ` if ${selReach.assumptions.join(', ')}` : ' outright'}
+              <b>Reached</b>{selReach.a.length ? ` if ${selReach.a.join(', ')}` : ' outright'}
               <br /><span class="mono">via {fmtWhy(selReach.why)}</span>
             </p>
           {:else}
             <p><b>Not reached.</b></p>
           {/if}
-          {#if scenario.rows[selected]}<p class="row">{scenario.rows[selected]}</p>{/if}
+          {#if scenario.rows.has(selected)}<p class="row">{scenario.rows.get(selected)![0]}</p>{/if}
         {/if}
         <div class="actions">
           {#if !(mode === 'ways' && target === selected)}
@@ -297,7 +265,6 @@
     {#if shown}
       <p class="muted stats">
         {shown.view.nodes.length} nodes · {shown.view.edges.length} edges · ELK {shown.placed.ms} ms
-        {#if shift}<br />last relayout: {shift.kept} stayed, {shift.moved} moved (avg {shift.avg}px){/if}
       </p>
     {/if}
   </aside>

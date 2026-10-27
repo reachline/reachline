@@ -38,7 +38,7 @@ fields given replace the model's (whole fields: restate the full access list);
 a new id adds a thing, and `id: null` removes one. Scenarios merge the same
 way, and a top-level `me` replaces the model's.
 
-The engine itself is in engine/ and has no file access, so the UI in spike/
+The engine itself is in engine/ and has no file access, so the UI in app/
 runs it in the browser.
 */
 import { existsSync, readFileSync } from 'node:fs';

@@ -2,11 +2,10 @@
   "name": "reachline",
   "private": true,
   "type": "module",
-  "workspaces": [
-    "spike"
-  ],
+  "packageManager": "pnpm@12.15.0",
   "scripts": {
-    "check": "tsc -p . && npm run check -w spike"
+    "check": "tsc -p . && pnpm --filter reachline-ui check",
+    "dev": "pnpm --filter reachline-ui dev"
   },
   "dependencies": {
     "yaml": "^2.9.1"
