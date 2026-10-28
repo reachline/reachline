@@ -1,0 +1,3 @@
+#!/bin/sh
+# `pnpm install` points git here (core.hooksPath). Skip once with --no-verify.
+exec pnpm verify

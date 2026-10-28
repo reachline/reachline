@@ -1,7 +1,7 @@
 // Views of the model as plain nodes and edges, ported from engine/mermaid.ts's
 // builders. Junction ids come from their position in the model (not a
 // counter), so a junction keeps its id as the view expands.
-import { refs, type AndSet, type Expr, type Model, type Section } from '../../engine/model.ts';
+import { leaves, refs, type AndSet, type Expr, type Model, type Section } from '../../engine/model.ts';
 import type { Outcome } from './data';
 
 export type NodeKind = Section | 'and' | 'or' | 'unknown';
@@ -46,7 +46,10 @@ class Builder {
   nodes = new Map<string, VNode>();
   edges = new Map<string, VEdge>();
 
-  constructor(private m: Model, private sc?: Outcome) {}
+  constructor(
+    private m: Model,
+    private sc?: Outcome,
+  ) {}
 
   ok = (id: string) => !this.sc || this.sc.best.has(id);
   avail = (id: string) => this.sc?.avail.get(id) ?? true;
@@ -68,17 +71,32 @@ class Builder {
     else this.edges.set(id, { id, source, target, kind, live });
   }
 
+  /** A junction over items; it holds if any (or) or every (and) item does. */
+  join(
+    path: string,
+    kind: 'and' | 'or',
+    items: Expr[],
+    part: (x: Expr, path: string) => [string, boolean],
+  ): [string, boolean] {
+    const j = this.junction(path, kind);
+    const oks = items.map((x, i) => {
+      const [nid, ok] = part(x, `${path}.${i}`);
+      this.edge(nid, j, 'part', ok);
+      return ok;
+    });
+    return [j, kind === 'or' ? oks.some(Boolean) : oks.every(Boolean)];
+  }
+
   /** The node standing for one element of an access set, and whether it holds. */
   element(e: Expr, path: string): [string, boolean] {
     if (e === '?') return [this.junction(`${path}?`, 'unknown'), true];
     if (typeof e === 'string') return [this.node(e), this.ok(e)];
-    const j = this.junction(path, 'or');
-    const oks = e.map((x, i) => {
-      const [nid, ok] = this.element(x, `${path}.${i}`);
-      this.edge(nid, j, 'part', ok);
-      return ok;
-    });
-    return [j, oks.some(Boolean)];
+    return this.join(path, 'or', e, (x, p) => this.option(x, p));
+  }
+
+  /** One option of an any-of: a list needs every one of its leaves. */
+  option(x: Expr, path: string): [string, boolean] {
+    return Array.isArray(x) ? this.join(path, 'and', leaves(x), (l, p) => this.element(l, p)) : this.element(x, path);
   }
 
   accessSet(s: AndSet, target: string, kind: 'access' | 'recovery', i: number) {
@@ -86,20 +104,15 @@ class Builder {
     // A lone any-of set is just more alternatives into the target.
     if (s.length === 1 && Array.isArray(s[0])) {
       s[0].forEach((x, k) => {
-        const [nid, ok] = this.element(x, `${path}.0.${k}`);
+        const [nid, ok] = this.option(x, `${path}.0.${k}`);
         this.edge(nid, target, kind, ok);
       });
     } else if (s.length === 1) {
       const [nid, ok] = this.element(s[0], `${path}.0`);
       this.edge(nid, target, kind, ok);
     } else {
-      const j = this.junction(path, 'and');
-      const oks = s.map((e, k) => {
-        const [nid, ok] = this.element(e, `${path}.${k}`);
-        this.edge(nid, j, 'part', ok);
-        return ok;
-      });
-      this.edge(j, target, kind, oks.every(Boolean));
+      const [j, ok] = this.join(path, 'and', s, (e, p) => this.element(e, p));
+      this.edge(j, target, kind, ok);
     }
   }
 

@@ -4,14 +4,28 @@
   "type": "module",
   "packageManager": "pnpm@12.15.0",
   "scripts": {
+    "prepare": "git config core.hooksPath .githooks || true",
+    "dev": "pnpm --filter reachline-ui dev",
+    "build": "pnpm --filter reachline-ui build",
     "check": "tsc -p . && pnpm --filter reachline-ui check",
-    "dev": "pnpm --filter reachline-ui dev"
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "node --test \"test/*.test.ts\"",
+    "verify": "pnpm check && pnpm lint && pnpm format:check && pnpm test"
   },
   "dependencies": {
     "yaml": "^2.9.1"
   },
   "devDependencies": {
+    "@eslint/js": "^10.0.1",
     "@types/node": "^26.6.5",
-    "typescript": "^5.9.3"
+    "eslint": "^10.13.0",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-svelte": "^3.23.1",
+    "prettier": "^3.9.10",
+    "prettier-plugin-svelte": "^4.1.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.72.1"
   }
 }

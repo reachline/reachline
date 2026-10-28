@@ -9,11 +9,11 @@
   async function fit(tries = 20) {
     await tick();
     const ok = await fitView({ padding: 0.06, maxZoom: 1.2, duration: 250 });
-    if (!ok && tries > 0) requestAnimationFrame(() => fit(tries - 1));
+    if (!ok && tries > 0) requestAnimationFrame(() => void fit(tries - 1));
   }
 
   $effect(() => {
     void fitKey;
-    fit();
+    void fit();
   });
 </script>

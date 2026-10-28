@@ -2,7 +2,11 @@
   import { Handle, Position, type NodeProps } from '@xyflow/svelte';
   import type { VNode } from '../build';
 
-  type Data = { node: VNode; vertical: boolean; selected: boolean };
+  interface Data {
+    node: VNode;
+    vertical: boolean;
+    selected: boolean;
+  }
   let { data }: NodeProps & { data: Data } = $props();
 </script>
 
@@ -30,8 +34,13 @@
     background: var(--maybe-fill);
     border: 1.5px dashed var(--maybe-stroke);
   }
-  .sel { box-shadow: 0 0 0 2px var(--focus); }
+  .sel {
+    box-shadow: 0 0 0 2px var(--focus);
+  }
   @keyframes appear {
-    from { opacity: 0; transform: scale(0.6); }
+    from {
+      opacity: 0;
+      transform: scale(0.6);
+    }
   }
 </style>

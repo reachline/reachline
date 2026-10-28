@@ -58,11 +58,15 @@ To model your own setup, create `data/model.yml`, with plans in `data/plans/`. U
 
 ### Checking
 
-Type-check the engine, CLI and UI.
-
 ```sh
-pnpm check
+pnpm verify     # all of the below
+pnpm check      # type-check the engine, CLI and UI
+pnpm lint       # ESLint
+pnpm format     # Prettier (format:check only checks)
+pnpm test       # engine and CLI tests
 ```
+
+`pnpm install` sets up a pre-commit hook that runs `pnpm verify`, and CI runs it too. After a deliberate change to what the engine computes, update the test snapshot with `node --test --test-update-snapshots "test/*.test.ts"`.
 
 ## Contributing
 

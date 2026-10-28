@@ -20,8 +20,14 @@ export interface LayoutOpts {
   stable?: boolean; // seed ELK with the previous positions (interactive mode; bench.ts compares it)
 }
 
-export interface Pt { x: number; y: number }
-export interface Box extends Pt { w: number; h: number }
+export interface Pt {
+  x: number;
+  y: number;
+}
+export interface Box extends Pt {
+  w: number;
+  h: number;
+}
 
 export interface Placed {
   nodes: Map<string, Box>; // top-left corner
@@ -58,15 +64,14 @@ function seed(view: View, prev: Map<string, Box>, dir: Direction): Map<string, P
     const p = prev.get(n.id);
     if (p) pos.set(n.id, { x: p.x, y: p.y });
   }
-  for (let pass = 0; pass < view.nodes.length; pass++) {
-    let added = false;
+  for (let added = true; added;) {
+    added = false;
     for (const e of view.edges) {
       if (pos.has(e.source) || !pos.has(e.target)) continue;
       const t = pos.get(e.target)!;
       pos.set(e.source, dir === 'RIGHT' ? { x: t.x - 160, y: t.y } : { x: t.x, y: t.y - 90 });
       added = true;
     }
-    if (!added) break;
   }
   return pos;
 }
@@ -159,19 +164,19 @@ export function placeLocally(view: View, prev: Placed, dir: Direction): Placed {
     }
     return want;
   };
-  for (let pass = 0; pass < view.nodes.length; pass++) {
-    let added = false;
+  for (let added = true; added;) {
+    added = false;
     for (const e of view.edges) {
       if (nodes.has(e.source) || !nodes.has(e.target)) continue;
       const t = nodes.get(e.target)!;
       const { w, h } = sizeOf(byId.get(e.source)!);
-      const want = dir === 'RIGHT'
-        ? { x: t.x - GAP - w, y: t.y + t.h / 2 - h / 2, w, h }
-        : { x: t.x + t.w / 2 - w / 2, y: t.y - GAP - h, w, h };
+      const want =
+        dir === 'RIGHT'
+          ? { x: t.x - GAP - w, y: t.y + t.h / 2 - h / 2, w, h }
+          : { x: t.x + t.w / 2 - w / 2, y: t.y - GAP - h, w, h };
       nodes.set(e.source, slot(want));
       added = true;
     }
-    if (!added) break;
   }
   // Anything still unplaced has no placed node downstream; park it below.
   let bottom = Math.max(0, ...[...nodes.values()].map((b) => b.y + b.h));
@@ -193,11 +198,21 @@ export function placeLocally(view: View, prev: Placed, dir: Direction): Placed {
     if (dir === 'RIGHT') {
       const [sx, sy, tx, ty] = [s.x + s.w, s.y + s.h / 2, t.x, t.y + t.h / 2];
       const mx = tx - GAP / 2;
-      edges.set(e.id, [{ x: sx, y: sy }, { x: mx, y: sy }, { x: mx, y: ty }, { x: tx, y: ty }]);
+      edges.set(e.id, [
+        { x: sx, y: sy },
+        { x: mx, y: sy },
+        { x: mx, y: ty },
+        { x: tx, y: ty },
+      ]);
     } else {
       const [sx, sy, tx, ty] = [s.x + s.w / 2, s.y + s.h, t.x + t.w / 2, t.y];
       const my = ty - GAP / 2;
-      edges.set(e.id, [{ x: sx, y: sy }, { x: sx, y: my }, { x: tx, y: my }, { x: tx, y: ty }]);
+      edges.set(e.id, [
+        { x: sx, y: sy },
+        { x: sx, y: my },
+        { x: tx, y: my },
+        { x: tx, y: ty },
+      ]);
     }
   }
   // In spline mode the 4-point step renders as one smooth cubic curve.

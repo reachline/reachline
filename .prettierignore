@@ -1,0 +1,5 @@
+# Hand-written YAML and prose keep their own layout.
+*.md
+*.yml
+*.yaml
+*.snapshot

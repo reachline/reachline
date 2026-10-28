@@ -1,15 +1,22 @@
 // ELK timings and expand-on-click stability, outside the browser.
 //   node bench.ts
 import { createServer } from 'vite';
+import type { View } from './src/build.ts';
+import type { LayoutOpts, Placement } from './src/layout.ts';
 
 const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
-const build = await server.ssrLoadModule('/src/build.ts');
-const { layout } = await server.ssrLoadModule('/src/layout.ts');
-const model = (await server.ssrLoadModule('/src/data.ts')).loadModel();
-const ids: string[] = [...model.things.keys()];
-const opts = { direction: 'RIGHT', routing: 'ORTHOGONAL', placement: process.env.PLACE ?? 'BRANDES_KOEPF', stable: false };
+const build = (await server.ssrLoadModule('/src/build.ts')) as typeof import('./src/build.ts');
+const { layout } = (await server.ssrLoadModule('/src/layout.ts')) as typeof import('./src/layout.ts');
+const model = ((await server.ssrLoadModule('/src/data.ts')) as typeof import('./src/data.ts')).loadModel();
+const ids = [...model.things.keys()];
+const opts: LayoutOpts = {
+  direction: 'RIGHT',
+  routing: 'ORTHOGONAL',
+  placement: (process.env.PLACE ?? 'BRANDES_KOEPF') as Placement,
+  stable: false,
+};
 
-async function time(view: { nodes: unknown[]; edges: unknown[] }, label: string) {
+async function time(view: View, label: string) {
   await layout(view, opts); // warm up
   const ms: number[] = [];
   for (let i = 0; i < 5; i++) {
@@ -18,7 +25,9 @@ async function time(view: { nodes: unknown[]; edges: unknown[] }, label: string)
     ms.push(performance.now() - t);
   }
   ms.sort((a, b) => a - b);
-  console.log(`${label.padEnd(26)} ${String(view.nodes.length).padStart(4)} nodes ${String(view.edges.length).padStart(4)} edges  median ${ms[2].toFixed(1)} ms`);
+  console.log(
+    `${label.padEnd(26)} ${String(view.nodes.length).padStart(4)} nodes ${String(view.edges.length).padStart(4)} edges  median ${ms[2].toFixed(1)} ms`,
+  );
 }
 
 console.log('ELK layout time');
@@ -34,13 +43,16 @@ for (const t of [...ids].sort((a, b) => deepest(b) - deepest(a)).slice(0, 4)) {
 // order), relaying out after each click with and without seeding positions.
 console.log('\nexpand-on-click: share of on-screen nodes that move per click');
 for (const stable of [false, true]) {
-  let moved = 0, kept = 0, shift = 0, clicks = 0;
-  for (const t of ids.filter((id) => model.things.get(id).critical)) {
+  let moved = 0,
+    kept = 0,
+    shift = 0,
+    clicks = 0;
+  for (const t of ids.filter((id) => model.things.get(id)!.critical)) {
     const expanded = build.expandToDepth(model, [t], 2);
     let view = build.waysInView(model, [t], expanded);
     let placed = await layout(view, { ...opts, stable });
     for (let step = 0; step < 6; step++) {
-      const next = view.nodes.find((n: { more?: boolean }) => n.more);
+      const next = view.nodes.find((n) => n.more);
       if (!next) break;
       expanded.add(next.id);
       view = build.waysInView(model, [t], expanded);
@@ -58,6 +70,8 @@ for (const stable of [false, true]) {
     }
   }
   const pct = Math.round((100 * moved) / (moved + kept));
-  console.log(`  stable=${stable}: ${clicks} clicks, ${pct}% of nodes moved, avg shift ${Math.round(shift / (moved + kept))}px`);
+  console.log(
+    `  stable=${stable}: ${clicks} clicks, ${pct}% of nodes moved, avg shift ${Math.round(shift / (moved + kept))}px`,
+  );
 }
 await server.close();

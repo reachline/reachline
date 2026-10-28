@@ -17,12 +17,12 @@
 
   let model = $state.raw<Model | null>(null);
   let error = $state('');
-  let mode = $state<Mode>((q.get('mode') as Mode) ?? 'ways');
+  let mode = $state<Mode>((q.get('mode') ?? 'ways') as Mode);
   let target = $state(q.get('target') ?? '');
   let scenarioName = $state(q.get('scenario') ?? 'house_fire');
-  let routing = $state<Routing>((q.get('routing') as Routing) ?? 'ORTHOGONAL');
-  let direction = $state<Direction>((q.get('dir') as Direction) ?? 'RIGHT');
-  let placement = $state<Placement>((q.get('place') as Placement) ?? 'BRANDES_KOEPF');
+  let routing = $state<Routing>((q.get('routing') ?? 'ORTHOGONAL') as Routing);
+  let direction = $state<Direction>((q.get('dir') ?? 'RIGHT') as Direction);
+  let placement = $state<Placement>((q.get('place') ?? 'BRANDES_KOEPF') as Placement);
   let expanded = $state.raw<Set<string>>(new Set());
   let selected = $state<string | null>(q.get('select'));
 
@@ -89,7 +89,7 @@
     elkNext = false;
     const my = ++seq;
     const run = local ? Promise.resolve(placeLocally(v, prev, direction)) : layout(v, opts);
-    run.then((placed) => {
+    void run.then((placed) => {
       if (my !== seq) return;
       shown = { view: v, placed };
       if (restarting) {
@@ -118,9 +118,7 @@
   }
 
   function collapse(id: string) {
-    const next = new Set(expanded);
-    next.delete(id);
-    expanded = next;
+    expanded = new Set([...expanded].filter((x) => x !== id));
   }
 
   const byId = $derived(new Map(shown?.view.nodes.map((n) => [n.id, n]) ?? []));
@@ -130,7 +128,7 @@
 
   const thingsBySection = $derived(
     model
-      ? SECTIONS.map((s) => [s, [...model!.things].filter(([, t]) => t.section === s).map(([id]) => id)] as const)
+      ? SECTIONS.map((s) => [s, [...model.things].filter(([, t]) => t.section === s).map(([id]) => id)] as const)
       : [],
   );
 
@@ -139,7 +137,8 @@
 
 <div class="app">
   <header class="bar">
-    <label>View
+    <label
+      >View
       <select bind:value={mode} onchange={restart}>
         <option value="ways">Ways into…</option>
         <option value="where">Where things live</option>
@@ -147,7 +146,8 @@
       </select>
     </label>
     {#if mode === 'ways'}
-      <label>Thing
+      <label
+        >Thing
         <select bind:value={target} onchange={() => waysInto(target)}>
           {#each thingsBySection as [section, ids] (section)}
             <optgroup label={section}>
@@ -160,7 +160,8 @@
       <button onclick={() => waysInto(target)}>Reset</button>
       <button onclick={tidy} title="Run the full ELK layout now">Tidy</button>
     {/if}
-    <label>Scenario
+    <label
+      >Scenario
       <select bind:value={scenarioName}>
         <option value="">(none)</option>
         {#each [...(model?.scenarios ?? [])] as [name, sc] (name)}
@@ -169,20 +170,23 @@
       </select>
     </label>
     <span class="sep"></span>
-    <label>Routing
+    <label
+      >Routing
       <select bind:value={routing} onchange={tidy}>
         <option value="ORTHOGONAL">Orthogonal</option>
         <option value="SPLINES">Splines</option>
         <option value="POLYLINE">Polyline</option>
       </select>
     </label>
-    <label>Direction
+    <label
+      >Direction
       <select bind:value={direction} onchange={restart}>
         <option value="RIGHT">Left → right</option>
         <option value="DOWN">Top → down</option>
       </select>
     </label>
-    <label>Placement
+    <label
+      >Placement
       <select bind:value={placement} onchange={tidy}>
         <option value="BRANDES_KOEPF">Brandes–Köpf (fast)</option>
         <option value="NETWORK_SIMPLEX">Network simplex</option>
@@ -194,7 +198,15 @@
 
   <main class="canvas">
     {#if shown}
-      <FlowView view={shown.view} placed={shown.placed} {vertical} kind={scenario?.sc.kind ?? ''} {selected} {fitKey} {onnode} />
+      <FlowView
+        view={shown.view}
+        placed={shown.placed}
+        {vertical}
+        kind={scenario?.sc.kind ?? ''}
+        {selected}
+        {fitKey}
+        {onnode}
+      />
     {:else}
       <p class="status">{error || 'Loading…'}</p>
     {/if}
@@ -215,8 +227,9 @@
         <p class="muted mono">{selNode.id}</p>
       {:else if selThing && selected}
         <h3>{selected} <span class="muted">{selThing.section}</span></h3>
-        {#if selThing.critical || selThing.sensitive}
-          <p class="muted">{[selThing.critical && 'critical', selThing.sensitive && 'sensitive'].filter(Boolean).join(', ')}</p>
+        {@const flags = [selThing.critical && 'critical', selThing.sensitive && 'sensitive'].filter(Boolean)}
+        {#if flags.length}
+          <p class="muted">{flags.join(', ')}</p>
         {/if}
         {#if selThing.note}<p>{selThing.note}</p>{/if}
         {#if selThing.todo}<p class="todo">todo: {selThing.todo}</p>{/if}
@@ -287,31 +300,76 @@
     border-bottom: 1px solid var(--border);
     background: var(--surface);
   }
-  .bar label { display: flex; align-items: center; gap: 5px; color: var(--muted); }
-  .bar select, .bar button {
+  .bar label {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--muted);
+  }
+  .bar select,
+  .bar button {
     padding: 3px 6px;
     border: 1px solid var(--border);
     border-radius: 5px;
     background: var(--bg);
   }
-  .bar button { cursor: pointer; }
-  .sep { flex: 0 0 1px; align-self: stretch; background: var(--border); }
-  .canvas { position: relative; min-width: 0; min-height: 0; border-right: 1px solid var(--border); }
-  .status { padding: 20px; color: var(--muted); white-space: pre-wrap; }
+  .bar button {
+    cursor: pointer;
+  }
+  .sep {
+    flex: 0 0 1px;
+    align-self: stretch;
+    background: var(--border);
+  }
+  .canvas {
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    border-right: 1px solid var(--border);
+  }
+  .status {
+    padding: 20px;
+    color: var(--muted);
+    white-space: pre-wrap;
+  }
   .side {
     overflow-y: auto;
     padding: 4px 14px 14px;
     background: var(--surface);
     line-height: 1.45;
   }
-  .side section { border-bottom: 1px solid var(--border); padding: 8px 0; }
-  .side h3 { margin: 4px 0; font-size: 13px; }
-  .side p { margin: 4px 0; }
-  .muted { color: var(--muted); font-weight: normal; }
-  .mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 11px; word-break: break-word; }
-  .todo { color: var(--maybe-stroke); }
-  .row { color: var(--bad-stroke); font-weight: 600; }
-  .actions { display: flex; gap: 6px; margin-top: 6px; }
+  .side section {
+    border-bottom: 1px solid var(--border);
+    padding: 8px 0;
+  }
+  .side h3 {
+    margin: 4px 0;
+    font-size: 13px;
+  }
+  .side p {
+    margin: 4px 0;
+  }
+  .muted {
+    color: var(--muted);
+    font-weight: normal;
+  }
+  .mono {
+    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+    font-size: 11px;
+    word-break: break-word;
+  }
+  .todo {
+    color: var(--maybe-stroke);
+  }
+  .row {
+    color: var(--bad-stroke);
+    font-weight: 600;
+  }
+  .actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 6px;
+  }
   .actions button {
     padding: 3px 8px;
     border: 1px solid var(--border);
@@ -319,13 +377,38 @@
     background: var(--bg);
     cursor: pointer;
   }
-  .legend .grid { display: grid; grid-template-columns: 48px 1fr; gap: 4px 6px; align-items: center; }
-  .legend line { stroke-width: 1.6; }
-  .lg-in { stroke: var(--e-in); }
-  .lg-access { stroke: var(--e-access); }
-  .lg-recovery { stroke: var(--e-recovery); stroke-dasharray: 6 4; }
-  .lg-needs { stroke: var(--e-needs); stroke-dasharray: 2 3; }
-  .lg-mirror { stroke: var(--e-mirror); stroke-dasharray: 8 3 2 3; }
-  .lg-part { stroke: var(--e-part); stroke-width: 1; }
-  .stats { font-size: 11px; }
+  .legend .grid {
+    display: grid;
+    grid-template-columns: 48px 1fr;
+    gap: 4px 6px;
+    align-items: center;
+  }
+  .legend line {
+    stroke-width: 1.6;
+  }
+  .lg-in {
+    stroke: var(--e-in);
+  }
+  .lg-access {
+    stroke: var(--e-access);
+  }
+  .lg-recovery {
+    stroke: var(--e-recovery);
+    stroke-dasharray: 6 4;
+  }
+  .lg-needs {
+    stroke: var(--e-needs);
+    stroke-dasharray: 2 3;
+  }
+  .lg-mirror {
+    stroke: var(--e-mirror);
+    stroke-dasharray: 8 3 2 3;
+  }
+  .lg-part {
+    stroke: var(--e-part);
+    stroke-width: 1;
+  }
+  .stats {
+    font-size: 11px;
+  }
 </style>

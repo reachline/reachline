@@ -33,7 +33,7 @@ export function diff(before: Model, after: Model, names: string[]): string[] {
       continue;
     }
     out.push(...header(after.scenario(name), name));
-    const rb: Map<string, Row> = before.scenarios.has(name) ? before.rows(name) : new Map();
+    const rb = before.scenarios.has(name) ? before.rows(name) : new Map<string, Row>();
     const ra = after.rows(name);
     const status = (rows: Map<string, Row>, t: string) => rows.get(t)?.[0] ?? 'ok';
     const changed = [...new Set([...rb.keys(), ...ra.keys()])].filter((t) => status(rb, t) !== status(ra, t));
@@ -52,16 +52,6 @@ function statusOf(m: Model, tid: string, best: Best): string {
   const e = best.get(tid);
   if (!e) return 'no';
   return e.a.length ? m.fmtUnknowns(e.a) : 'yes';
-}
-
-/** Of the options for one element, the reached one with fewest assumptions. */
-export function pick(options: readonly unknown[], best: Best): string | undefined {
-  let min: string | undefined;
-  for (const x of options) {
-    if (typeof x !== 'string' || x === '?' || !best.has(x)) continue;
-    if (min === undefined || best.get(x)!.a.length < best.get(min)!.a.length) min = x;
-  }
-  return min;
 }
 
 /** The path a scenario uses to reach target, or its ways in if it can't. */
@@ -87,11 +77,13 @@ export function explain(m: Model, name: string, target: string): string[] {
     out.push('  '.repeat(depth) + `${tid}  [${fmtWhy(why)}]${note}` + (seen.has(tid) ? '  (above)' : ''));
     if (seen.has(tid) || why.kind === 'start' || why.kind === 'state') return;
     seen.add(tid);
-    if (why.kind === 'in') return walk(why.via, depth + 1);
-    for (const e of why.via) {
-      const x = pick(Array.isArray(e) ? e : [e], best);
-      if (x !== undefined) walk(x, depth + 1);
-      else out.push('  '.repeat(depth + 1) + '?');
+    if (why.kind === 'in') {
+      walk(why.via, depth + 1);
+      return;
+    }
+    for (const x of why.uses) {
+      if (x === '?') out.push('  '.repeat(depth + 1) + '?');
+      else walk(x, depth + 1);
     }
   };
   walk(target, 0);
@@ -101,6 +93,7 @@ export function explain(m: Model, name: string, target: string): string[] {
 export function todo(m: Model): string[] {
   const out: string[] = [];
   for (const [tid, spec] of m.things) {
+    // eslint-disable-next-line @typescript-eslint/no-base-to-string -- free text, not validated yet
     if (spec.todo) out.push(`${tid}: ${String(spec.todo).split(/\s+/).filter(Boolean).join(' ')}`);
   }
   return out;

@@ -1,7 +1,7 @@
 // Mermaid flowcharts: where things live, every way into a thing, and the
 // paths a scenario uses.
-import { availability, refs, type AndSet, type Best, type Expr, type Model, type Section } from './model.ts';
-import { pick, what } from './report.ts';
+import { availability, leaves, refs, type AndSet, type Best, type Expr, type Model, type Section } from './model.ts';
+import { what } from './report.ts';
 
 const SHAPES: Record<Section, [string, string]> = {
   locations: ['(["', '"])'],
@@ -79,38 +79,43 @@ class Mermaid {
     if (!live) this.dead.add(i);
   }
 
+  /** A junction over items; it holds if any (OR) or every (AND) item does. */
+  join(label: 'AND' | 'OR', items: Expr[], part: (x: Expr) => [string, boolean]): [string, boolean] {
+    const j = this.junction(label);
+    const oks = items.map((x) => {
+      const [nid, ok] = part(x);
+      this.edge(nid, j, undefined, ok);
+      return ok;
+    });
+    return [j, label === 'OR' ? oks.some(Boolean) : oks.every(Boolean)];
+  }
+
   /** The node standing for one element of an access set, and whether it
    *  holds in the scenario (an unknown might, so it counts). */
   element(e: Expr): [string, boolean] {
     if (e === '?') return [this.junction('?', 'unknown'), true];
     if (typeof e === 'string') return [this.node(e), this.ok(e)];
-    const j = this.junction('OR');
-    const oks = e.map((x) => {
-      const [nid, ok] = this.element(x);
-      this.edge(nid, j, undefined, ok);
-      return ok;
-    });
-    return [j, oks.some(Boolean)];
+    return this.join('OR', e, (x) => this.option(x));
+  }
+
+  /** One option of an any-of: a list needs every one of its leaves. */
+  option(x: Expr): [string, boolean] {
+    return Array.isArray(x) ? this.join('AND', leaves(x), (l) => this.element(l)) : this.element(x);
   }
 
   accessSet(s: AndSet, target: string, arrow: string) {
     // A lone any-of set is just more alternatives into the target.
     if (s.length === 1 && Array.isArray(s[0])) {
       for (const x of s[0]) {
-        const [nid, ok] = this.element(x);
+        const [nid, ok] = this.option(x);
         this.edge(nid, target, arrow, ok);
       }
     } else if (s.length === 1) {
       const [nid, ok] = this.element(s[0]);
       this.edge(nid, target, arrow, ok);
     } else {
-      const j = this.junction('AND');
-      const oks = s.map((e) => {
-        const [nid, ok] = this.element(e);
-        this.edge(nid, j, undefined, ok);
-        return ok;
-      });
-      this.edge(j, target, arrow, oks.every(Boolean));
+      const [j, ok] = this.join('AND', s, (e) => this.element(e));
+      this.edge(j, target, arrow, ok);
     }
   }
 
@@ -158,7 +163,12 @@ export function mermaidWhere(m: Model): string {
  * With a scenario, nodes are colored by its reach and edges that can't carry
  * access in it are faded, so every way in that works stays solid.
  */
-export function mermaidWaysIn(m: Model, target: string, scenario: string | null = null, depth: number | null = null): string {
+export function mermaidWaysIn(
+  m: Model,
+  target: string,
+  scenario: string | null = null,
+  depth: number | null = null,
+): string {
   const run = scenario ? m.run(scenario) : null;
   const avail = run ? availability(m.things, new Set(run.sc.lost)) : null;
   const mm = new Mermaid(m, 'LR', run?.best ?? null);
@@ -205,9 +215,8 @@ export function mermaidScenario(m: Model, name: string): string {
       return;
     }
     const arrow = why.kind === 'access' ? '-->' : '-.->|recovery|';
-    const picks = why.via.map((e) => {
-      const x = pick(Array.isArray(e) ? e : [e], best);
-      if (x === undefined) return mm.junction('?', 'unknown');
+    const picks = why.uses.map((x) => {
+      if (x === '?') return mm.junction('?', 'unknown');
       walk(x);
       return x;
     });

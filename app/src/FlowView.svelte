@@ -45,9 +45,15 @@
       type: 'routed',
       selectable: false,
       data: { kind: e.kind, live: e.live, points: placed.edges.get(e.id) ?? [], routing: placed.routing },
-      markerEnd: e.kind === 'part'
-        ? undefined
-        : { type: MarkerType.ArrowClosed, width: 14, height: 14, color: e.live ? `var(--e-${e.kind})` : 'var(--e-dead)' },
+      markerEnd:
+        e.kind === 'part'
+          ? undefined
+          : {
+              type: MarkerType.ArrowClosed,
+              width: 14,
+              height: 14,
+              color: e.live ? `var(--e-${e.kind})` : 'var(--e-dead)',
+            },
     }));
   });
 </script>
@@ -71,7 +77,15 @@
 </div>
 
 <style>
-  .pane { position: relative; width: 100%; height: 100%; }
-  .pane :global(.svelte-flow) { --xy-background-color: var(--bg); }
-  .pane :global(.svelte-flow__node) { transition: transform 300ms ease; }
+  .pane {
+    position: relative;
+    width: 100%;
+    height: 100%;
+  }
+  .pane :global(.svelte-flow) {
+    --xy-background-color: var(--bg);
+  }
+  .pane :global(.svelte-flow__node) {
+    transition: transform 300ms ease;
+  }
 </style>

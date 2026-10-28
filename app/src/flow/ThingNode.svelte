@@ -3,7 +3,11 @@
   import type { VNode } from '../build';
   import { shapePath } from '../shapes';
 
-  type Data = { node: VNode; vertical: boolean; selected: boolean };
+  interface Data {
+    node: VNode;
+    vertical: boolean;
+    selected: boolean;
+  }
   let { data, width = 0, height = 0 }: NodeProps & { data: Data } = $props();
   const n = $derived(data.node);
 </script>
@@ -37,39 +41,103 @@
     --stroke: var(--accent);
     --sw: 1.5px;
   }
-  svg { position: absolute; inset: 0; overflow: visible; }
-  path { fill: var(--fill); stroke: var(--stroke); stroke-width: var(--sw); }
-  .label { position: relative; white-space: nowrap; }
+  svg {
+    position: absolute;
+    inset: 0;
+    overflow: visible;
+  }
+  path {
+    fill: var(--fill);
+    stroke: var(--stroke);
+    stroke-width: var(--sw);
+  }
+  .label {
+    position: relative;
+    white-space: nowrap;
+  }
   .mark {
     position: absolute;
     right: 7px;
     font-weight: 700;
     line-height: 1;
   }
-  .sec-accounts .mark { right: 12px; }
-  .more { color: var(--muted); }
+  .sec-accounts .mark {
+    right: 12px;
+  }
+  .more {
+    color: var(--muted);
+  }
   /* Edges come from ELK, so the handles only anchor them. */
-  :global(.svelte-flow__handle) { opacity: 0; pointer-events: none; }
-  .row { color: var(--bad-stroke); }
+  :global(.svelte-flow__handle) {
+    opacity: 0;
+    pointer-events: none;
+  }
+  .row {
+    color: var(--bad-stroke);
+  }
 
-  .sec-locations { --accent: var(--s-locations); }
-  .sec-devices { --accent: var(--s-devices); }
-  .sec-states { --accent: var(--s-states); padding-left: 16px; }
-  .sec-secrets { --accent: var(--s-secrets); }
-  .sec-services { --accent: var(--s-services); padding-left: 14px; }
-  .sec-data { --accent: var(--s-data); }
-  .sec-accounts { --accent: var(--s-accounts); padding-left: 14px; }
+  .sec-locations {
+    --accent: var(--s-locations);
+  }
+  .sec-devices {
+    --accent: var(--s-devices);
+  }
+  .sec-states {
+    --accent: var(--s-states);
+    padding-left: 16px;
+  }
+  .sec-secrets {
+    --accent: var(--s-secrets);
+  }
+  .sec-services {
+    --accent: var(--s-services);
+    padding-left: 14px;
+  }
+  .sec-data {
+    --accent: var(--s-data);
+  }
+  .sec-accounts {
+    --accent: var(--s-accounts);
+    padding-left: 14px;
+  }
 
-  .st-has { --fill: var(--good-fill); }
-  :global(.kind-breach) .st-has { --fill: var(--bad-fill); }
-  .st-maybe { --fill: var(--maybe-fill); }
-  .st-lost { --fill: var(--bad-fill); --stroke: var(--bad-stroke); --sw: 2.5px; }
-  .st-gone { --fill: var(--gone-fill); --stroke: var(--gone-stroke); color: var(--gone-text); }
-  .st-gone path { stroke-dasharray: 4 3; }
-  .st-start { --fill: var(--start-fill); --stroke: var(--start-stroke); color: var(--start-text); }
-  .root { --sw: 3px; }
-  .sel svg { filter: drop-shadow(0 0 3px var(--focus)) drop-shadow(0 0 1px var(--focus)); }
+  .st-has {
+    --fill: var(--good-fill);
+  }
+  :global(.kind-breach) .st-has {
+    --fill: var(--bad-fill);
+  }
+  .st-maybe {
+    --fill: var(--maybe-fill);
+  }
+  .st-lost {
+    --fill: var(--bad-fill);
+    --stroke: var(--bad-stroke);
+    --sw: 2.5px;
+  }
+  .st-gone {
+    --fill: var(--gone-fill);
+    --stroke: var(--gone-stroke);
+    color: var(--gone-text);
+  }
+  .st-gone path {
+    stroke-dasharray: 4 3;
+  }
+  .st-start {
+    --fill: var(--start-fill);
+    --stroke: var(--start-stroke);
+    color: var(--start-text);
+  }
+  .root {
+    --sw: 3px;
+  }
+  .sel svg {
+    filter: drop-shadow(0 0 3px var(--focus)) drop-shadow(0 0 1px var(--focus));
+  }
   @keyframes appear {
-    from { opacity: 0; transform: scale(0.85); }
+    from {
+      opacity: 0;
+      transform: scale(0.85);
+    }
   }
 </style>

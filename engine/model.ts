@@ -43,7 +43,8 @@ export type Why =
   | { kind: 'start' }
   | { kind: 'state' }
   | { kind: 'in'; via: string }
-  | { kind: 'access' | 'recovery'; via: AndSet };
+  // uses: what the path takes from the set, one option per any-of ("?" for an unknown).
+  | { kind: 'access' | 'recovery'; via: AndSet; uses: string[] };
 
 export interface Entry {
   a: Assumptions;
@@ -79,7 +80,7 @@ export function load(sources: Source[]): { things: Map<string, Spec>; scenarios:
     }
     if (!isMap(doc)) throw new ReachError(`${path}: expected a mapping at the top level`);
     if ('version' in doc && doc.version !== VERSION) {
-      throw new ReachError(`${path}: format version ${doc.version} (this engine reads version ${VERSION})`);
+      throw new ReachError(`${path}: format version ${String(doc.version)} (this engine reads version ${VERSION})`);
     }
     const seen = new Set<string>();
     for (const section of SECTIONS) {
@@ -122,6 +123,7 @@ function normalize(tid: string, raw: Raw): Spec {
       throw new ReachError(`${tid}: each ${key} entry must be a list (an AND-set)`);
     }
   }
+  // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- any falsy value means none
   spec.mirrors = spec.mirrors || null;
   return spec as Spec;
 }
@@ -131,6 +133,9 @@ export function* refs(expr: Expr | AndSet[]): Generator<string> {
   else if (expr !== '?') yield expr;
 }
 
+/** Every id and "?" in an expression. A list inside an any-of needs all of these. */
+export const leaves = (e: Expr): string[] => (Array.isArray(e) ? e.flatMap(leaves) : [e]);
+
 function validate(things: Map<string, Spec>, scenarios: Map<string, Scenario>, me: string[]) {
   const bad: [string, string][] = [];
   for (const [tid, spec] of things) {
@@ -138,7 +143,7 @@ function validate(things: Map<string, Spec>, scenarios: Map<string, Scenario>, m
       for (const r of refs(spec[key])) if (!things.has(r)) bad.push([tid, r]);
     }
     if (spec.mirrors) {
-      for (const r of [spec.mirrors.of, spec.mirrors.by]) if (!things.has(r)) bad.push([tid, String(r)]);
+      for (const r of [spec.mirrors.of, spec.mirrors.by]) if (!things.has(r)) bad.push([tid, r]);
     }
   }
   for (const [name, sc] of scenarios) {
@@ -178,36 +183,34 @@ function union(...sets: Assumptions[]): Assumptions {
   return [...new Set(sets.flat())].sort();
 }
 
-/** Unknowns an access element or set relies on, or null if unreachable. */
-function assumptions(expr: Expr, best: Best, owner: string): Assumptions | null {
-  if (expr === '?') return [owner];
-  if (typeof expr === 'string') return best.get(expr)?.a ?? null;
-  const options = expr.map((e) => assumptions(e, best, owner));
-  return options.some((o) => o === null) ? null : union(...(options as Assumptions[]));
+interface Use {
+  a: Assumptions;
+  uses: string[];
 }
 
-function anyOf(expr: Expr, best: Best, owner: string): Assumptions | null {
-  if (!Array.isArray(expr)) return assumptions(expr, best, owner);
-  let min: Assumptions | null = null;
-  for (const e of expr) {
-    const a = assumptions(e, best, owner);
-    if (a !== null && (min === null || a.length < min.length)) min = a;
+/** What one element of an access set relies on and uses, or null if it can't
+ *  be reached. An any-of takes the option with the fewest assumptions, the
+ *  first listed on a tie. */
+function element(e: Expr, best: Best, owner: string): Use | null {
+  const all = (ids: string[]): Use | null => {
+    const as: Assumptions[] = [];
+    for (const id of ids) {
+      const a = id === '?' ? [owner] : best.get(id)?.a;
+      if (!a) return null;
+      as.push(a);
+    }
+    return { a: union(...as), uses: ids };
+  };
+  if (!Array.isArray(e)) return all([e]);
+  let min: Use | null = null;
+  for (const option of e) {
+    const u = all(leaves(option));
+    if (u && (!min || u.a.length < min.a.length)) min = u;
   }
   return min;
 }
 
 const KIND_ORDER = { start: 0, state: 0, in: 1, access: 2, recovery: 3 };
-
-/** Python's repr(): the last tie-break compares it, as the Python original did. */
-function pyRepr(v: unknown): string {
-  if (Array.isArray(v)) return `[${v.map(pyRepr).join(', ')}]`;
-  const s = String(v).replace(/\\/g, '\\\\');
-  return s.includes("'") && !s.includes('"') ? `"${s}"` : `'${s.replace(/'/g, "\\'")}'`;
-}
-
-function reprWhy(w: Why): string {
-  return 'via' in w ? `(${pyRepr(w.kind)}, ${pyRepr(w.via)})` : `(${pyRepr(w.kind)},)`;
-}
 
 function cmpStrings(a: readonly string[], b: readonly string[]): number {
   for (let i = 0; i < Math.min(a.length, b.length); i++) if (a[i] !== b[i]) return a[i] < b[i] ? -1 : 1;
@@ -216,13 +219,12 @@ function cmpStrings(a: readonly string[], b: readonly string[]): number {
 
 /** Fewest unknowns wins; on a tie, prefer in > access > recovery. */
 function cmpEntry(x: Entry, y: Entry): number {
-  return (
-    x.a.length - y.a.length ||
-    KIND_ORDER[x.why.kind] - KIND_ORDER[y.why.kind] ||
-    cmpStrings(x.a, y.a) ||
-    cmpStrings([reprWhy(x.why)], [reprWhy(y.why)])
-  );
+  return x.a.length - y.a.length || KIND_ORDER[x.why.kind] - KIND_ORDER[y.why.kind] || cmpStrings(x.a, y.a);
 }
+
+/** The best entry, the first listed on a tie. */
+const bestOf = (cands: Entry[]): Entry | undefined =>
+  cands.length ? cands.reduce((m, c) => (cmpEntry(c, m) < 0 ? c : m)) : undefined;
 
 function sameEntry(x: Entry, y: Entry): boolean {
   return (
@@ -235,13 +237,63 @@ function sameEntry(x: Entry, y: Entry): boolean {
 const START: Why = { kind: 'start' };
 const STATE: Why = { kind: 'state' };
 
+/** Each way into tid that `best` reaches, in the order the model lists them. */
+function candidates(tid: string, spec: Spec, best: Best): Entry[] {
+  const cands: Entry[] = [];
+  for (const c of spec.in) {
+    const e = best.get(c);
+    if (e) cands.push({ a: e.a, why: { kind: 'in', via: c } });
+  }
+  for (const kind of ['access', 'recovery'] as const) {
+    const owner = kind === 'access' ? tid : `${tid}.recovery`;
+    for (const s of spec[kind]) {
+      const parts = s.map((e) => element(e, best, owner));
+      if (!parts.every((p) => p !== null)) continue;
+      const uses = [...new Set(parts.flatMap((p) => p.uses))];
+      cands.push({ a: union(...parts.map((p) => p.a)), why: { kind, via: s, uses } });
+    }
+  }
+  return cands;
+}
+
+/**
+ * The fixpoint gets the assumptions right, but on a tie it can keep paths
+ * that hold each other up: mail by recovery through phone_number,
+ * phone_number through carrier, carrier by recovery through mail. So place
+ * the paths outward from the start, and when only such a loop is left, let
+ * the first thing in it with another way in, through what's placed and
+ * relying on the same assumptions, take that way instead.
+ */
+function ground(things: Map<string, Spec>, best: Best, seed: Best): Best {
+  const out: Best = new Map(seed);
+  const deps = (w: Why) => (w.kind === 'in' ? [w.via] : w.kind === 'start' || w.kind === 'state' ? [] : w.uses);
+  const placed = (e: Entry) => deps(e.why).every((d) => d === '?' || out.has(d));
+  for (;;) {
+    const ready = [...best].filter(([tid, e]) => !out.has(tid) && placed(e));
+    for (const [tid, e] of ready) out.set(tid, e);
+    if (ready.length) continue;
+    const freed = [...best].some(([tid, { a }]) => {
+      const e = out.has(tid)
+        ? undefined
+        : bestOf(candidates(tid, things.get(tid)!, out).filter((c) => cmpStrings(c.a, a) === 0));
+      if (e) out.set(tid, e);
+      return e !== undefined;
+    });
+    if (!freed) break;
+  }
+  // If the greedy any-of choices ever leave something unplaced, it keeps the
+  // fixpoint's path; display code guards against loops.
+  for (const [tid, e] of best) if (!out.has(tid)) out.set(tid, e);
+  return out;
+}
+
 /** Everything reachable from start: id -> (assumptions relied on, why). */
 export function reach(
   things: Map<string, Spec>,
   start: Iterable<string>,
   lost: Set<string>,
-  assume: Set<string> = new Set(),
-  deny: Set<string> = new Set(),
+  assume = new Set<string>(),
+  deny = new Set<string>(),
 ): Best {
   const avail = availability(things, lost);
   const seed: Best = new Map();
@@ -259,24 +311,14 @@ export function reach(
     const nxt: Best = new Map(seed);
     for (const [tid, spec] of things) {
       if (!avail.get(tid) || seed.has(tid)) continue;
-      const cands: Entry[] = [];
-      for (const c of spec.in) {
-        const e = best.get(c);
-        if (e) cands.push({ a: e.a, why: { kind: 'in', via: c } });
-      }
-      for (const kind of ['access', 'recovery'] as const) {
-        const owner = kind === 'access' ? tid : `${tid}.recovery`;
-        for (const s of spec[kind]) {
-          const parts = s.map((e) => anyOf(e, best, owner));
-          if (parts.every((p) => p !== null)) cands.push({ a: union(...(parts as Assumptions[])), why: { kind, via: s } });
-        }
-      }
-      if (cands.length) nxt.set(tid, cands.reduce((m, c) => (cmpEntry(c, m) < 0 ? c : m)));
+      const e = bestOf(candidates(tid, spec, best));
+      if (e) nxt.set(tid, e);
     }
-    if (nxt.size === best.size && [...nxt].every(([k, e]) => best.has(k) && sameEntry(e, best.get(k)!))) break;
-    best = nxt;
+    const done = nxt.size === best.size && [...nxt].every(([k, e]) => best.has(k) && sameEntry(e, best.get(k)!));
+    best = nxt; // on the last pass, its any-of choices come from the final assumptions
+    if (done) break;
   }
-  return best;
+  return ground(things, best, seed);
 }
 
 /** Lower is more reachable: 0 outright, n assumptions, Infinity not at all. */
@@ -333,13 +375,25 @@ export class Model {
     return new Map(
       free.map((s) => [
         s,
-        reach(this.things, this.start(sc), lost, new Set([...assume, s]), new Set([...deny, ...free.filter((f) => f !== s)])),
+        reach(
+          this.things,
+          this.start(sc),
+          lost,
+          new Set([...assume, s]),
+          new Set([...deny, ...free.filter((f) => f !== s)]),
+        ),
       ]),
     );
   }
 
   fmtUnknowns(a: Assumptions): string {
-    return 'if ' + [...a].sort().map((x) => (this.states.has(x) ? `${x} (state)` : `${x} (?)`)).join(', ');
+    return (
+      'if ' +
+      [...a]
+        .sort()
+        .map((x) => (this.states.has(x) ? `${x} (state)` : `${x} (?)`))
+        .join(', ')
+    );
   }
 
   verdict(a: Assumptions, outright: string): string {
@@ -375,7 +429,10 @@ export class Model {
         // An unsure path only counts if it's not the same guess an attacker
         // with nothing would be making.
         const b = base!.get(t);
-        if (r === Infinity || (r > 0 && (r > rank(t, base!) || (b !== undefined && cmpStrings(best.get(t)!.a, b.a) === 0)))) {
+        if (
+          r === Infinity ||
+          (r > 0 && (r > rank(t, base!) || (b !== undefined && cmpStrings(best.get(t)!.a, b.a) === 0)))
+        ) {
           continue;
         }
         const { a, why } = best.get(t)!;
@@ -386,11 +443,9 @@ export class Model {
   }
 }
 
-/** Python's str() of an element, as the Python original printed it. */
-const pyStr = (e: Expr): string => (Array.isArray(e) ? pyRepr(e) : e);
-
 export function fmtSet(s: AndSet): string {
-  return s.map((e) => (Array.isArray(e) ? '(' + e.map(pyStr).join(' | ') + ')' : e)).join(' + ');
+  const option = (o: Expr) => (Array.isArray(o) ? '(' + leaves(o).join(' + ') + ')' : o);
+  return s.map((e) => (Array.isArray(e) ? '(' + e.map(option).join(' | ') + ')' : e)).join(' + ');
 }
 
 export function fmtWhy(why: Why): string {

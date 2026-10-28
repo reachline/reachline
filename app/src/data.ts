@@ -18,7 +18,8 @@ const DIRS = {
 
 /** Which model the page shows: the personal one if it exists. */
 export const SOURCE: keyof typeof DIRS =
-  new URLSearchParams(globalThis.location?.search).get('model') === 'example' || !Object.keys(DIRS.data.model).length
+  new URLSearchParams(import.meta.env.SSR ? '' : location.search).get('model') === 'example' ||
+  !Object.keys(DIRS.data.model).length
     ? 'example'
     : 'data';
 const { model: modelFiles, plans: planTexts } = DIRS[SOURCE];

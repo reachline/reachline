@@ -58,13 +58,17 @@ const EXAMPLE_MODEL = join(ROOT, 'examples', 'model.yml');
 const resolve = (path: string, dir: string) => (existsSync(path) || isAbsolute(path) ? path : join(dir, path));
 
 function open(paths: string[]): Model {
-  return new Model(paths.map((path) => {
-    try {
-      return { path, text: readFileSync(path, 'utf8') };
-    } catch (e) {
-      throw new ReachError(`${path}: ${(e as NodeJS.ErrnoException).code === 'ENOENT' ? 'no such file' : (e as Error).message}`);
-    }
-  }));
+  return new Model(
+    paths.map((path) => {
+      try {
+        return { path, text: readFileSync(path, 'utf8') };
+      } catch (e) {
+        throw new ReachError(
+          `${path}: ${(e as NodeJS.ErrnoException).code === 'ENOENT' ? 'no such file' : (e as Error).message}`,
+        );
+      }
+    }),
+  );
 }
 
 /** Remove `flag value` from argv and return the value. */
@@ -77,7 +81,11 @@ function take(argv: string[], flag: string): string | undefined {
 
 function mermaid(m: Model, what: string, opts: Map<string, string>, plans: string[]): string {
   if (what === 'where') return mermaidWhere(m);
-  if (what === 'all') return mermaidAll(m, plans.map((p) => basename(p)));
+  if (what === 'all')
+    return mermaidAll(
+      m,
+      plans.map((p) => basename(p)),
+    );
   if (m.scenarios.has(what)) return mermaidScenario(m, what);
   if (m.things.has(what)) {
     const depth = opts.get('--depth') ?? '2';
@@ -94,7 +102,7 @@ function main(argv: string[]): string[] {
     if (model === EXAMPLE_MODEL) process.stderr.write('no data/model.yml; using examples/model.yml\n');
   }
   const plans: string[] = [];
-  for (let p; (p = take(argv, '--plan')) !== undefined; ) plans.push(resolve(p, dirname(model)));
+  for (let p; (p = take(argv, '--plan')) !== undefined;) plans.push(resolve(p, dirname(model)));
   const opts = new Map<string, string>();
   for (const flag of ['--mermaid', '--scenario', '--depth']) {
     const v = take(argv, flag);
