@@ -5,8 +5,11 @@
   "packageManager": "pnpm@12.15.0",
   "scripts": {
     "prepare": "git config core.hooksPath .githooks || true",
-    "dev": "pnpm --filter reachline-ui dev",
+    "dev": "pnpm -r --parallel dev",
+    "dev:reset": "node server/dev-reset.ts",
     "build": "pnpm --filter reachline-ui build",
+    "start": "node --env-file-if-exists=.env server/main.ts",
+    "reset-password": "node --env-file-if-exists=.env server/reset-password.ts",
     "check": "tsc -p . && pnpm --filter reachline-ui check",
     "lint": "eslint .",
     "format": "prettier --write .",

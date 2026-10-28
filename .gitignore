@@ -41,6 +41,7 @@ Thumbs.db
 
 # Local data
 data/
+.dev/
 app/dist/
 
 # AI agents
