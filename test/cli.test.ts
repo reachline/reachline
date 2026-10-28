@@ -36,14 +36,14 @@ test('every form runs on the example', () => {
   ok('thief_carried', 'mail');
   ok('nas_dies', 'documents'); // a thing the scenario can't reach
   ok('--todo');
-  ok('--plan', 'plans/spare-key.yml', '--plan', 'plans/backup.yml');
-  ok('--plan', 'plans/spare-key.yml', 'keys_lost');
+  ok('--plan', 'spare_key', '--plan', 'backup');
+  ok('--plan', 'spare_key', 'keys_lost');
   for (const what of ['where', 'all', 'burglary', 'mail']) ok('--mermaid', what);
   ok('--mermaid', 'mail', '--scenario', 'house_fire', '--depth', 'all');
 });
 
 test('a plan shows only what it changes', () => {
-  const out = ok('--plan', 'plans/spare-key.yml', 'house_fire');
+  const out = ok('--plan', 'spare_key', 'house_fire');
   assert.match(out, /→/);
 });
 
@@ -51,7 +51,7 @@ test('errors exit 1 with a message and no output', () => {
   const m = ['--model', EXAMPLE];
   fails([...m, 'no_such_scenario'], /no_such_scenario/);
   fails([...m, 'house_fire', 'no_such_thing'], /no_such_thing/);
-  fails([...m, '--plan', 'no_such_plan.yml'], /no_such_plan\.yml: no such file/);
+  fails([...m, '--plan', 'no_such_plan'], /no_such_plan/);
   fails([...m, '--mermaid', 'nothing'], /nothing/);
   fails([...m, '--mermaid', 'mail', '--depth', 'deep'], /--depth/);
   fails([...m, '--mermaid'], /--mermaid needs a value/);
@@ -68,6 +68,7 @@ test('a broken model exits 1 and says where', () => {
   fails(['--model', write('syntax.yml', 'devices: [unclosed\n')], /syntax\.yml/);
   fails(['--model', write('list.yml', '- a\n')], /list\.yml: expected a mapping/);
   fails(['--model', write('version.yml', 'version: 2\n')], /version 2/);
-  fails(['--model', write('refs.yml', 'devices: {a: {in: [nowhere]}}\n')], /nowhere/);
-  fails(['--model', write('baseline.yml', 'devices: {a: {}}\n')], /baseline/);
+  fails(['--model', write('refs.yml', 'things: {a: {kind: device, in: [nowhere]}}\n')], /nowhere/);
+  fails(['--model', write('baseline.yml', 'things: {a: {kind: device}}\n')], /baseline/);
+  fails(['--model', write('sections.yml', 'devices: {a: {}}\n')], /devices/);
 });

@@ -10,10 +10,10 @@ ReachLine maps everything that grants access in your digital life, and how it fl
 You describe your setup in a hand-written YAML file:
 
 ```yaml
-accounts:
+things:
   mail:
-    critical: true      # lockout scenarios check you can still reach it
-    sensitive: true     # breach scenarios check an attacker can't
+    kind: account                 # or location, device, secret, service, data, state
+    tags: [critical, sensitive]   # lockouts check you keep it; breaches, that attackers can't reach it
     access: [[mail_pw, [mail_totp, hw_key]]]   # password AND (TOTP OR key)
     recovery: [[mail_codes], [phone_number]]   # recovery codes, OR an SMS reset
 
@@ -23,7 +23,7 @@ scenarios:
     attacker: [carrier]
 ```
 
-ReachLine follows every path, recovery included, and gives each critical or sensitive thing a verdict: **LOST**, **REACHED**, **UNSURE** (the path relies on something marked `?` because you don't know it) or **DEPENDS** (it relies on a condition of the moment, such as an app being unlocked). It also shows the graph of why. **Plans** are overlays that answer "what changes if I do this?", such as adding a spare security key or replacing a sync with a backup, as a before/after for every scenario.
+ReachLine follows every path, recovery included, and gives each critical or sensitive thing a verdict: **LOST**, **REACHED**, **UNSURE** (the path relies on something marked `?` because you don't know it) or **DEPENDS** (it relies on a condition of the moment, such as an app being unlocked). It also shows the graph of why. **Plans** are overlays that answer "what changes if I do this?", such as adding a spare security key or replacing a sync with a backup, as a before/after for every scenario. They live in the same file, under `plans:`.
 
 ReachLine runs entirely on your machine. Your model is a map of your weak points, so it never leaves your computer: the web UI binds only to `127.0.0.1`, and your data stays in plain files that you version yourself.
 
@@ -48,13 +48,13 @@ The repository ships with a synthetic example model in `examples/`. Without a mo
 ./reach.ts house_fire               # one scenario
 ./reach.ts thief_carried mail       # how a scenario reaches one thing
 ./reach.ts --todo                   # open questions in the model
-./reach.ts --plan plans/spare-key.yml                 # before/after a plan
+./reach.ts --plan spare_key                           # before/after a plan
 ./reach.ts --mermaid mail --scenario house_fire       # a Mermaid chart
 
 pnpm dev                            # web UI at http://127.0.0.1:5199
 ```
 
-To model your own setup, create `data/model.yml`, with plans in `data/plans/`. Use `examples/model.yml` as a starting point: its header documents every field. `data/` is gitignored, and once it exists, ReachLine uses it in place of the example. Pass `--model examples/model.yml` on the command line, or open the UI with `?model=example`, to see the example again. See the top of `reach.ts` for every command-line option, and `app/README.md` for the UI's URL parameters.
+To model your own setup, create `data/model.yml`. Use `examples/model.yml` as a starting point: its header documents every field. `data/` is gitignored, and once it exists, ReachLine uses it in place of the example. Pass `--model examples/model.yml` on the command line, or open the UI with `?model=example`, to see the example again. See the top of `reach.ts` for every command-line option, and `app/README.md` for the UI's URL parameters.
 
 ### Checking
 

@@ -13,7 +13,7 @@
 </script>
 
 <div
-  class="thing sec-{n.kind} st-{n.status ?? 'plain'}"
+  class="thing k-{n.kind} st-{n.status ?? 'plain'}"
   class:root={n.root}
   class:sel={data.selected}
   title={n.row ?? ''}
@@ -61,7 +61,7 @@
     font-weight: 700;
     line-height: 1;
   }
-  .sec-accounts .mark {
+  .k-account .mark {
     right: 12px;
   }
   .more {
@@ -76,28 +76,28 @@
     color: var(--bad-stroke);
   }
 
-  .sec-locations {
-    --accent: var(--s-locations);
+  .k-location {
+    --accent: var(--k-location);
   }
-  .sec-devices {
-    --accent: var(--s-devices);
+  .k-device {
+    --accent: var(--k-device);
   }
-  .sec-states {
-    --accent: var(--s-states);
+  .k-state {
+    --accent: var(--k-state);
     padding-left: 16px;
   }
-  .sec-secrets {
-    --accent: var(--s-secrets);
+  .k-secret {
+    --accent: var(--k-secret);
   }
-  .sec-services {
-    --accent: var(--s-services);
+  .k-service {
+    --accent: var(--k-service);
     padding-left: 14px;
   }
-  .sec-data {
-    --accent: var(--s-data);
+  .k-data {
+    --accent: var(--k-data);
   }
-  .sec-accounts {
-    --accent: var(--s-accounts);
+  .k-account {
+    --accent: var(--k-account);
     padding-left: 14px;
   }
 

@@ -2,8 +2,13 @@
 // touches the filesystem, so it runs in the browser as well as the CLI.
 import { parse } from 'yaml';
 
-export const SECTIONS = ['locations', 'devices', 'states', 'secrets', 'services', 'data', 'accounts'] as const;
-export type Section = (typeof SECTIONS)[number];
+/** What a thing is. Only `state` changes how the engine treats it. */
+export const KINDS = ['location', 'device', 'state', 'secret', 'service', 'data', 'account'] as const;
+export type Kind = (typeof KINDS)[number];
+
+/** Closed, so a misspelled tag can't silently drop a thing from every check. */
+export const TAGS = ['critical', 'sensitive'] as const;
+export type Tag = (typeof TAGS)[number];
 
 /** The format version a file may declare with a top-level `version:` (optional). */
 export const VERSION = 1;
@@ -13,7 +18,8 @@ export type Expr = string | Expr[];
 export type AndSet = Expr[];
 
 export interface Spec {
-  section: Section;
+  kind: Kind;
+  tags: Tag[];
   in: string[];
   needs: string[];
   access: AndSet[];
@@ -21,8 +27,6 @@ export interface Spec {
   mirrors: { of: string; by: string } | null;
   note?: unknown;
   todo?: unknown;
-  critical?: unknown;
-  sensitive?: unknown;
   [field: string]: unknown;
 }
 
@@ -66,39 +70,58 @@ type Raw = Record<string, unknown>;
 const isMap = (v: unknown): v is Raw => typeof v === 'object' && v !== null && !Array.isArray(v);
 const entries = (v: unknown): [string, unknown][] => (isMap(v) ? Object.entries(v) : []);
 
-/** Load model.yml and any plans, in order. Plans replace whole fields. */
-export function load(sources: Source[]): { things: Map<string, Spec>; scenarios: Map<string, Scenario>; me: string[] } {
+const KEYS = { model: ['version', 'things', 'scenarios', 'me', 'plans'], plan: ['note', 'things', 'scenarios', 'me'] };
+
+function checkKeys(layer: Raw, allowed: string[], where: string) {
+  for (const key of Object.keys(layer)) {
+    if (!allowed.includes(key)) throw new ReachError(`${where}: unknown key: ${key} (expected ${allowed.join(', ')})`);
+  }
+}
+
+/** Load a model with the named plans applied in order. Plans replace whole fields. */
+export function load(
+  { path, text }: Source,
+  plans: string[] = [],
+): { things: Map<string, Spec>; scenarios: Map<string, Scenario>; me: string[] } {
+  let doc: unknown;
+  try {
+    doc = parse(text) ?? {};
+  } catch (e) {
+    throw new ReachError(`${path}: ${(e as Error).message}`);
+  }
+  if (!isMap(doc)) throw new ReachError(`${path}: expected a mapping at the top level`);
+  checkKeys(doc, KEYS.model, path);
+  if ('version' in doc && doc.version !== VERSION) {
+    throw new ReachError(`${path}: format version ${String(doc.version)} (this engine reads version ${VERSION})`);
+  }
+  const layers: [Raw, string][] = [[doc, path]];
+  const named = new Map(entries(doc.plans));
+  for (const name of plans) {
+    const plan = named.get(name);
+    if (!named.has(name)) {
+      const have = [...named.keys()].join(', ') || 'none';
+      throw new ReachError(`unknown plan: ${name} (have ${have})`);
+    }
+    if (!isMap(plan)) throw new ReachError(`${path}: plan ${name}: expected a mapping`);
+    checkKeys(plan, KEYS.plan, `${path}: plan ${name}`);
+    layers.push([plan, `${path}: plan ${name}`]);
+  }
+
   const raw = new Map<string, Raw>();
   const scenarios = new Map<string, Scenario>();
   let me: unknown = null;
-  sources.forEach(({ path, text }, i) => {
-    let doc: unknown;
-    try {
-      doc = parse(text, { uniqueKeys: false }) ?? {}; // like PyYAML: a repeated key overrides
-    } catch (e) {
-      throw new ReachError(`${path}: ${(e as Error).message}`);
+  layers.forEach(([layer, where], i) => {
+    for (const [tid, spec] of entries(layer.things)) {
+      if (spec !== null && !isMap(spec)) throw new ReachError(`${where}: ${tid}: expected a mapping`);
+      if (i && spec === null) raw.delete(tid);
+      else raw.set(tid, { ...raw.get(tid), ...spec });
     }
-    if (!isMap(doc)) throw new ReachError(`${path}: expected a mapping at the top level`);
-    if ('version' in doc && doc.version !== VERSION) {
-      throw new ReachError(`${path}: format version ${String(doc.version)} (this engine reads version ${VERSION})`);
-    }
-    const seen = new Set<string>();
-    for (const section of SECTIONS) {
-      for (const [tid, spec] of entries(doc[section])) {
-        if (seen.has(tid)) throw new ReachError(`${path}: duplicate id: ${tid}`);
-        seen.add(tid);
-        if (spec !== null && !isMap(spec)) throw new ReachError(`${path}: ${tid}: expected a mapping`);
-        if (i && spec === null) raw.delete(tid);
-        else if (i && raw.has(tid)) raw.set(tid, { ...raw.get(tid), ...spec });
-        else raw.set(tid, { ...(spec ?? {}), section });
-      }
-    }
-    for (const [name, sc] of entries(doc.scenarios)) {
+    for (const [name, sc] of entries(layer.scenarios)) {
       if (sc === null) scenarios.delete(name);
       else if (isMap(sc)) scenarios.set(name, { ...scenarios.get(name), ...sc } as Scenario);
-      else throw new ReachError(`${path}: scenario ${name}: expected a mapping`);
+      else throw new ReachError(`${where}: scenario ${name}: expected a mapping`);
     }
-    if ('me' in doc) me = doc.me;
+    if ('me' in layer) me = layer.me;
   });
   const things = new Map([...raw].map(([tid, spec]) => [tid, normalize(tid, spec)]));
   const meList = Array.isArray(me) ? me.map(String) : [];
@@ -106,8 +129,20 @@ export function load(sources: Source[]): { things: Map<string, Spec>; scenarios:
   return { things, scenarios, me: meList };
 }
 
+const oneOf = (v: unknown, set: readonly string[]) => typeof v === 'string' && set.includes(v);
+
 function normalize(tid: string, raw: Raw): Spec {
   const spec: Raw = { ...raw };
+  if (spec.kind === undefined) throw new ReachError(`${tid}: kind is required (one of ${KINDS.join(', ')})`);
+  if (!oneOf(spec.kind, KINDS)) {
+    throw new ReachError(`${tid}: unknown kind: ${JSON.stringify(spec.kind)} (expected one of ${KINDS.join(', ')})`);
+  }
+  spec.tags ??= [];
+  if (!Array.isArray(spec.tags)) throw new ReachError(`${tid}: tags must be a list`);
+  for (const tag of spec.tags as unknown[]) {
+    if (!oneOf(tag, TAGS))
+      throw new ReachError(`${tid}: unknown tag: ${JSON.stringify(tag)} (expected ${TAGS.join(' or ')})`);
+  }
   // in: "?" means an unknown home: reachable only by assuming it.
   if (spec.in === '?') {
     spec.in = [];
@@ -149,7 +184,7 @@ function validate(things: Map<string, Spec>, scenarios: Map<string, Scenario>, m
   for (const [name, sc] of scenarios) {
     for (const r of [...(sc.lost ?? []), ...(sc.attacker ?? [])]) if (!things.has(r)) bad.push([name, r]);
     for (const r of [...(sc.assume ?? []), ...(sc.deny ?? [])]) {
-      if (things.get(r)?.section !== 'states') bad.push([name, `${r} (not a state)`]);
+      if (things.get(r)?.kind !== 'state') bad.push([name, `${r} (not a state)`]);
     }
   }
   for (const r of me) if (!things.has(r)) bad.push(['me', r]);
@@ -300,7 +335,7 @@ export function reach(
   for (const s of start) if (avail.get(s)) seed.set(s, { a: [], why: START });
   // States hold for anyone, but only as an assumption unless pinned.
   for (const [tid, spec] of things) {
-    if (spec.section === 'states' && avail.get(tid) && !deny.has(tid) && !seed.has(tid)) {
+    if (spec.kind === 'state' && avail.get(tid) && !deny.has(tid) && !seed.has(tid)) {
       seed.set(tid, { a: assume.has(tid) ? [] : [tid], why: STATE });
     }
   }
@@ -332,17 +367,17 @@ export class Model {
   readonly things: Map<string, Spec>;
   readonly scenarios: Map<string, Scenario>;
   readonly me: string[];
-  /** Ids under `states:`, for labeling assumptions. */
+  /** Ids of kind `state`, for labeling assumptions. */
   readonly states: Set<string>;
   readonly baseMe: Best;
   readonly baseNobody: Best;
 
-  constructor(sources: Source[]) {
-    const { things, scenarios, me } = load(sources);
+  constructor(source: Source, plans: string[] = []) {
+    const { things, scenarios, me } = load(source, plans);
     this.things = things;
     this.scenarios = scenarios;
     this.me = me;
-    this.states = new Set([...things].filter(([, s]) => s.section === 'states').map(([t]) => t));
+    this.states = new Set([...things].filter(([, s]) => s.kind === 'state').map(([t]) => t));
     if (!scenarios.has('baseline')) throw new ReachError('no baseline scenario');
     this.baseMe = this.run('baseline').best;
     this.baseNobody = reach(things, [], new Set());
@@ -420,7 +455,7 @@ export class Model {
     const base = lockout ? (name === 'baseline' ? null : this.baseMe) : this.baseNobody;
     const out = new Map<string, Row>();
     for (const [t, spec] of this.things) {
-      if (!(lockout ? spec.critical : spec.sensitive)) continue;
+      if (!spec.tags.includes(lockout ? 'critical' : 'sensitive')) continue;
       const r = rank(t, best);
       if (lockout) {
         if (r === 0 || (base !== null && r <= rank(t, base))) continue;

@@ -1,10 +1,10 @@
 // Views of the model as plain nodes and edges, ported from engine/mermaid.ts's
 // builders. Junction ids come from their position in the model (not a
 // counter), so a junction keeps its id as the view expands.
-import { leaves, refs, type AndSet, type Expr, type Model, type Section } from '../../engine/model.ts';
+import { leaves, refs, type AndSet, type Expr, type Kind, type Model } from '../../engine/model.ts';
 import type { Outcome } from './data';
 
-export type NodeKind = Section | 'and' | 'or' | 'unknown';
+export type NodeKind = Kind | 'and' | 'or' | 'unknown';
 export type EdgeKind = 'in' | 'needs' | 'mirror' | 'access' | 'recovery' | 'part';
 export type Status = 'has' | 'maybe' | 'lost' | 'gone' | 'start' | 'none';
 
@@ -55,7 +55,7 @@ class Builder {
   avail = (id: string) => this.sc?.avail.get(id) ?? true;
 
   node(id: string): string {
-    if (!this.nodes.has(id)) this.nodes.set(id, { id, label: id, kind: this.m.things.get(id)!.section });
+    if (!this.nodes.has(id)) this.nodes.set(id, { id, label: id, kind: this.m.things.get(id)!.kind });
     return id;
   }
 
@@ -125,12 +125,12 @@ class Builder {
       if (isJunction(n.kind)) continue;
       const t = this.m.things.get(n.id)!;
       const r = sc.best.get(n.id);
-      n.flag = !!(lockout ? t.critical : t.sensitive);
+      n.flag = t.tags.includes(lockout ? 'critical' : 'sensitive');
       n.row = sc.rows.get(n.id)?.[0];
       if (!this.avail(n.id)) n.status = 'gone';
       else if (!lockout && start.has(n.id)) n.status = 'start';
       else if (r) n.status = r.a.length ? 'maybe' : 'has';
-      else if (lockout && t.critical) n.status = 'lost';
+      else if (lockout && t.tags.includes('critical')) n.status = 'lost';
       else n.status = 'none';
     }
   }

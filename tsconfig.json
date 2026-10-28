@@ -11,5 +11,5 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["reach.ts", "engine/**/*.ts", "test/**/*.ts"]
+  "include": ["reach.ts", "engine/**/*.ts", "scripts/**/*.ts", "test/**/*.ts"]
 }

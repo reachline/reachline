@@ -3,10 +3,16 @@
 # docs, and what the CLI and the UI open when there is no data/model.yml.
 #
 #   ./reach.ts --model examples/model.yml
-#   ./reach.ts --model examples/model.yml --plan plans/spare-key.yml
+#   ./reach.ts --model examples/model.yml --plan spare_key
 #
-# Every entry in every section shares one namespace. Fields:
+# Every thing has an id under `things:`; ids share one namespace. Fields:
 #
+#   kind:     required: location, device, state, secret, service, data or
+#             account. Only `state` changes how a thing behaves: it is a
+#             condition of the moment, which results can DEPEND on. The other
+#             kinds are for reading, and for node shapes in charts.
+#   tags:     critical (lockout scenarios check you can still reach it) and
+#             sensitive (breach scenarios check the attacker can't).
 #   in:       containers/locations it lives in. Reaching any container reaches
 #             it; it's lost only when every container is lost. Physical
 #             ("laptop in home") and digital ("mail_pw in vault") alike.
@@ -20,92 +26,96 @@
 #             DNS it depends on. Lost if any need is lost.
 #   mirrors:  {of: source, by: syncer} - a sync copy. Lost once its source is
 #             lost while the syncer is still running (the next sync empties it).
-#   critical: lockout scenarios check you can still reach it.
-#   sensitive: breach scenarios check the attacker can't.
 #   note, todo: free text; `./reach.ts --todo` lists the todos.
 #
 # "?" means unknown: a fact about the setup you don't know. reach.ts tracks
 # which unknowns each path relies on and reports those paths as UNSURE.
-#
-# Sections are only for reading (and node shapes in charts): a thing behaves
-# the same whichever section it's in. The one exception is `states`.
 
 # The format version. Optional; 1 is the only one so far.
 version: 1
 
-locations:
-  head: {note: memorized}
-  body: {note: biometrics}
-  carried: {note: on my person when out}
-  home: {}
+things:
+  head: {kind: location, note: memorized}
+  body: {kind: location, note: biometrics}
+  carried: {kind: location, note: on my person when out}
+  home: {kind: location}
   safe:
+    kind: location
     in: [home]
     note: fire-rated box in the hall closet
   contacts:
+    kind: location
     note: friends and family who would lend a device
 
-# A device has two entries: the device itself (a thief has it, a fire destroys
-# it) and <device>_unlocked (a working session: the device plus an unlock).
-devices:
-  laptop: {in: [home]}
+  # A device has two entries: the device itself (a thief has it, a fire destroys
+  # it) and <device>_unlocked (a working session: the device plus an unlock).
+  laptop: {kind: device, in: [home]}
   laptop_unlocked:
+    kind: device
     access: [[laptop, [laptop_pw, finger]]]
-  phone: {in: [carried]}
+  phone: {kind: device, in: [carried]}
   phone_unlocked:
+    kind: device
     access: [[phone, [phone_pin, face]]]
   hw_key:
+    kind: device
     in: [carried]
     note: FIDO2 key on the keyring; the only one
-  id_card: {in: [carried]}
+  id_card: {kind: device, in: [carried]}
   loaner:
+    kind: device
     in: [contacts]
     note: a borrowed or newly bought device, good enough to sign in from
-  nas: {in: [home]}
+  nas: {kind: device, in: [home]}
   pi:
+    kind: device
     in: [home]
     note: small always-on server that runs the cloud sync
   old_drive:
+    kind: device
     in: '?'
     note: an old backup disk with the tax archive on it
     todo: find it; either in the attic or at my parents'
 
-# Conditions of the moment rather than facts about the setup. Nothing assumes
-# them either way: results that hinge on one say DEPENDS, and a scenario pins
-# them with assume (true) or deny (false).
-states:
-  pm_open_laptop: {note: password manager unlocked on the laptop}
-  pm_open_phone: {note: password manager unlocked on the phone}
-  mail_session_phone: {note: mail app signed in on the phone}
+  # Conditions of the moment rather than facts about the setup. Nothing assumes
+  # them either way: results that hinge on one say DEPENDS, and a scenario pins
+  # them with assume (true) or deny (false).
+  pm_open_laptop: {kind: state, note: password manager unlocked on the laptop}
+  pm_open_phone: {kind: state, note: password manager unlocked on the phone}
+  mail_session_phone: {kind: state, note: mail app signed in on the phone}
 
-secrets:
-  laptop_pw: {in: [head]}
-  phone_pin: {in: [head]}
-  finger: {in: [body]}
-  face: {in: [body]}
+  laptop_pw: {kind: secret, in: [head]}
+  phone_pin: {kind: secret, in: [head]}
+  finger: {kind: secret, in: [body]}
+  face: {kind: secret, in: [body]}
   key_pin:
+    kind: secret
     in: [head]
     note: FIDO2 PIN
   pm_master:
+    kind: secret
     in: [head, safe]
     note: memorized, plus the emergency sheet in the safe
-  mail_pw: {in: [vault]}
+  mail_pw: {kind: secret, in: [vault]}
   mail_totp:
+    kind: secret
     in: [phone_unlocked]
     note: authenticator app
   mail_codes:
+    kind: secret
     in: [safe]
     note: printed recovery codes
-  code_pw: {in: [vault]}
-  code_totp: {in: [phone_unlocked]}
-  bank_pw: {in: [vault]}
-  storage_pw: {in: [vault]}
-  carrier_pw: {in: [vault]}
-  registrar_pw: {in: [vault]}
+  code_pw: {kind: secret, in: [vault]}
+  code_totp: {kind: secret, in: [phone_unlocked]}
+  bank_pw: {kind: secret, in: [vault]}
+  storage_pw: {kind: secret, in: [vault]}
+  carrier_pw: {kind: secret, in: [vault]}
+  registrar_pw: {kind: secret, in: [vault]}
 
-services:
   vault:
+    kind: service
     note: the password manager, decrypted
-    sensitive: true
+    tags: [sensitive]
     access:
       # A device that already has the vault cached needs only the master
       # password, or nothing while the app is still unlocked.
@@ -114,61 +124,66 @@ services:
       # Signing in on a new device also takes the key.
       - [loaner, pm_master, hw_key]
   phone_number:
+    kind: service
     note: SMS to my number. The SIM has no PIN, so it works in any phone.
     access: [[phone], [carrier]]
     todo: set a SIM PIN
   domain:
+    kind: service
     note: the custom domain my mail address is on
     in: [registrar]
   sync_job:
+    kind: service
     note: one-way sync from the NAS to cloud storage; deletions sync too
     in: [pi]
 
-data:
   # Any copy of the documents will do, so the documents live in both.
   documents:
+    kind: data
     in: [docs_nas, docs_cloud]
-    critical: true
-    sensitive: true
-  docs_nas: {in: [nas]}
+    tags: [critical, sensitive]
+  docs_nas: {kind: data, in: [nas]}
   docs_cloud:
+    kind: data
     in: [storage]
     mirrors: {of: docs_nas, by: sync_job}
   tax_archive:
+    kind: data
     in: [old_drive]
-    critical: true
-    sensitive: true
+    tags: [critical, sensitive]
 
-accounts:
   mail:
-    critical: true
-    sensitive: true
+    kind: account
+    tags: [critical, sensitive]
     needs: [domain]
     access:
       - [mail_pw, [mail_totp, hw_key]]
       - [phone_unlocked, mail_session_phone]
     recovery: [[mail_codes], [phone_number]]
   code_host:
-    critical: true
-    sensitive: true
+    kind: account
+    tags: [critical, sensitive]
     access: [[code_pw, [code_totp, [hw_key, key_pin]]]]
     recovery: '?'
     todo: what does support ask for once the 2FA is gone?
   bank:
-    critical: true
-    sensitive: true
+    kind: account
+    tags: [critical, sensitive]
     access: [[bank_pw, phone_number]]
     recovery: [[id_card, body]]
     note: recovery is in person at a branch, with photo ID
   storage:
+    kind: account
     note: cloud storage
     access: [[storage_pw, hw_key]]
     recovery: [[mail, '?']]
     todo: does a reset by email get past the key?
   carrier:
+    kind: account
     access: [[carrier_pw]]
     recovery: [[mail], [id_card, body]]
   registrar:
+    kind: account
     access: [[registrar_pw, hw_key]]
     recovery: [[mail]]
 
@@ -218,3 +233,43 @@ scenarios:
 
 # Who I am in a lockout scenario before anything is lost.
 me: [head, body, carried, home, contacts]
+
+# Plans: overlays that answer "what changes if I do this?", each with the same
+# things, scenarios and me as the model. Fields listed replace the model's
+# (whole fields: restate the full access list), a new id adds a thing, and
+# `id: null` removes one (nothing may still refer to it). Plans apply in the
+# order given:
+#
+#   ./reach.ts --model examples/model.yml --plan spare_key --plan backup
+plans:
+  spare_key:
+    note: a second FIDO2 key kept off-site, and no more mail resets by SMS
+    things:
+      offsite: {kind: location, note: a friend's house across town}
+      key_keyring: {kind: device, in: [carried]}
+      key_offsite: {kind: device, in: [offsite]}
+      hw_key:
+        in: []
+        access: [[[key_keyring, key_offsite]]]
+        note: any one of my keys; every account enrolls both
+      mail:
+        recovery: [[mail_codes]]
+    scenarios:
+      keys_lost:
+        kind: lockout
+        lost: [key_keyring]
+        note: keyring gone
+    me: [head, body, carried, home, contacts, offsite]
+
+  backup:
+    # Once the tax archive is in the documents folder, the backup covers it,
+    # and a burglar who gets the NAS gets it too.
+    note: make the cloud copy a versioned backup instead of a sync, and retire the old drive
+    things:
+      old_drive: null
+      sync_job:
+        note: nightly versioned backup; a deletion on the NAS keeps old versions
+      docs_cloud:
+        mirrors: null
+      tax_archive:
+        in: [docs_nas, docs_cloud]

@@ -26,7 +26,7 @@
     font-weight: 600;
     color: var(--muted);
     background: var(--surface);
-    border: 1.5px solid var(--s-junction);
+    border: 1.5px solid var(--k-junction);
   }
   .k-unknown {
     font-size: 12px;

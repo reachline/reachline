@@ -746,7 +746,7 @@ thief_carried
 
 `;
 
-exports[`examples: spare-key + backup 1`] = `
+exports[`examples: spare_key + backup 1`] = `
 baseline
   bank                     yes
   bank_pw                  yes
@@ -1178,7 +1178,7 @@ thief_carried
 
 `;
 
-exports[`examples: spare-key 1`] = `
+exports[`examples: spare_key 1`] = `
 baseline
   bank                     yes
   bank_pw                  yes

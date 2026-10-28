@@ -49,7 +49,7 @@ let ctx: CanvasRenderingContext2D | null = null;
 export function sizeOf(n: VNode): { w: number; h: number } {
   if (isJunction(n.kind)) return { w: JUNCTION, h: JUNCTION };
   // Room on the right for the expand/status marker.
-  const bars = n.kind === 'accounts' ? 8 : 0;
+  const bars = n.kind === 'account' ? 8 : 0;
   // Outside a browser (bench.ts), estimate the text width.
   if (typeof document === 'undefined') return { w: n.label.length * 7 + 34 + bars, h: THING_H };
   ctx ??= document.createElement('canvas').getContext('2d')!;

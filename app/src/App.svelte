@@ -3,7 +3,7 @@
   import { expandToDepth, isJunction, waysInView, whereView, type View } from './build';
   import FlowView from './FlowView.svelte';
   import { layout, placeLocally, type Direction, type Placed, type Placement, type Routing } from './layout';
-  import { fmtWhy, SECTIONS } from '../../engine/model.ts';
+  import { fmtWhy, KINDS } from '../../engine/model.ts';
   import { what } from '../../engine/report.ts';
   import { loadModel, outcome, ReachError, type Model } from './data';
   import { shapePath } from './shapes';
@@ -34,7 +34,7 @@
   try {
     const m = loadModel(plans);
     // Without ?target=, start on the first critical thing.
-    target ||= [...m.things].find(([, t]) => t.critical)?.[0] ?? [...m.things.keys()][0];
+    target ||= [...m.things].find(([, t]) => t.tags.includes('critical'))?.[0] ?? [...m.things.keys()][0];
     expanded = expandToDepth(m, [untrack(() => target)], DEPTH);
     model = m;
   } catch (e) {
@@ -126,10 +126,8 @@
   const selThing = $derived(selected ? model?.things.get(selected) : undefined);
   const selReach = $derived(selected ? scenario?.best.get(selected) : undefined);
 
-  const thingsBySection = $derived(
-    model
-      ? SECTIONS.map((s) => [s, [...model.things].filter(([, t]) => t.section === s).map(([id]) => id)] as const)
-      : [],
+  const thingsByKind = $derived(
+    model ? KINDS.map((k) => [k, [...model.things].filter(([, t]) => t.kind === k).map(([id]) => id)] as const) : [],
   );
 
   const EDGE_KINDS = ['in', 'access', 'recovery', 'needs', 'mirror', 'part'] as const;
@@ -149,8 +147,8 @@
       <label
         >Thing
         <select bind:value={target} onchange={() => waysInto(target)}>
-          {#each thingsBySection as [section, ids] (section)}
-            <optgroup label={section}>
+          {#each thingsByKind as [kind, ids] (kind)}
+            <optgroup label={kind}>
               {#each ids as id (id)}<option value={id}>{id}</option>{/each}
             </optgroup>
           {/each}
@@ -226,10 +224,9 @@
         <h3>{selNode.label} junction</h3>
         <p class="muted mono">{selNode.id}</p>
       {:else if selThing && selected}
-        <h3>{selected} <span class="muted">{selThing.section}</span></h3>
-        {@const flags = [selThing.critical && 'critical', selThing.sensitive && 'sensitive'].filter(Boolean)}
-        {#if flags.length}
-          <p class="muted">{flags.join(', ')}</p>
+        <h3>{selected} <span class="muted">{selThing.kind}</span></h3>
+        {#if selThing.tags.length}
+          <p class="muted">{selThing.tags.join(', ')}</p>
         {/if}
         {#if selThing.note}<p>{selThing.note}</p>{/if}
         {#if selThing.todo}<p class="todo">todo: {selThing.todo}</p>{/if}
@@ -262,11 +259,11 @@
     <section class="legend">
       <h3>Legend</h3>
       <div class="grid">
-        {#each SECTIONS as s (s)}
+        {#each KINDS as k (k)}
           <svg width="44" height="18" aria-hidden="true">
-            <path d={shapePath(s, 44, 18)} style="fill: var(--surface); stroke: var(--s-{s}); stroke-width: 1.5" />
+            <path d={shapePath(k, 44, 18)} style="fill: var(--surface); stroke: var(--k-{k}); stroke-width: 1.5" />
           </svg>
-          <span>{s}</span>
+          <span>{k}</span>
         {/each}
         {#each EDGE_KINDS as k (k)}
           <svg width="44" height="10" aria-hidden="true"><line x1="2" y1="5" x2="42" y2="5" class="lg-{k}" /></svg>

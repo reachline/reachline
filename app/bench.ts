@@ -47,7 +47,7 @@ for (const stable of [false, true]) {
     kept = 0,
     shift = 0,
     clicks = 0;
-  for (const t of ids.filter((id) => model.things.get(id)!.critical)) {
+  for (const t of ids.filter((id) => model.things.get(id)!.tags.includes('critical'))) {
     const expanded = build.expandToDepth(model, [t], 2);
     let view = build.waysInView(model, [t], expanded);
     let placed = await layout(view, { ...opts, stable });

@@ -8,15 +8,15 @@
   --border: #d9d9de;
   --focus: #2563eb;
 
-  /* sections */
-  --s-locations: #64748b;
-  --s-devices: #2563eb;
-  --s-states: #7c3aed;
-  --s-secrets: #b45309;
-  --s-services: #0f766e;
-  --s-data: #15803d;
-  --s-accounts: #4338ca;
-  --s-junction: #9ca3af;
+  /* kinds */
+  --k-location: #64748b;
+  --k-device: #2563eb;
+  --k-state: #7c3aed;
+  --k-secret: #b45309;
+  --k-service: #0f766e;
+  --k-data: #15803d;
+  --k-account: #4338ca;
+  --k-junction: #9ca3af;
 
   /* scenario status: fill / stroke */
   --good-fill: #d4edda;
@@ -50,14 +50,14 @@
     --muted: #9a9aa2;
     --border: #34343a;
     --focus: #60a5fa;
-    --s-locations: #94a3b8;
-    --s-devices: #60a5fa;
-    --s-states: #a78bfa;
-    --s-secrets: #f59e0b;
-    --s-services: #2dd4bf;
-    --s-data: #4ade80;
-    --s-accounts: #818cf8;
-    --s-junction: #6b7280;
+    --k-location: #94a3b8;
+    --k-device: #60a5fa;
+    --k-state: #a78bfa;
+    --k-secret: #f59e0b;
+    --k-service: #2dd4bf;
+    --k-data: #4ade80;
+    --k-account: #818cf8;
+    --k-junction: #6b7280;
     --good-fill: #1d3a25;
     --good-stroke: #4caf50;
     --bad-fill: #4a1f23;

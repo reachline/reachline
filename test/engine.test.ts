@@ -6,12 +6,18 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { stringify } from 'yaml';
+import { parse, stringify } from 'yaml';
 import { Model, rank, reach, ReachError, type Best, type Spec } from '../engine/model.ts';
 
-const file = (path: string) => ({ path, text: readFileSync(new URL(`../examples/${path}`, import.meta.url), 'utf8') });
-const example = (...plans: string[]) => new Model([file('model.yml'), ...plans.map((p) => file(`plans/${p}.yml`))]);
-const docs = (...ds: object[]) => ds.map((d, i) => ({ path: `doc${i}.yml`, text: stringify(d) }));
+const EXAMPLE = { path: 'model.yml', text: readFileSync(new URL('../examples/model.yml', import.meta.url), 'utf8') };
+const example = (...plans: string[]) => new Model(EXAMPLE, plans);
+const doc = (d: object) => ({ path: 'doc.yml', text: stringify(d) });
+
+/** The example with more plans in it, and the named plans applied. */
+function exampleWith(extra: Record<string, object>, plans: string[]): Model {
+  const d = parse(EXAMPLE.text) as { plans: object };
+  return new Model(doc({ ...d, plans: { ...d.plans, ...extra } }), plans);
+}
 
 /** What each scenario reaches and what that relies on, plus its verdicts. */
 function results(m: Model): string {
@@ -31,7 +37,7 @@ function results(m: Model): string {
   return out.join('\n') + '\n';
 }
 
-const PLAN_SETS = [[], ['spare-key'], ['backup'], ['spare-key', 'backup']];
+const PLAN_SETS = [[], ['spare_key'], ['backup'], ['spare_key', 'backup']];
 
 for (const plans of PLAN_SETS) {
   test(`examples: ${plans.join(' + ') || 'no plans'}`, (t) => {
@@ -82,8 +88,11 @@ test('an attacker given more never reaches less', () => {
 test('every path relies on exactly its assumptions and leads back to the start', () => {
   // Listing carrier first makes phone_number's two equal ways in tie the other
   // way, which once showed mail ← phone_number ← carrier ← mail.
-  const carrierFirst = docs({ services: { phone_number: { access: [['carrier'], ['phone']] } } })[0];
-  const models = [...PLAN_SETS.map((p) => example(...p)), new Model([file('model.yml'), carrierFirst])];
+  const carrierFirst = { things: { phone_number: { access: [['carrier'], ['phone']] } } };
+  const models = [
+    ...PLAN_SETS.map((p) => example(...p)),
+    exampleWith({ carrier_first: carrierFirst }, ['carrier_first']),
+  ];
   for (const m of models) {
     for (const name of m.scenarios.keys()) {
       const { best } = m.run(name);
@@ -116,32 +125,43 @@ test('a list inside an any-of is a path through all of it', () => {
 });
 
 test('plans that touch different things commute', () => {
-  assert.equal(results(example('spare-key', 'backup')), results(example('backup', 'spare-key')));
+  assert.equal(results(example('spare_key', 'backup')), results(example('backup', 'spare_key')));
 });
 
 test('plans apply in order: a later plan replaces the same field', () => {
-  const smsBack = docs({ accounts: { mail: { recovery: [['mail_codes'], ['phone_number']] } } })[0];
-  const sources = (...plans: { path: string; text: string }[]) => [file('model.yml'), ...plans];
+  const smsBack = { sms_back: { things: { mail: { recovery: [['mail_codes'], ['phone_number']] } } } };
   const thiefReachesMail = (m: Model) => m.run('thief_carried').best.has('mail');
-  assert.ok(!thiefReachesMail(example('spare-key')));
-  assert.ok(thiefReachesMail(new Model(sources(file('plans/spare-key.yml'), smsBack))));
-  assert.ok(!thiefReachesMail(new Model(sources(smsBack, file('plans/spare-key.yml')))));
+  assert.ok(!thiefReachesMail(example('spare_key')));
+  assert.ok(thiefReachesMail(exampleWith(smsBack, ['spare_key', 'sms_back'])));
+  assert.ok(!thiefReachesMail(exampleWith(smsBack, ['sms_back', 'spare_key'])));
 });
 
 test('a plan can remove a thing, and a later one bring it back', () => {
-  const base = { devices: { a: { in: ['home'] }, b: { in: ['home'] } }, locations: { home: {} } };
-  const scenarios = { scenarios: { baseline: { kind: 'lockout', lost: [] } }, me: ['home'] };
-  const m = (...plans: object[]) => new Model(docs({ ...base, ...scenarios }, ...plans));
-  assert.ok(!m({ devices: { b: null } }).things.has('b'));
-  assert.ok(m({ devices: { b: null } }, { devices: { b: { in: ['a'] } } }).things.has('b'));
+  const m = (...plans: string[]) =>
+    new Model(
+      doc({
+        things: {
+          home: { kind: 'location' },
+          a: { kind: 'device', in: ['home'] },
+          b: { kind: 'device', in: ['home'] },
+        },
+        scenarios: { baseline: { kind: 'lockout', lost: [] } },
+        me: ['home'],
+        plans: { drop: { things: { b: null } }, back: { things: { b: { kind: 'device', in: ['a'] } } } },
+      }),
+      plans,
+    );
+  assert.ok(!m('drop').things.has('b'));
+  assert.ok(m('drop', 'back').things.has('b'));
 });
 
 test('every reference error is reported', () => {
   const bad = {
-    locations: { home: {} },
-    states: { s: {} },
-    devices: {
+    things: {
+      home: { kind: 'location' },
+      s: { kind: 'state' },
       a: {
+        kind: 'device',
         in: ['bad_in'],
         needs: ['bad_needs'],
         access: [['bad_access', ['home', 'bad_anyof']]],
@@ -156,7 +176,7 @@ test('every reference error is reported', () => {
     me: ['bad_me'],
   };
   assert.throws(
-    () => new Model(docs(bad)),
+    () => new Model(doc(bad)),
     (e: Error) => {
       assert.ok(e instanceof ReachError);
       const ids = ['in', 'needs', 'access', 'anyof', 'recovery', 'of', 'by', 'lost', 'deny', 'attacker', 'me'];
@@ -168,9 +188,32 @@ test('every reference error is reported', () => {
 });
 
 test('a plan that removes something still referenced is an error', () => {
-  const removePhone = docs({ devices: { phone: null } })[0];
   assert.throws(
-    () => new Model([file('model.yml'), removePhone]),
+    () => exampleWith({ no_phone: { things: { phone: null } } }, ['no_phone']),
     (e: Error) => e instanceof ReachError && e.message.includes('phone'),
   );
+});
+
+test('kinds, tags and keys are closed sets, and kind is required', () => {
+  const base = { scenarios: { baseline: { kind: 'lockout' } } };
+  const fails = (d: object, ...words: string[]) =>
+    assert.throws(
+      () => new Model(doc({ ...base, ...d })),
+      (e: Error) => e instanceof ReachError && words.every((w) => e.message.includes(w)),
+      JSON.stringify(d),
+    );
+  fails({ things: { a: {} } }, 'a', 'kind');
+  fails({ things: { a: { kind: 'gadget' } } }, 'a', 'gadget');
+  fails({ things: { a: { kind: 'device', tags: ['critcal'] } } }, 'a', 'critcal');
+  fails({ devices: { a: {} } }, 'devices');
+  assert.throws(() => exampleWith({ p: { version: 1 } }, ['p']), /version/);
+  // A plan adding a thing must give its kind; one changing a thing needn't.
+  assert.throws(() => exampleWith({ p: { things: { new_key: { in: ['home'] } } } }, ['p']), /new_key/);
+  assert.ok(example('spare_key').things.get('hw_key')!.kind === 'device');
+});
+
+test('plans are chosen by name from the model', () => {
+  assert.throws(() => example('spare_key', 'nope'), /nope/);
+  assert.ok(example('spare_key').scenarios.has('keys_lost'));
+  assert.ok(!example().scenarios.has('keys_lost'));
 });

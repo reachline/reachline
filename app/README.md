@@ -9,8 +9,8 @@ Localhost only.
     pnpm check               # svelte-check
 
 The page runs the engine (`../engine/`) on the model itself; Vite reads the
-YAML from disk and reloads when it changes. `?plan=spare-key,backup` applies
-plans from `../data/plans/` (or `../examples/plans/`) in order. `dist/` (from
+YAML from disk and reloads when it changes. `?plan=spare_key,backup` applies
+plans from the model's `plans:` in order. `dist/` (from
 `vite build`) has the whole model inside it and is gitignored.
 
 URL parameters set the initial state, e.g.
@@ -21,8 +21,8 @@ plus `plan=a,b`, `model=example`, `mode=where|all`, `dir=DOWN`, `routing=SPLINES
 Expanding a node places the new nodes in free space upstream without moving
 anything; Tidy runs the full ELK layout from scratch.
 
-- `src/data.ts`: loads model.yml and plans through the engine into the shape
-  the views use (`src/types.ts`).
+- `src/data.ts`: loads model.yml, with any plans, through the engine into the
+  shape the views use.
 - `src/build.ts`: the views (where, ways into, everything) as nodes and edges,
   ported from the Mermaid builders. Junction ids are stable.
 - `src/layout.ts`: the ELK layered layout, and in-place placement for expanding.
