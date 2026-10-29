@@ -71,17 +71,17 @@
   <ol class="list">
     {#each revisions ?? [] as r, i (r.id)}
       <li>
-        <button aria-pressed={r.id === chosen} onclick={() => (chosen = r.id)}>
+        <button class="quiet" aria-pressed={r.id === chosen} onclick={() => (chosen = r.id)}>
           {when(r.created)}{i === 0 ? ' (latest)' : ''}
         </button>
       </li>
     {/each}
   </ol>
   {#if error}
-    <p class="head error">{error}</p>
+    <p class="head error" role="alert">{error}</p>
   {:else if text !== null}
     {@const old = text}
-    <p class="head">
+    <p class="head muted">
       {#if old === current}
         Same as the text now.
       {:else}
@@ -101,7 +101,7 @@
     background: var(--surface);
   }
   .list {
-    max-height: 9.5em;
+    max-height: 10rem;
     margin: 0;
     padding: 4px 0;
     overflow-y: auto;
@@ -110,14 +110,8 @@
   }
   .list button {
     width: 100%;
-    padding: 2px 12px;
-    border: none;
-    background: none;
-    text-align: left;
-    cursor: pointer;
-  }
-  .list button[aria-pressed='true'] {
-    background: var(--selection);
+    justify-content: flex-start;
+    border-radius: 0;
   }
   .head {
     display: flex;
@@ -127,15 +121,6 @@
     margin: 0;
     padding: 6px 12px;
     border-bottom: 1px solid var(--border);
-    color: var(--muted);
-  }
-  .head button {
-    padding: 3px 8px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    background: var(--bg);
-    color: var(--text);
-    cursor: pointer;
   }
   .diff {
     min-height: 0;

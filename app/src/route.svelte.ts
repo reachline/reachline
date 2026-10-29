@@ -37,11 +37,16 @@ export function go(to: string, replace = false) {
   here = location.pathname + location.search;
 }
 
+/** Whether the page lets the user leave it, asking them if it needs to. */
+export function mayLeave() {
+  return !leaving || leaving();
+}
+
 /** An <a> click handler; modified clicks (new tab and the like) still go to the browser. */
 export function follow(e: MouseEvent) {
   if (e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
   e.preventDefault();
-  if (leaving && !leaving()) return;
+  if (!mayLeave()) return;
   go((e.currentTarget as HTMLAnchorElement).getAttribute('href')!);
 }
 

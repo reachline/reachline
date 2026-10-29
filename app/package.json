@@ -25,6 +25,7 @@
     "@codemirror/state": "^6.7.6",
     "@codemirror/view": "^6.43.15",
     "@lezer/highlight": "^1.2.5",
+    "@lucide/svelte": "^1.62.0",
     "@xyflow/svelte": "^1.7.0",
     "elkjs": "^0.12.0"
   }

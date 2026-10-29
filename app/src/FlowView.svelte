@@ -7,6 +7,7 @@
   import RoutedEdge from './flow/RoutedEdge.svelte';
   import ThingNode from './flow/ThingNode.svelte';
   import type { Placed } from './layout';
+  import { theme } from './theme.svelte.ts';
 
   interface Props {
     view: View;
@@ -67,7 +68,7 @@
     nodesDraggable={false}
     nodesConnectable={false}
     minZoom={0.05}
-    colorMode="system"
+    colorMode={theme.value}
     onnodeclick={({ node }) => onnode(node.id)}
   >
     <Background />
@@ -81,6 +82,7 @@
     position: relative;
     width: 100%;
     height: 100%;
+    font: var(--graph-font);
   }
   .pane :global(.svelte-flow) {
     --xy-background-color: var(--bg);

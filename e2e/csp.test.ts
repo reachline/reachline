@@ -1,6 +1,7 @@
 // The production build, served by the real server, in Chromium: nothing may
 // break the strict CSP while a new user signs up, creates a model from the
-// example and opens its graph (which lays out in the ELK worker).
+// example and opens its graph (which lays out in the ELK worker); and the
+// pages pass axe's accessibility checks.
 //
 //   pnpm build && pnpm exec playwright install chromium-headless-shell && pnpm test:csp
 import assert from 'node:assert/strict';
@@ -9,6 +10,7 @@ import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
+import { AxeBuilder } from '@axe-core/playwright';
 import { chromium, type Browser } from 'playwright';
 import { ROOT } from '../server/config.ts';
 
@@ -65,6 +67,7 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.getByRole('heading', { name: 'Your models' }).waitFor();
 
+  await page.getByRole('button', { name: 'New model' }).click();
   await page.getByLabel('Name', { exact: true }).fill('example');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await page.waitForURL(/\/m\/\d+/);
@@ -125,8 +128,50 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
 
   await page.getByRole('link', { name: '← Models' }).click();
   await page.getByRole('link', { name: 'example' }).waitFor();
+  await page.getByRole('button', { name: /account menu/ }).click();
   await page.getByRole('button', { name: 'Sign out' }).click();
   await page.waitForURL(/\/login/);
 
   assert.deepEqual(problems, []);
+});
+
+// WCAG 2.2 AA, as far as axe can tell, in both themes. The model page joins
+// once its overhaul lands.
+test('the sign-in, model list and account pages pass axe', async () => {
+  for (const colorScheme of ['light', 'dark'] as const) {
+    const ctx = await browser.newContext({ colorScheme });
+    const page = await ctx.newPage();
+    const check = async (where: string) => {
+      const { violations } = await new AxeBuilder({ page })
+        .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
+        .analyze();
+      const found = violations.map((v) => `${v.id} at ${v.nodes.map((n) => n.target.join(' ')).join(', ')}`);
+      assert.deepEqual(found, [], `${where}, ${colorScheme}`);
+    };
+
+    await page.goto(ORIGIN);
+    await page.getByRole('heading', { name: 'Sign in' }).waitFor();
+    await check('sign in');
+    await page.getByRole('button', { name: 'Create an account' }).click();
+    await check('create an account');
+    await page.getByLabel('Username').fill(`axe-${colorScheme}`);
+    await page.getByLabel('Password').fill('password1');
+    await page.getByRole('button', { name: 'Create account' }).click();
+    await page.getByRole('heading', { name: 'Your models' }).waitFor();
+    await check('no models');
+    await page.getByRole('button', { name: 'New model' }).click();
+    await page.getByLabel('Name', { exact: true }).fill('example');
+    await check('new model');
+    await page.getByRole('button', { name: 'Create', exact: true }).click();
+    await page.waitForURL(/\/m\/\d+/);
+    await page.goBack();
+    await page.getByRole('link', { name: 'example' }).waitFor();
+    await check('models');
+    await page.getByRole('button', { name: /account menu/ }).click();
+    await check('user menu');
+    await page.getByRole('link', { name: 'Account settings' }).click();
+    await page.getByRole('heading', { name: 'Account' }).waitFor();
+    await check('account');
+    await ctx.close();
+  }
 });

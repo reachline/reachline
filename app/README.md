@@ -20,6 +20,8 @@ plus `plan=a,b`, `mode=where|all`, `dir=DOWN`, `routing=SPLINES`,
 Expanding a node places the new nodes in free space upstream without moving
 anything; Tidy runs the full ELK layout from scratch.
 
+- `src/app.css`: the whole look, in light and dark; `src/theme.svelte.ts` keeps
+  the choice of theme. The conventions are in `../.claude/CLAUDE.md`.
 - `src/route.svelte.ts`, `src/Root.svelte`: the pages, and signing in.
 - `src/api.ts`: the server's API (types from `../server/api.ts`).
 - `src/data.ts`: runs a model's text, with any plans, through the engine into

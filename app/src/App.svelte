@@ -12,8 +12,9 @@
   import { loadModel, outcome, ReachError, type Model } from './data';
   import { beforeLeave, follow } from './route.svelte.ts';
   import { shapePath } from './shapes';
+  import UserMenu from './UserMenu.svelte';
 
-  let { id }: { id: number } = $props();
+  let { id, user, onsignout }: { id: number; user: string; onsignout: () => void } = $props();
 
   type Mode = 'ways' | 'where' | 'all';
   const DEPTH = 2;
@@ -33,7 +34,6 @@
   let saveError = $state('');
   // The latest revision, when someone else saved since ours.
   let conflict = $state<number | null>(null);
-  let exportOpen = $state(false);
   let exportError = $state('');
   const dirty = $derived(text !== null && text !== saved);
   // What shares the screen with the graph.
@@ -117,7 +117,6 @@
 
   /** The text, or the graph as it's shown. */
   async function exportAs(format: 'yaml' | 'mermaid' | 'svg' | 'png') {
-    exportOpen = false;
     exportError = '';
     try {
       download(`${name}.${EXT[format]}`, await exported(format));
@@ -127,16 +126,30 @@
   }
 
   const EXT = { yaml: 'yml', mermaid: 'mmd', svg: 'svg', png: 'png' };
+  const FORMATS = [
+    ['yaml', 'YAML (the text)'],
+    ['mermaid', 'Mermaid (the graph)'],
+    ['svg', 'SVG (the graph)'],
+    ['png', 'PNG (the graph)'],
+  ] as const;
 
   async function exported(format: 'yaml' | 'mermaid' | 'svg' | 'png'): Promise<Blob> {
     if (format === 'yaml') return new Blob([text ?? ''], { type: 'text/yaml' });
     if (!shown) throw new Error('there is no graph on screen');
     const kind = scenario?.sc.kind ?? '';
     if (format === 'mermaid') return new Blob([toMermaid(shown.view, vertical, kind)], { type: 'text/plain' });
-    const css = getComputedStyle(document.documentElement);
-    const color = (v: string) => css.getPropertyValue(`--${v}`).trim();
-    const { svg, width, height } = toSvg(shown.view, shown.placed, kind, vertical, color);
-    return format === 'svg' ? new Blob([svg], { type: 'image/svg+xml' }) : toPng(svg, width, height);
+    // Resolved by the browser, which picks the current theme's side of each pair in app.css.
+    const probe = document.body.appendChild(document.createElement('i'));
+    const color = (v: string) => {
+      probe.style.color = `var(--${v})`;
+      return getComputedStyle(probe).color;
+    };
+    try {
+      const { svg, width, height } = toSvg(shown.view, shown.placed, kind, vertical, color);
+      return format === 'svg' ? new Blob([svg], { type: 'image/svg+xml' }) : await toPng(svg, width, height);
+    } finally {
+      probe.remove();
+    }
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -291,15 +304,18 @@
     <button onclick={() => save()} disabled={!dirty || saving} title="Ctrl/Cmd+S">
       {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
     </button>
-    <details class="menu" bind:open={exportOpen}>
-      <summary>Export</summary>
-      <div class="items">
-        <button onclick={() => exportAs('yaml')} disabled={text === null}>YAML (the text)</button>
-        <button onclick={() => exportAs('mermaid')} disabled={!shown}>Mermaid (the graph)</button>
-        <button onclick={() => exportAs('svg')} disabled={!shown}>SVG (the graph)</button>
-        <button onclick={() => exportAs('png')} disabled={!shown}>PNG (the graph)</button>
-      </div>
-    </details>
+    <button popovertarget="export-menu">Export</button>
+    <div id="export-menu" class="menu" popover>
+      {#each FORMATS as [format, label] (format)}
+        <button
+          class="quiet"
+          popovertarget="export-menu"
+          popovertargetaction="hide"
+          onclick={() => exportAs(format)}
+          disabled={format === 'yaml' ? text === null : !shown}>{label}</button
+        >
+      {/each}
+    </div>
     <span class="sep"></span>
     <label
       >View
@@ -358,17 +374,18 @@
     </label>
     <button onclick={() => fitKey++}>Fit</button>
     {#if plans.length}<span class="muted" title="From ?plan=">with {plans.join(' + ')}</span>{/if}
+    <span class="user"><UserMenu {user} {onsignout} /></span>
     {#if conflict !== null}
-      <p class="notice">
+      <p class="notice" role="alert">
         This model was saved elsewhere since you opened it.
         <button onclick={loadLatest}>Load the newer version</button>
         (undo brings yours back) or
         <button onclick={() => save(conflict!)}>Overwrite it with yours</button>
       </p>
     {:else if saveError}
-      <p class="notice">Couldn't save: {saveError}</p>
+      <p class="notice" role="alert">Couldn't save: {saveError}</p>
     {:else if exportError}
-      <p class="notice">Couldn't export: {exportError}</p>
+      <p class="notice" role="alert">Couldn't export: {exportError}</p>
     {/if}
   </header>
 
@@ -399,7 +416,9 @@
 
   <main class="canvas" class:outdated={shown && (invalid || lost)}>
     {#if shown && (invalid || lost)}
-      <p class="badge">Out of date: {invalid ? 'the text has errors' : `${target} is no longer in the model`}</p>
+      <p class="notice badge" role="status">
+        Out of date: {invalid ? 'the text has errors' : `${target} is no longer in the model`}
+      </p>
     {/if}
     {#if shown}
       <FlowView
@@ -519,64 +538,11 @@
     gap: 5px;
     color: var(--muted);
   }
-  .bar select,
-  .bar button {
-    padding: 3px 6px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    background: var(--bg);
-  }
-  .bar button {
-    cursor: pointer;
-  }
-  .bar button:disabled {
-    opacity: 0.6;
-    cursor: default;
-  }
-  .menu {
-    position: relative;
-  }
-  .menu summary {
-    padding: 3px 6px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    background: var(--bg);
-    cursor: pointer;
-    list-style: none;
-  }
-  .menu .items {
-    position: absolute;
-    z-index: 10;
-    top: calc(100% + 4px);
-    left: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding: 4px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    background: var(--surface);
-    white-space: nowrap;
-  }
-  .menu .items button {
-    border: none;
-    background: none;
-    text-align: left;
-  }
-  .menu .items button:not(:disabled):hover {
-    background: var(--active-line);
-  }
-  .notice {
+  .bar .notice {
     flex-basis: 100%;
-    margin: 0;
-    padding: 4px 8px;
-    border: 1px solid var(--maybe-stroke);
-    border-radius: 5px;
-    background: var(--maybe-fill);
   }
-  .bar button[aria-pressed='true'] {
-    border-color: var(--focus);
-    color: var(--focus);
+  .user {
+    margin-left: auto;
   }
   .sep {
     flex: 0 0 1px;
@@ -598,15 +564,10 @@
     left: 50%;
     z-index: 5;
     max-width: calc(100% - 16px);
-    margin: 0;
-    padding: 4px 10px;
     overflow: hidden;
     transform: translateX(-50%);
     white-space: nowrap;
     text-overflow: ellipsis;
-    border: 1px solid var(--maybe-stroke);
-    border-radius: 5px;
-    background: var(--maybe-fill);
   }
   .side {
     overflow-y: auto;
@@ -620,38 +581,21 @@
   }
   .side h3 {
     margin: 4px 0;
-    font-size: 13px;
   }
   .side p {
     margin: 4px 0;
   }
-  .muted {
-    color: var(--muted);
-    font-weight: normal;
-  }
-  .mono {
-    font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-    font-size: 11px;
-    word-break: break-word;
-  }
   .todo {
-    color: var(--maybe-stroke);
+    color: var(--warning);
   }
   .row {
-    color: var(--bad-stroke);
+    color: var(--danger);
     font-weight: 600;
   }
   .actions {
     display: flex;
     gap: 6px;
     margin-top: 6px;
-  }
-  .actions button {
-    padding: 3px 8px;
-    border: 1px solid var(--border);
-    border-radius: 5px;
-    background: var(--bg);
-    cursor: pointer;
   }
   .legend .grid {
     display: grid;
@@ -689,7 +633,7 @@
     stroke-width: 1;
   }
   .stats {
-    font-size: 11px;
+    font-size: var(--text-sm);
   }
   /* Narrow screens: the details go below the graph, and the text replaces both. */
   @media (max-width: 760px) {

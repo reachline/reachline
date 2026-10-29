@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Account from './Account.svelte';
   import { api, ApiFailure, message } from './api';
   import App from './App.svelte';
   import Login from './Login.svelte';
@@ -26,6 +27,10 @@
     user = name;
   }
 
+  function signedOut() {
+    user = null;
+  }
+
   const modelId = $derived(/^\/m\/([1-9]\d*)$/.exec(route.path)?.[1]);
 </script>
 
@@ -36,9 +41,11 @@
 {:else if !user}
   <p class="status">Loading…</p>
 {:else if modelId}
-  {#key modelId}<App id={Number(modelId)} />{/key}
+  {#key modelId}<App id={Number(modelId)} {user} onsignout={signedOut} />{/key}
 {:else if route.path === '/'}
-  <Models {user} onsignout={() => (user = null)} />
+  <Models {user} onsignout={signedOut} />
+{:else if route.path === '/account'}
+  <Account {user} onsignout={signedOut} />
 {:else}
   <p class="status">Not found. <a href="/" onclick={follow}>Your models</a></p>
 {/if}
