@@ -280,6 +280,12 @@ input[type='file'] {
 .field > :is(input, select, textarea) {
   font-weight: 400;
 }
+/* Its label beside it instead, in a toolbar. */
+.field.inline {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
 .hint {
   color: var(--muted);
   font-size: var(--text-sm);
@@ -317,7 +323,10 @@ legend {
   margin: 0;
 }
 
-/* Options in a row, one of them pressed: a set of .quiet buttons with aria-pressed. */
+/*
+ * A strip of .quiet buttons. As a choice, one of them is pressed
+ * (aria-pressed). .floating lifts it over the graph.
+ */
 .segmented {
   display: inline-flex;
   gap: 2px;
@@ -332,6 +341,9 @@ legend {
 }
 .segmented button.icon {
   width: calc(var(--control-h) - 6px);
+}
+.floating {
+  box-shadow: var(--shadow);
 }
 
 /* Surfaces. */
@@ -354,19 +366,20 @@ dialog::backdrop {
   background: var(--backdrop);
 }
 /*
- * A menu of .quiet buttons that opens below the button with its
- * popovertarget. Without anchor positioning it opens mid-screen instead.
+ * Popovers that open beside the button with their popovertarget: a .menu of
+ * .quiet buttons and links, or a .popup of anything else. Without anchor
+ * positioning they open mid-screen instead.
  */
 @supports (position-area: block-end) {
-  .menu {
+  :is(.menu, .popup) {
     inset: auto;
     position-area: block-end span-inline-end;
     position-try-fallbacks: flip-block, flip-inline;
   }
 }
-.menu {
+:is(.menu, .popup) {
   min-width: 10rem;
-  margin: var(--space-1) 0;
+  margin: var(--space-1);
   padding: var(--space-1);
   border: 1px solid var(--border);
   border-radius: var(--radius);
@@ -374,8 +387,12 @@ dialog::backdrop {
   color: var(--text);
   box-shadow: var(--shadow);
 }
-.menu:popover-open {
+:is(.menu, .popup):popover-open {
   display: grid;
+}
+.popup {
+  gap: var(--space-3);
+  padding: var(--space-4);
 }
 .menu button {
   justify-content: flex-start;
@@ -391,6 +408,10 @@ dialog::backdrop {
   color: var(--text);
   font-weight: 500;
   text-decoration: none;
+}
+.menu a[aria-current='page'] {
+  background: var(--selected);
+  color: var(--accent);
 }
 .menu hr {
   width: 100%;
@@ -432,6 +453,17 @@ dialog::backdrop {
   overflow: hidden;
   clip-path: inset(50%);
   white-space: nowrap;
+}
+/* A button's words, beside its icon where there's room; on phones the icon shows alone. */
+@media (max-width: 760px) {
+  .wide-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

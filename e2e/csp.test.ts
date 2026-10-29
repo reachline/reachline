@@ -73,8 +73,13 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.waitForURL(/\/m\/\d+/);
   await page.locator('.svelte-flow__node').first().waitFor();
   await page.getByRole('button', { name: 'Tidy' }).click();
-  await page.getByRole('combobox', { name: /^View/ }).selectOption('where');
+  await page.getByRole('button', { name: 'Where things live' }).click();
   await page.locator('.svelte-flow__node').first().waitFor();
+  await page.getByRole('button', { name: 'Layout' }).click();
+  await page.getByLabel('Direction').selectOption('DOWN');
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Legend' }).click();
+  await page.keyboard.press('Escape');
 
   // The editor (loaded on demand) marks an error and the graph goes out of date until it's fixed.
   await page.getByRole('button', { name: 'Text' }).click();
@@ -92,10 +97,16 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   // A save survives a reload.
   await page.keyboard.insertText('# saved\n');
   await page.keyboard.press('ControlOrMeta+s');
-  await page.getByRole('button', { name: 'Saved' }).waitFor();
+  await page.getByText('Saved', { exact: true }).waitFor();
+  const edge = page.getByRole('separator', { name: 'Panel width' });
+  await edge.focus();
+  await page.keyboard.press('ArrowLeft');
+  const width = await edge.getAttribute('aria-valuenow');
   await page.reload();
-  await page.getByRole('button', { name: 'Text' }).click();
+  // The panel opens as it was left: on the text, at the same width.
   await page.locator('.cm-content').getByText('# saved').waitFor();
+  assert.equal(await edge.getAttribute('aria-valuenow'), width);
+  assert.equal(width, '400');
 
   // History compares the first revision with the text now, and restores it.
   await page.getByRole('button', { name: 'History' }).click();
@@ -104,7 +115,7 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.locator('.cm-changedLine').first().waitFor();
   await page.getByRole('button', { name: 'Restore this revision' }).click();
   await page.getByText('Same as the text now.').waitFor();
-  await page.getByRole('button', { name: 'Saved' }).waitFor();
+  await page.getByText('Saved', { exact: true }).waitFor();
 
   // Ids complete where the text refers to things.
   await page.getByRole('button', { name: 'Text' }).click();
@@ -114,11 +125,11 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.locator('.cm-tooltip-autocomplete').getByText('home').waitFor();
   await page.keyboard.press('Escape');
   await page.keyboard.press('ControlOrMeta+z');
-  await page.getByRole('button', { name: 'Saved' }).waitFor();
+  await page.getByText('Saved', { exact: true }).waitFor();
 
   // The graph exports; the PNG is the SVG drawn through a blob: image.
   for (const format of ['SVG', 'PNG']) {
-    await page.getByText('Export', { exact: true }).click();
+    await page.getByRole('button', { name: 'Export' }).click();
     const [file] = await Promise.all([
       page.waitForEvent('download'),
       page.getByRole('button', { name: `${format} (the graph)` }).click(),
@@ -126,7 +137,8 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
     assert.ok(statSync(await file.path()).size > 1000, format);
   }
 
-  await page.getByRole('link', { name: '← Models' }).click();
+  await page.getByRole('button', { name: 'example' }).click();
+  await page.getByRole('link', { name: 'All models' }).click();
   await page.getByRole('link', { name: 'example' }).waitFor();
   await page.getByRole('button', { name: /account menu/ }).click();
   await page.getByRole('button', { name: 'Sign out' }).click();
@@ -135,9 +147,9 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   assert.deepEqual(problems, []);
 });
 
-// WCAG 2.2 AA, as far as axe can tell, in both themes. The model page joins
-// once its overhaul lands.
-test('the sign-in, model list and account pages pass axe', async () => {
+// WCAG 2.2 AA, as far as axe can tell, in both themes. axe can't judge text
+// drawn over the graph's SVG, so that needs checking by hand.
+test('the pages pass axe', async () => {
   for (const colorScheme of ['light', 'dark'] as const) {
     const ctx = await browser.newContext({ colorScheme });
     const page = await ctx.newPage();
@@ -164,6 +176,8 @@ test('the sign-in, model list and account pages pass axe', async () => {
     await check('new model');
     await page.getByRole('button', { name: 'Create', exact: true }).click();
     await page.waitForURL(/\/m\/\d+/);
+    await page.locator('.svelte-flow__node').first().waitFor();
+    await check('model');
     await page.goBack();
     await page.getByRole('link', { name: 'example' }).waitFor();
     await check('models');

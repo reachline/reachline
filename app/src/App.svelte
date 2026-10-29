@@ -1,17 +1,31 @@
 <script lang="ts">
+  import {
+    Download,
+    FileClock,
+    FileCode,
+    Info,
+    RotateCcw,
+    SlidersHorizontal,
+    UnfoldVertical,
+    WandSparkles,
+    Waypoints,
+  } from '@lucide/svelte';
   import { untrack } from 'svelte';
-  import { expandToDepth, isJunction, waysInView, whereView, type View } from './build';
+  import { expandToDepth, waysInView, whereView, type View } from './build';
+  import Details from './Details.svelte';
   import FlowView from './FlowView.svelte';
+  import Legend from './Legend.svelte';
   import { layout, placeLocally, type Direction, type Placed, type Placement, type Routing } from './layout';
-  import { fmtWhy, KINDS } from '../../engine/model.ts';
-  import { what } from '../../engine/report.ts';
+  import { KINDS } from '../../engine/model.ts';
   import type { Conflict } from '../../server/api.ts';
   import { api, ApiFailure, message } from './api';
   import { check, definitionOf } from './check';
   import { download, toMermaid, toPng, toSvg } from './export';
   import { loadModel, outcome, ReachError, type Model } from './data';
+  import ModelSwitcher from './ModelSwitcher.svelte';
+  import { keep, load } from './prefs';
+  import Resizer from './Resizer.svelte';
   import { beforeLeave, follow } from './route.svelte.ts';
-  import { shapePath } from './shapes';
   import UserMenu from './UserMenu.svelte';
 
   let { id, user, onsignout }: { id: number; user: string; onsignout: () => void } = $props();
@@ -36,10 +50,32 @@
   let conflict = $state<number | null>(null);
   let exportError = $state('');
   const dirty = $derived(text !== null && text !== saved);
-  // What shares the screen with the graph.
-  let pane = $state<'text' | 'history' | null>(null);
+  // The panel beside the graph: which tab is open (none when it's closed), and
+  // how wide it is, as this device last had them. Phones start with it closed,
+  // since there it covers the graph.
+  type Tab = 'details' | 'text' | 'history';
+  const TABS = [
+    ['details', 'Details', Info],
+    ['text', 'Text', FileCode],
+    ['history', 'History', FileClock],
+  ] as const;
+  const PANEL = { min: 280, usual: 380, wide: 640 };
+  const lastTab = load('panel.tab');
+  let tab = $state<Tab | null>(
+    lastTab === null || TABS.some(([t]) => t === lastTab)
+      ? (lastTab as Tab | null)
+      : matchMedia('(max-width: 760px)').matches
+        ? null
+        : 'details',
+  );
+  const lastWidth = load('panel.width');
+  let width = $state(typeof lastWidth === 'number' ? lastWidth : PANEL.usual);
+  let innerWidth = $state(window.innerWidth);
+  const maxWidth = $derived(Math.max(PANEL.min, Math.round(innerWidth * 0.7)));
+  $effect(() => keep('panel.tab', tab));
+  $effect(() => keep('panel.width', width));
   // Once opened, the editor stays mounted (hidden when closed) to keep its undo history.
-  let editorOpened = $state(false);
+  let editorOpened = $state(untrack(() => tab) === 'text');
   // The latest text doesn't load, so the graph shows the last text that did.
   let invalid = $state(false);
   // Where the thing last selected in the graph is defined, for the editor to show.
@@ -169,7 +205,7 @@
     } catch (e) {
       if (!(e instanceof ReachError)) throw e;
       error = e.message;
-      togglePane('text');
+      showTab('text');
     }
   }
 
@@ -192,9 +228,9 @@
     return problems;
   }
 
-  function togglePane(p: 'text' | 'history') {
-    pane = pane === p ? null : p;
-    editorOpened ||= pane === 'text';
+  function showTab(t: Tab | null) {
+    tab = t;
+    editorOpened ||= t === 'text';
   }
 
   const scenario = $derived(model?.scenarios.has(scenarioName) ? outcome(model, scenarioName) : undefined);
@@ -260,6 +296,11 @@
     restarting = true;
   }
 
+  function setMode(m: Mode) {
+    mode = m;
+    restart();
+  }
+
   function waysInto(id: string) {
     if (!model) return;
     mode = 'ways';
@@ -280,31 +321,38 @@
     expanded = new Set([...expanded].filter((x) => x !== id));
   }
 
-  const byId = $derived(new Map(shown?.view.nodes.map((n) => [n.id, n]) ?? []));
-  const selNode = $derived(selected ? byId.get(selected) : undefined);
-  const selThing = $derived(selected ? model?.things.get(selected) : undefined);
-  const selReach = $derived(selected ? scenario?.best.get(selected) : undefined);
+  const selNode = $derived(selected ? shown?.view.nodes.find((n) => n.id === selected) : undefined);
 
   const thingsByKind = $derived.by(() => {
     const things = [...(model?.things ?? [])];
     return KINDS.map((k) => [k, things.filter(([, t]) => t.kind === k).map(([id]) => id)] as const);
   });
 
-  const EDGE_KINDS = ['in', 'access', 'recovery', 'needs', 'mirror', 'part'] as const;
+  const MODES = [
+    ['ways', 'Ways in'],
+    ['where', 'Where things live'],
+    ['all', 'Everything'],
+  ] as const;
 </script>
 
-<svelte:window {onkeydown} {onbeforeunload} />
+<svelte:window {onkeydown} {onbeforeunload} bind:innerWidth />
 
-<div class="app" class:editing={pane !== null}>
-  <header class="bar">
-    <a href="/" onclick={follow}>← Models</a>
-    <b>{name}</b>
-    <button aria-pressed={pane === 'text'} onclick={() => togglePane('text')}>Text</button>
-    <button aria-pressed={pane === 'history'} onclick={() => togglePane('history')}>History</button>
-    <button onclick={() => save()} disabled={!dirty || saving} title="Ctrl/Cmd+S">
-      {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
-    </button>
-    <button popovertarget="export-menu">Export</button>
+<div class="app" class:open={tab !== null} style:--panel-w="{Math.min(width, maxWidth)}px">
+  <header class="head">
+    <a class="home" href="/" onclick={follow} aria-label="Your models" title="Your models"><Waypoints /></a>
+    <ModelSwitcher {id} {name} />
+    <span class="state muted wide-only" role="status">{saving ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved'}</span>
+    {#if dirty}
+      <button
+        class="primary"
+        onclick={() => save()}
+        disabled={saving}
+        title="Ctrl/Cmd+S"
+        aria-keyshortcuts="Control+S Meta+S">Save</button
+      >
+    {/if}
+    <span class="spacer"></span>
+    <button class="quiet" popovertarget="export-menu"><Download /><span class="wide-only">Export</span></button>
     <div id="export-menu" class="menu" popover>
       {#each FORMATS as [format, label] (format)}
         <button
@@ -316,31 +364,51 @@
         >
       {/each}
     </div>
-    <span class="sep"></span>
-    <label
-      >View
-      <select bind:value={mode} onchange={restart}>
-        <option value="ways">Ways into…</option>
-        <option value="where">Where things live</option>
-        <option value="all">Everything (all ways in)</option>
-      </select>
-    </label>
+    <UserMenu {user} {onsignout} />
+  </header>
+
+  {#if conflict !== null || saveError || exportError}
+    <div class="banner">
+      {#if conflict !== null}
+        <p class="notice" role="alert">
+          This model was saved elsewhere since you opened it.
+          <button onclick={loadLatest}>Load the newer version</button>
+          (undo brings yours back) or
+          <button onclick={() => save(conflict!)}>Overwrite it with yours</button>
+        </p>
+      {:else if saveError}
+        <p class="notice" role="alert">Couldn't save: {saveError}</p>
+      {:else}
+        <p class="notice" role="alert">Couldn't export: {exportError}</p>
+      {/if}
+    </div>
+  {/if}
+
+  <div class="tools">
+    <div class="segmented" role="group" aria-label="View">
+      {#each MODES as [m, label] (m)}
+        <button class="quiet" aria-pressed={mode === m} onclick={() => setMode(m)}>{label}</button>
+      {/each}
+    </div>
     {#if mode === 'ways'}
-      <label
-        >Thing
-        <select bind:value={target} onchange={() => waysInto(target)}>
-          {#each thingsByKind as [kind, ids] (kind)}
-            <optgroup label={kind}>
-              {#each ids as id (id)}<option value={id}>{id}</option>{/each}
-            </optgroup>
-          {/each}
-        </select>
-      </label>
-      <button onclick={() => (expanded = new Set(model?.things.keys()))}>Expand all</button>
-      <button onclick={() => waysInto(target)}>Reset</button>
-      <button onclick={tidy} title="Run the full ELK layout now">Tidy</button>
+      <span class="group">
+        <label class="field inline"
+          >Thing
+          <select bind:value={target} onchange={() => waysInto(target)}>
+            {#each thingsByKind as [kind, ids] (kind)}
+              <optgroup label={kind}>
+                {#each ids as id (id)}<option value={id}>{id}</option>{/each}
+              </optgroup>
+            {/each}
+          </select>
+        </label>
+        <button class="quiet" onclick={() => waysInto(target)}><RotateCcw />Reset</button>
+        <button class="quiet" onclick={() => (expanded = new Set(model?.things.keys()))}
+          ><UnfoldVertical />Expand all</button
+        >
+      </span>
     {/if}
-    <label
+    <label class="field inline"
       >Scenario
       <select bind:value={scenarioName}>
         <option value="">(none)</option>
@@ -349,70 +417,21 @@
         {/each}
       </select>
     </label>
-    <span class="sep"></span>
-    <label
-      >Routing
-      <select bind:value={routing} onchange={tidy}>
-        <option value="ORTHOGONAL">Orthogonal</option>
-        <option value="SPLINES">Splines</option>
-        <option value="POLYLINE">Polyline</option>
-      </select>
-    </label>
-    <label
-      >Direction
-      <select bind:value={direction} onchange={restart}>
-        <option value="RIGHT">Left → right</option>
-        <option value="DOWN">Top → down</option>
-      </select>
-    </label>
-    <label
-      >Placement
-      <select bind:value={placement} onchange={tidy}>
-        <option value="BRANDES_KOEPF">Brandes–Köpf (fast)</option>
-        <option value="NETWORK_SIMPLEX">Network simplex</option>
-      </select>
-    </label>
-    <button onclick={() => fitKey++}>Fit</button>
     {#if plans.length}<span class="muted" title="From ?plan=">with {plans.join(' + ')}</span>{/if}
-    <span class="user"><UserMenu {user} {onsignout} /></span>
-    {#if conflict !== null}
-      <p class="notice" role="alert">
-        This model was saved elsewhere since you opened it.
-        <button onclick={loadLatest}>Load the newer version</button>
-        (undo brings yours back) or
-        <button onclick={() => save(conflict!)}>Overwrite it with yours</button>
-      </p>
-    {:else if saveError}
-      <p class="notice" role="alert">Couldn't save: {saveError}</p>
-    {:else if exportError}
-      <p class="notice" role="alert">Couldn't export: {exportError}</p>
-    {/if}
-  </header>
+  </div>
 
-  {#if editorOpened && text !== null}
-    <section class="text" class:hidden={pane !== 'text'} aria-label="Model text">
-      {#await import('./Editor.svelte') then { default: Editor }}
-        <Editor
-          {text}
-          onchange={(t: string) => (text = t)}
-          {lint}
-          things={() => [...(model?.things ?? [])].map(([id, t]): [string, string] => [id, t.kind])}
-          {reveal}
-        />
-      {:catch e}
-        <p class="status">The editor didn't load: {message(e)}</p>
-      {/await}
-    </section>
-  {/if}
-  {#if pane === 'history' && text !== null}
-    <section class="text" aria-label="History">
-      {#await import('./History.svelte') then { default: History }}
-        <History {id} latest={revision} current={text} onrestore={restore} />
-      {:catch e}
-        <p class="status">The history didn't load: {message(e)}</p>
-      {/await}
-    </section>
-  {/if}
+  <div class="tabs">
+    <div class="segmented" role="group" aria-label="Panel">
+      {#each TABS as [t, label, Icon] (t)}
+        <button
+          class="quiet"
+          aria-pressed={tab === t}
+          aria-controls="panel"
+          onclick={() => showTab(tab === t ? null : t)}><Icon />{label}</button
+        >
+      {/each}
+    </div>
+  </div>
 
   <main class="canvas" class:outdated={shown && (invalid || lost)}>
     {#if shown && (invalid || lost)}
@@ -429,230 +448,248 @@
         {selected}
         {fitKey}
         {onnode}
-      />
+      >
+        {#snippet tools()}
+          <button class="quiet" onclick={tidy} title="Lay the whole graph out again"><WandSparkles />Tidy</button>
+          <button class="quiet" popovertarget="layout"><SlidersHorizontal />Layout</button>
+          <div id="layout" class="popup" popover>
+            <h2>Layout</h2>
+            <label class="field"
+              >Direction
+              <select bind:value={direction} onchange={restart}>
+                <option value="RIGHT">Left to right</option>
+                <option value="DOWN">Top to bottom</option>
+              </select>
+            </label>
+            <label class="field"
+              >Edges
+              <select bind:value={routing} onchange={tidy}>
+                <option value="ORTHOGONAL">Right angles</option>
+                <option value="SPLINES">Curves</option>
+                <option value="POLYLINE">Straight segments</option>
+              </select>
+            </label>
+            <label class="field"
+              >Placement
+              <select bind:value={placement} onchange={tidy}>
+                <option value="BRANDES_KOEPF">Brandes–Köpf (fast)</option>
+                <option value="NETWORK_SIMPLEX">Network simplex</option>
+              </select>
+            </label>
+            {#if shown}
+              <p class="muted stats">
+                {shown.view.nodes.length} nodes, {shown.view.edges.length} edges, laid out in {shown.placed.ms} ms
+              </p>
+            {/if}
+          </div>
+          <Legend />
+        {/snippet}
+      </FlowView>
     {:else}
       <p class="status">{error || (model?.things.size === 0 ? 'This model has no things yet.' : 'Loading…')}</p>
     {/if}
   </main>
 
-  <aside class="side">
-    {#if scenario}
-      <section>
-        <h3>{scenarioName} <span class="muted">({scenario.sc.kind})</span></h3>
-        <p class="muted">{what(scenario.sc)}</p>
-        {#if scenario.sc.note}<p>{scenario.sc.note}</p>{/if}
+  <aside id="panel" class="panel" class:hidden={tab === null} aria-label="Panel">
+    <Resizer bind:width min={PANEL.min} max={maxWidth} usual={PANEL.usual} wide={PANEL.wide} />
+    {#if tab === 'details'}
+      <Details
+        {model}
+        {scenario}
+        {scenarioName}
+        {selected}
+        node={selNode}
+        target={mode === 'ways' ? target : null}
+        onwaysinto={waysInto}
+        oncollapse={collapse}
+      />
+    {/if}
+    {#if editorOpened && text !== null}
+      <section class="tab" class:hidden={tab !== 'text'} aria-label="Model text">
+        {#await import('./Editor.svelte') then { default: Editor }}
+          <Editor
+            {text}
+            onchange={(t: string) => (text = t)}
+            {lint}
+            things={() => [...(model?.things ?? [])].map(([id, t]): [string, string] => [id, t.kind])}
+            {reveal}
+          />
+        {:catch e}
+          <p class="status">The editor didn't load: {message(e)}</p>
+        {/await}
       </section>
     {/if}
-
-    <section>
-      {#if selNode && isJunction(selNode.kind)}
-        <h3>{selNode.label} junction</h3>
-        <p class="muted mono">{selNode.id}</p>
-      {:else if selThing && selected}
-        <h3>{selected} <span class="muted">{selThing.kind}</span></h3>
-        {#if selThing.tags.length}
-          <p class="muted">{selThing.tags.join(', ')}</p>
-        {/if}
-        {#if selThing.note}<p>{selThing.note}</p>{/if}
-        {#if selThing.todo}<p class="todo">todo: {selThing.todo}</p>{/if}
-        {#if scenario}
-          {#if !scenario.avail.get(selected)}
-            <p><b>Gone</b> in this scenario.</p>
-          {:else if selReach}
-            <p>
-              <b>Reached</b>{selReach.a.length ? ` if ${selReach.a.join(', ')}` : ' outright'}
-              <br /><span class="mono">via {fmtWhy(selReach.why)}</span>
-            </p>
-          {:else}
-            <p><b>Not reached.</b></p>
-          {/if}
-          {#if scenario.rows.has(selected)}<p class="row">{scenario.rows.get(selected)![0]}</p>{/if}
-        {/if}
-        <div class="actions">
-          {#if !(mode === 'ways' && target === selected)}
-            <button onclick={() => waysInto(selected!)}>Ways into this</button>
-          {/if}
-          {#if mode === 'ways' && selNode?.expanded && !selNode.root}
-            <button onclick={() => collapse(selected!)}>Collapse</button>
-          {/if}
-        </div>
-      {:else}
-        <p class="muted">Click a node for details. A <b>+</b> means it has more ways in; clicking expands it.</p>
-      {/if}
-    </section>
-
-    <section class="legend">
-      <h3>Legend</h3>
-      <div class="grid">
-        {#each KINDS as k (k)}
-          <svg width="44" height="18" aria-hidden="true">
-            <path d={shapePath(k, 44, 18)} class="lg-shape" style:stroke="var(--k-{k})" />
-          </svg>
-          <span>{k}</span>
-        {/each}
-        {#each EDGE_KINDS as k (k)}
-          <svg width="44" height="10" aria-hidden="true"><line x1="2" y1="5" x2="42" y2="5" class="lg-{k}" /></svg>
-          <span>{k === 'part' ? 'into AND/OR' : k}</span>
-        {/each}
-      </div>
-    </section>
-
-    {#if shown}
-      <p class="muted stats">
-        {shown.view.nodes.length} nodes · {shown.view.edges.length} edges · ELK {shown.placed.ms} ms
-      </p>
+    {#if tab === 'history' && text !== null}
+      <section class="tab" aria-label="History">
+        {#await import('./History.svelte') then { default: History }}
+          <History {id} latest={revision} current={text} onrestore={restore} />
+        {:catch e}
+          <p class="status">The history didn't load: {message(e)}</p>
+        {/await}
+      </section>
     {/if}
   </aside>
 </div>
 
 <style>
+  /*
+   * The document's header across the top; under it, what the graph shows, and
+   * the panel's tabs, over the graph and the panel. Closed, the panel gives
+   * the graph its room and leaves its tabs at the end of the toolbar.
+   */
   .app {
     display: grid;
-    grid-template-columns: 1fr 290px;
-    grid-template-rows: auto 1fr;
+    grid-template:
+      'head head' auto
+      'banner banner' auto
+      'tools tabs' auto
+      'canvas canvas' minmax(0, 1fr)
+      / minmax(0, 1fr) auto;
     height: 100%;
   }
-  .app.editing {
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 290px;
+  .app.open {
+    grid-template:
+      'head head' auto
+      'banner banner' auto
+      'tools tabs' auto
+      'canvas panel' minmax(0, 1fr)
+      / minmax(0, 1fr) var(--panel-w);
   }
-  .text {
-    min-height: 0;
-    border-right: 1px solid var(--border);
-  }
-  .hidden {
-    display: none;
-  }
-  .bar {
-    grid-column: 1 / -1;
+  .head {
+    grid-area: head;
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
-    gap: 6px 14px;
-    padding: 8px 12px;
+    gap: var(--space-2);
+    min-width: 0;
+    padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--border);
     background: var(--surface);
   }
-  .bar label {
+  .home {
+    display: inline-flex;
+    padding: var(--space-1);
+    color: var(--accent);
+  }
+  .state {
+    font-size: var(--text-sm);
+    white-space: nowrap;
+  }
+  .spacer {
+    flex: 1;
+  }
+  .banner {
+    grid-area: banner;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--border);
+  }
+  .tools,
+  .tabs {
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 5px;
-    color: var(--muted);
+    gap: var(--space-2) var(--space-4);
+    min-width: 0;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--border);
+    background: var(--surface);
   }
-  .bar .notice {
-    flex-basis: 100%;
+  .tools {
+    grid-area: tools;
+    column-gap: var(--space-3);
   }
-  .user {
-    margin-left: auto;
+  /* A long scenario or thing name shouldn't push the toolbar onto two rows. */
+  .tools select {
+    max-width: 11rem;
   }
-  .sep {
-    flex: 0 0 1px;
-    align-self: stretch;
-    background: var(--border);
+  .tabs {
+    grid-area: tabs;
+    justify-content: flex-end;
+  }
+  .open .tabs {
+    justify-content: flex-start;
+    border-left: 1px solid var(--border);
+  }
+  .group {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-1);
+  }
+  .group .field {
+    margin-right: var(--space-1);
   }
   .canvas {
+    grid-area: canvas;
     position: relative;
     min-width: 0;
     min-height: 0;
-    border-right: 1px solid var(--border);
   }
   .outdated :global(.svelte-flow__viewport) {
     opacity: 0.4;
   }
   .badge {
     position: absolute;
-    top: 8px;
+    top: var(--space-2);
     left: 50%;
     z-index: 5;
-    max-width: calc(100% - 16px);
+    max-width: calc(100% - 2 * var(--space-2));
     overflow: hidden;
     transform: translateX(-50%);
     white-space: nowrap;
     text-overflow: ellipsis;
   }
-  .side {
-    overflow-y: auto;
-    padding: 4px 14px 14px;
+  .panel {
+    grid-area: panel;
+    position: relative;
+    min-width: 0;
+    min-height: 0;
+    border-left: 1px solid var(--border);
     background: var(--surface);
-    line-height: 1.45;
   }
-  .side section {
-    border-bottom: 1px solid var(--border);
-    padding: 8px 0;
+  .tab {
+    height: 100%;
   }
-  .side h3 {
-    margin: 4px 0;
-  }
-  .side p {
-    margin: 4px 0;
-  }
-  .todo {
-    color: var(--warning);
-  }
-  .row {
-    color: var(--danger);
-    font-weight: 600;
-  }
-  .actions {
-    display: flex;
-    gap: 6px;
-    margin-top: 6px;
-  }
-  .legend .grid {
-    display: grid;
-    grid-template-columns: 48px 1fr;
-    gap: 4px 6px;
-    align-items: center;
-  }
-  .lg-shape {
-    fill: var(--surface);
-    stroke-width: 1.5;
-  }
-  .legend line {
-    stroke-width: 1.6;
-  }
-  .lg-in {
-    stroke: var(--e-in);
-  }
-  .lg-access {
-    stroke: var(--e-access);
-  }
-  .lg-recovery {
-    stroke: var(--e-recovery);
-    stroke-dasharray: 6 4;
-  }
-  .lg-needs {
-    stroke: var(--e-needs);
-    stroke-dasharray: 2 3;
-  }
-  .lg-mirror {
-    stroke: var(--e-mirror);
-    stroke-dasharray: 8 3 2 3;
-  }
-  .lg-part {
-    stroke: var(--e-part);
-    stroke-width: 1;
+  .hidden {
+    display: none;
   }
   .stats {
     font-size: var(--text-sm);
   }
-  /* Narrow screens: the details go below the graph, and the text replaces both. */
+  #layout {
+    min-width: 14rem;
+  }
+  #layout h2 {
+    font-size: var(--text-md);
+  }
+
+  /* Phones: the panel, open, covers the graph. */
   @media (max-width: 760px) {
-    .app {
-      grid-template-columns: minmax(0, 1fr);
-      grid-template-rows: auto minmax(0, 1fr) auto;
+    .app,
+    .app.open {
+      grid-template:
+        'head' auto
+        'banner' auto
+        'tools' auto
+        'tabs' auto
+        'canvas' minmax(0, 1fr)
+        / minmax(0, 1fr);
     }
-    .canvas {
-      border-right: none;
+    .app.open {
+      grid-template-areas: 'head' 'banner' 'tools' 'tabs' 'panel';
     }
-    .side {
-      max-height: 40vh;
-      border-top: 1px solid var(--border);
+    .app.open .canvas {
+      display: none;
     }
-    .app.editing {
-      grid-template-columns: minmax(0, 1fr);
+    .open .tabs {
+      border-left: none;
     }
-    .app.editing .canvas,
-    .app.editing .side {
+    .tabs {
+      justify-content: flex-start;
+    }
+    .panel {
+      border-left: none;
+    }
+    .panel :global(.resizer) {
       display: none;
     }
   }

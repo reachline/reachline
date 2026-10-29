@@ -1,20 +1,10 @@
-// Light, dark or the system's. A setting for this device, so it's kept in the
-// browser; it says nothing about anyone's model.
+// Light, dark or the system's, for this device.
+import { keep, load } from './prefs';
 
 export type Theme = 'light' | 'dark' | 'system';
 
-const KEY = 'theme';
-
-function stored(): Theme {
-  try {
-    const t = localStorage.getItem(KEY);
-    return t === 'light' || t === 'dark' ? t : 'system';
-  } catch {
-    return 'system';
-  }
-}
-
-let current = $state<Theme>(stored());
+const stored = load('theme');
+let current = $state<Theme>(stored === 'light' || stored === 'dark' ? stored : 'system');
 
 function apply() {
   if (current === 'system') delete document.documentElement.dataset.theme;
@@ -29,11 +19,6 @@ export const theme = {
   set value(t: Theme) {
     current = t;
     apply();
-    try {
-      if (t === 'system') localStorage.removeItem(KEY);
-      else localStorage.setItem(KEY, t);
-    } catch {
-      // Not kept, then: it still applies until the page reloads.
-    }
+    keep('theme', t === 'system' ? undefined : t);
   },
 };

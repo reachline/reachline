@@ -1,11 +1,12 @@
 <script lang="ts">
-  import { Background, Controls, MarkerType, SvelteFlow, type Edge, type Node } from '@xyflow/svelte';
+  import { Background, MarkerType, Panel, SvelteFlow, type Edge, type Node } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import { isJunction, type View } from './build';
-  import Fit from './flow/Fit.svelte';
+  import type { Snippet } from 'svelte';
   import JunctionNode from './flow/JunctionNode.svelte';
   import RoutedEdge from './flow/RoutedEdge.svelte';
   import ThingNode from './flow/ThingNode.svelte';
+  import Zoom from './flow/Zoom.svelte';
   import type { Placed } from './layout';
   import { theme } from './theme.svelte.ts';
 
@@ -17,8 +18,10 @@
     selected: string | null;
     fitKey: number;
     onnode: (id: string) => void;
+    /** More controls, after the zoom buttons. */
+    tools?: Snippet;
   }
-  let { view, placed, vertical, kind, selected, fitKey, onnode }: Props = $props();
+  let { view, placed, vertical, kind, selected, fitKey, onnode, tools }: Props = $props();
 
   const nodeTypes = { thing: ThingNode, junction: JunctionNode };
   const edgeTypes = { routed: RoutedEdge };
@@ -72,8 +75,10 @@
     onnodeclick={({ node }) => onnode(node.id)}
   >
     <Background />
-    <Controls showLock={false} />
-    <Fit {fitKey} />
+    <Panel position="bottom-left" class="segmented floating" role="group" aria-label="Graph controls">
+      <Zoom {fitKey} />
+      {@render tools?.()}
+    </Panel>
   </SvelteFlow>
 </div>
 
@@ -82,12 +87,12 @@
     position: relative;
     width: 100%;
     height: 100%;
-    font: var(--graph-font);
   }
   .pane :global(.svelte-flow) {
     --xy-background-color: var(--bg);
   }
   .pane :global(.svelte-flow__node) {
+    font: var(--graph-font);
     transition: transform 300ms ease;
   }
 </style>

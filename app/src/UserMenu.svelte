@@ -23,7 +23,7 @@
 </script>
 
 <button class="quiet" popovertarget="{id}-menu" aria-label="{user}: account menu">
-  <User />{user}<ChevronDown />
+  <User /><span class="wide-only">{user}</span><ChevronDown />
 </button>
 <div id="{id}-menu" class="menu user-menu" popover bind:this={menu}>
   <a
