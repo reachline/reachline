@@ -5,8 +5,12 @@
   import { layout, placeLocally, type Direction, type Placed, type Placement, type Routing } from './layout';
   import { fmtWhy, KINDS } from '../../engine/model.ts';
   import { what } from '../../engine/report.ts';
+  import { api, message } from './api';
   import { loadModel, outcome, ReachError, type Model } from './data';
+  import { follow } from './route.svelte.ts';
   import { shapePath } from './shapes';
+
+  let { id }: { id: number } = $props();
 
   type Mode = 'ways' | 'where' | 'all';
   const DEPTH = 2;
@@ -15,6 +19,7 @@
   const q = new URLSearchParams(location.search);
   const plans = (q.get('plan') ?? '').split(',').filter(Boolean);
 
+  let name = $state('');
   let model = $state.raw<Model | null>(null);
   let error = $state('');
   let mode = $state<Mode>((q.get('mode') ?? 'ways') as Mode);
@@ -31,15 +36,27 @@
   // Set when the view changes wholesale: the next layout starts from scratch and fits.
   let restarting = true;
 
-  try {
-    const m = loadModel(plans);
-    // Without ?target=, start on the first critical thing.
-    target ||= [...m.things].find(([, t]) => t.tags.includes('critical'))?.[0] ?? [...m.things.keys()][0];
-    expanded = expandToDepth(m, [untrack(() => target)], DEPTH);
-    model = m;
-  } catch (e) {
-    if (!(e instanceof ReachError)) throw e;
-    error = e.message;
+  api.model(untrack(() => id)).then(
+    (doc) => {
+      name = doc.name;
+      document.title = `${doc.name} · ReachLine`;
+      open(doc.text);
+    },
+    (e: unknown) => (error = message(e)),
+  );
+
+  function open(text: string) {
+    try {
+      const m = loadModel(text, plans);
+      // Without ?target=, start on the first critical thing.
+      target ||= [...m.things].find(([, t]) => t.tags.includes('critical'))?.[0] ?? [...m.things.keys()].at(0) ?? '';
+      const t = untrack(() => target);
+      if (m.things.has(t)) expanded = expandToDepth(m, [t], DEPTH);
+      model = m;
+    } catch (e) {
+      if (!(e instanceof ReachError)) throw e;
+      error = e.message;
+    }
   }
 
   const scenario = $derived(model?.scenarios.has(scenarioName) ? outcome(model, scenarioName) : undefined);
@@ -49,6 +66,7 @@
     if (!model) return null;
     if (mode === 'where') return whereView(model, scenario);
     if (mode === 'all') return waysInView(model, [...model.things.keys()], 'all', scenario);
+    if (!model.things.has(target)) return null;
     return waysInView(model, [target], expanded, scenario);
   });
 
@@ -126,15 +144,19 @@
   const selThing = $derived(selected ? model?.things.get(selected) : undefined);
   const selReach = $derived(selected ? scenario?.best.get(selected) : undefined);
 
-  const thingsByKind = $derived(
-    model ? KINDS.map((k) => [k, [...model.things].filter(([, t]) => t.kind === k).map(([id]) => id)] as const) : [],
-  );
+  const thingsByKind = $derived.by(() => {
+    const things = [...(model?.things ?? [])];
+    return KINDS.map((k) => [k, things.filter(([, t]) => t.kind === k).map(([id]) => id)] as const);
+  });
 
   const EDGE_KINDS = ['in', 'access', 'recovery', 'needs', 'mirror', 'part'] as const;
 </script>
 
 <div class="app">
   <header class="bar">
+    <a href="/" onclick={follow}>← Models</a>
+    <b>{name}</b>
+    <span class="sep"></span>
     <label
       >View
       <select bind:value={mode} onchange={restart}>
@@ -206,7 +228,7 @@
         {onnode}
       />
     {:else}
-      <p class="status">{error || 'Loading…'}</p>
+      <p class="status">{error || (model?.things.size === 0 ? 'This model has no things yet.' : 'Loading…')}</p>
     {/if}
   </main>
 
@@ -261,7 +283,7 @@
       <div class="grid">
         {#each KINDS as k (k)}
           <svg width="44" height="18" aria-hidden="true">
-            <path d={shapePath(k, 44, 18)} style="fill: var(--surface); stroke: var(--k-{k}); stroke-width: 1.5" />
+            <path d={shapePath(k, 44, 18)} class="lg-shape" style:stroke="var(--k-{k})" />
           </svg>
           <span>{k}</span>
         {/each}
@@ -324,11 +346,6 @@
     min-height: 0;
     border-right: 1px solid var(--border);
   }
-  .status {
-    padding: 20px;
-    color: var(--muted);
-    white-space: pre-wrap;
-  }
   .side {
     overflow-y: auto;
     padding: 4px 14px 14px;
@@ -379,6 +396,10 @@
     grid-template-columns: 48px 1fr;
     gap: 4px 6px;
     align-items: center;
+  }
+  .lg-shape {
+    fill: var(--surface);
+    stroke-width: 1.5;
   }
   .legend line {
     stroke-width: 1.6;

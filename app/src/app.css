@@ -100,3 +100,90 @@ input {
   font: inherit;
   color: inherit;
 }
+
+/* The pages around the graph: login and the model picker. */
+.page {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.45;
+}
+.page.narrow {
+  max-width: 360px;
+  padding-top: 12vh;
+}
+.page h1 {
+  margin: 8px 0 16px;
+  font-size: 20px;
+}
+.page h2 {
+  margin: 0 0 10px;
+  font-size: 14px;
+}
+.card {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin-bottom: 16px;
+  padding: 14px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--surface);
+}
+.card label {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  color: var(--muted);
+}
+.page input:not([type='radio']) {
+  padding: 6px 8px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+}
+.page button {
+  padding: 5px 12px;
+  border: 1px solid var(--border);
+  border-radius: 5px;
+  background: var(--bg);
+  cursor: pointer;
+}
+.page button.primary {
+  border-color: var(--focus);
+  background: var(--focus);
+  color: var(--surface);
+}
+.page button.link {
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--focus);
+}
+.page button.danger {
+  color: var(--bad-stroke);
+}
+.page button:disabled {
+  opacity: 0.6;
+  cursor: default;
+}
+.page .actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.page a {
+  color: var(--focus);
+}
+.page .muted {
+  color: var(--muted);
+}
+.error {
+  color: var(--bad-stroke);
+}
+.status {
+  padding: 20px;
+  color: var(--muted);
+  white-space: pre-wrap;
+}

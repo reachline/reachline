@@ -34,7 +34,7 @@ export default defineConfig(
     },
   },
   {
-    files: ['**/*.svelte'],
+    files: ['**/*.svelte', '**/*.svelte.ts'],
     languageOptions: { parserOptions: { parser: tseslint.parser, svelteConfig } },
     rules: {
       // svelte-check already reports undefined names, with the browser's globals.

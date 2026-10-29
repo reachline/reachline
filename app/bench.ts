@@ -1,5 +1,6 @@
 // ELK timings and expand-on-click stability, outside the browser.
 //   node bench.ts
+import { readFileSync } from 'node:fs';
 import { createServer } from 'vite';
 import type { View } from './src/build.ts';
 import type { LayoutOpts, Placement } from './src/layout.ts';
@@ -7,7 +8,8 @@ import type { LayoutOpts, Placement } from './src/layout.ts';
 const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
 const build = (await server.ssrLoadModule('/src/build.ts')) as typeof import('./src/build.ts');
 const { layout } = (await server.ssrLoadModule('/src/layout.ts')) as typeof import('./src/layout.ts');
-const model = ((await server.ssrLoadModule('/src/data.ts')) as typeof import('./src/data.ts')).loadModel();
+const { loadModel } = (await server.ssrLoadModule('/src/data.ts')) as typeof import('./src/data.ts');
+const model = loadModel(readFileSync(new URL('../examples/model.yml', import.meta.url), 'utf8'));
 const ids = [...model.things.keys()];
 const opts: LayoutOpts = {
   direction: 'RIGHT',
