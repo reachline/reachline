@@ -1,0 +1,19 @@
+# ReachLine behind a TLS reverse proxy on the same host. See the README for
+# the settings, and .env.template for what each one does.
+#
+#   docker compose up -d
+#   docker compose exec reachline reset-password <username>
+
+services:
+  reachline:
+    build: .
+    restart: unless-stopped
+    ports:
+      - 5199:5199
+    environment:
+      AUTH_REGISTRATION: "1"
+    volumes:
+      - reachline-data:/data
+
+volumes:
+  reachline-data:

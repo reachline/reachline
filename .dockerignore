@@ -1,0 +1,14 @@
+# The personal model and local settings must never reach an image.
+data/
+.dev/
+.env
+.env.*
+
+**/node_modules
+**/dist
+.git
+.github
+.githooks
+.claude
+e2e
+test

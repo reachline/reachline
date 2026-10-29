@@ -25,11 +25,15 @@ scenarios:
 
 ReachLine follows every path, recovery included, and gives each critical or sensitive thing a verdict: **LOST**, **REACHED**, **UNSURE** (the path relies on something marked `?` because you don't know it) or **DEPENDS** (it relies on a condition of the moment, such as an app being unlocked). It also shows the graph of why. **Plans** are overlays that answer "what changes if I do this?", such as adding a spare security key or replacing a sync with a backup, as a before/after for every scenario. They live in the same file, under `plans:`.
 
-ReachLine runs entirely on your machine. Your model is a map of your weak points, so it never leaves your computer: the web UI binds only to `127.0.0.1`, and your data stays in plain files that you version yourself.
+## Your server, your data
+
+Your model is a map of your weak points, so ReachLine is self-hosted: you run it on a server you own, for yourself or a few people you trust. There is no central instance, no telemetry, and the page makes no requests anywhere but your server (its Content Security Policy enforces that). The engine runs in your browser. The server stores each model as YAML text, keeps every saved revision, and never interprets it.
+
+Models aren't encrypted on the server, so whoever controls the server and its backups can read them. Treat the server and its data volume as you would your password manager's backups.
 
 ## Development Instructions
 
-Requires [Node.js](https://nodejs.org) 22.18 or newer, which runs TypeScript directly with no build step, and [pnpm](https://pnpm.io). Development happens on Node 26.
+Requires [Node.js](https://nodejs.org) and [pnpm](https://pnpm.io). Node runs the TypeScript directly, with no build step. The command line needs Node 22.18 or newer, and the server needs 24.7 or newer; development happens on Node 26.
 
 ### Setup
 
@@ -41,7 +45,15 @@ pnpm install
 
 ### Running
 
-The repository ships with a synthetic example model in `examples/`. Without a model of your own, both the command line and the UI open the example.
+```sh
+pnpm dev:reset                      # a fresh .dev/ database: user dev, password dev-password, and the example model
+pnpm dev                            # the server and the UI, at http://127.0.0.1:5199
+pnpm build && pnpm start            # what the Docker image runs
+```
+
+Settings come from `.env` (copy `.env.template`). In development the database lives in `.dev/`, which is gitignored and holds example data only. See `app/README.md` for the UI's URL parameters.
+
+The command line runs the engine on a local file: `data/model.yml`, or the synthetic example in `examples/` when there's no `data/`.
 
 ```sh
 ./reach.ts                          # every scenario
@@ -50,23 +62,22 @@ The repository ships with a synthetic example model in `examples/`. Without a mo
 ./reach.ts --todo                   # open questions in the model
 ./reach.ts --plan spare_key                           # before/after a plan
 ./reach.ts --mermaid mail --scenario house_fire       # a Mermaid chart
-
-pnpm dev                            # web UI at http://127.0.0.1:5199
 ```
 
-To model your own setup, create `data/model.yml`. Use `examples/model.yml` as a starting point: its header documents every field. `data/` is gitignored, and once it exists, ReachLine uses it in place of the example. Pass `--model examples/model.yml` on the command line, or open the UI with `?model=example`, to see the example again. See the top of `reach.ts` for every command-line option, and `app/README.md` for the UI's URL parameters.
+To model your own setup, create `data/model.yml`, starting from `examples/model.yml`: its header documents every field. `data/` is gitignored. Pass `--model examples/model.yml` to see the example again. See the top of `reach.ts` for every command-line option.
 
 ### Checking
 
 ```sh
-pnpm verify     # all of the below
-pnpm check      # type-check the engine, CLI and UI
+pnpm verify     # all of the below but test:csp
+pnpm check      # type-check the engine, CLI, server and UI
 pnpm lint       # ESLint
 pnpm format     # Prettier (format:check only checks)
-pnpm test       # engine and CLI tests
+pnpm test       # engine, CLI and server tests
+pnpm test:csp   # the built app in Chromium, under the strict CSP (needs pnpm build)
 ```
 
-`pnpm install` sets up a pre-commit hook that runs `pnpm verify`, and CI runs it too. After a deliberate change to what the engine computes, update the test snapshot with `node --test --test-update-snapshots "test/*.test.ts"`.
+`pnpm install` sets up a pre-commit hook that runs `pnpm verify`, and CI runs it too, along with `pnpm test:csp`. For `test:csp` locally, first run `pnpm exec playwright install chromium-headless-shell`. After a deliberate change to what the engine computes, update the test snapshot with `node --test --test-update-snapshots "test/*.test.ts"`.
 
 ## Contributing
 
@@ -81,7 +92,9 @@ This software is licensed under the [AGPL-3.0 license](LICENSE).
 We owe thanks to all the projects that make ReachLine run.
 
 - [ELK](https://github.com/kieler/elkjs)
+- [Hono](https://github.com/honojs/hono)
 - [Node](https://github.com/nodejs)
+- [Playwright](https://github.com/microsoft/playwright)
 - [Svelte](https://github.com/sveltejs)
 - [Svelte Flow](https://github.com/xyflow/xyflow)
 - [TypeScript](https://github.com/microsoft/TypeScript)
