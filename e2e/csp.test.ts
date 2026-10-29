@@ -72,6 +72,19 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await page.waitForURL(/\/m\/\d+/);
   await page.locator('.svelte-flow__node').first().waitFor();
+
+  // The graph works from the keyboard: Enter on a node selects it and shows its ways in; Escape clears it.
+  const more = page.getByRole('group', { name: /has more ways in$/ }).first();
+  const id = (await more.getAttribute('aria-label'))!.split(',')[0];
+  const count = await page.locator('.svelte-flow__node').count();
+  await more.focus();
+  await page.keyboard.press('Enter');
+  await page.getByRole('heading', { name: new RegExp(`^${id} `) }).waitFor();
+  await page.waitForFunction((n) => document.querySelectorAll('.svelte-flow__node').length > n, count);
+  await page.getByRole('group', { name: new RegExp(`^${id},`) }).focus();
+  await page.keyboard.press('Escape');
+  await page.getByText('Select a node for its details.').waitFor();
+
   await page.getByRole('button', { name: 'Tidy' }).click();
   await page.getByRole('button', { name: 'Where things live' }).click();
   await page.locator('.svelte-flow__node').first().waitFor();

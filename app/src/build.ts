@@ -35,6 +35,48 @@ export interface View {
 
 export const isJunction = (k: NodeKind) => k === 'and' || k === 'or' || k === 'unknown';
 
+/**
+ * A node's status in words, and the glyph that shows it beside the name so
+ * it isn't told by colour alone. The glyph follows the colour: ✓ where the
+ * fill is good, ✗ where it's bad, ? where it rests on assumptions.
+ */
+export function verdict(n: VNode, scenarioKind: string): { mark?: string; words: string } | undefined {
+  const breach = scenarioKind === 'breach';
+  switch (n.status) {
+    case 'has':
+      return breach ? { mark: '✗', words: 'reached by the attacker' } : { mark: '✓', words: 'reached' };
+    case 'maybe':
+      return {
+        mark: '?',
+        words: breach ? 'reached by the attacker if assumptions hold' : 'reached if assumptions hold',
+      };
+    case 'lost':
+      return { mark: '✗', words: 'lost' };
+    case 'gone':
+      return { words: 'gone in this scenario' };
+    case 'start':
+      return { words: 'where the attacker starts' };
+    case 'none':
+      return { words: 'not reached' };
+    default:
+      return undefined;
+  }
+}
+
+const JUNCTIONS = { and: 'all of these', or: 'any one of these', unknown: 'unknown ways in' };
+
+/** A node's name for screen readers: what it is, and what the scenario says about it. */
+export function describe(n: VNode, scenarioKind: string): string {
+  if (n.kind === 'and' || n.kind === 'or' || n.kind === 'unknown') return `${JUNCTIONS[n.kind]} (${n.label})`;
+  const parts = [n.label, n.kind];
+  if (n.flag) parts.push(scenarioKind === 'breach' ? 'sensitive' : 'critical');
+  const v = verdict(n, scenarioKind);
+  if (v) parts.push(v.words);
+  if (n.row) parts.push(`flagged: ${n.row.toLowerCase()}`);
+  if (n.more) parts.push('has more ways in');
+  return parts.join(', ');
+}
+
 /** Every thing with a direct way into tid. */
 export function incoming(m: Model, tid: string): string[] {
   const t = m.things.get(tid)!;

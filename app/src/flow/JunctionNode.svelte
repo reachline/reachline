@@ -10,7 +10,8 @@
   let { data }: NodeProps & { data: Data } = $props();
 </script>
 
-<div class="junction k-{data.node.kind}" class:sel={data.selected}>{data.node.label}</div>
+<!-- What this shows is in the node's aria-label (FlowView). -->
+<div class="junction k-{data.node.kind}" class:sel={data.selected} aria-hidden="true">{data.node.label}</div>
 <Handle type="target" position={data.vertical ? Position.Top : Position.Left} isConnectable={false} />
 <Handle type="source" position={data.vertical ? Position.Bottom : Position.Right} isConnectable={false} />
 
@@ -30,12 +31,13 @@
   }
   .k-unknown {
     font-size: 12px;
-    color: var(--maybe-stroke);
+    color: var(--warning);
     background: var(--maybe-fill);
     border: 1.5px dashed var(--maybe-stroke);
   }
+  /* Selected: a ring in the text colour, as on things. */
   .sel {
-    box-shadow: 0 0 0 2px var(--focus);
+    box-shadow: 0 0 0 3px var(--text);
   }
   @keyframes appear {
     from {

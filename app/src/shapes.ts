@@ -24,6 +24,11 @@ export interface Placed {
 /** The graph's font: nodes are sized for it, and exports draw with it. */
 export const FONT_FAMILY = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
 export const FONT = `12px ${FONT_FAMILY}`;
+/**
+ * Room before a thing's name for its status glyph, whenever a scenario is
+ * shown: a 12px glyph and a 4px gap (as ThingNode draws them).
+ */
+export const STATUS_SLOT = 16;
 
 /** SVG path for an HTML-rendered node of size w x h (inset for the stroke). */
 export function shapePath(kind: NodeKind, w: number, h: number): string {

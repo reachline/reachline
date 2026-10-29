@@ -48,5 +48,6 @@
   }
   .dead {
     stroke: var(--e-dead);
+    stroke-width: 1;
   }
 </style>

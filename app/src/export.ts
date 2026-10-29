@@ -1,8 +1,8 @@
 // Exporting the graph on screen: SVG drawn from its layout and shapes.ts (and
 // PNG from that), and Mermaid from its view.
 import { CLASSES, COMMON_CLASSES, SHAPES, type ScenarioKind } from '../../engine/mermaid.ts';
-import { isJunction, type EdgeKind, type View, type VNode } from './build.ts';
-import { FONT_FAMILY, routePath, shapePath, type Box, type Placed } from './shapes.ts';
+import { isJunction, verdict, type EdgeKind, type View, type VNode } from './build.ts';
+import { FONT_FAMILY, routePath, shapePath, STATUS_SLOT, type Box, type Placed } from './shapes.ts';
 
 /** A colour from app.css by its variable's name, such as 'k-device'. */
 export type Colors = (name: string) => string;
@@ -55,7 +55,7 @@ export function toSvg(view: View, placed: Placed, kind: string, vertical: boolea
     const d = routePath(placed.edges.get(e.id) ?? [], placed.routing) || straight(box(e.source), box(e.target));
     const dash = DASH[e.kind] ? ` stroke-dasharray="${DASH[e.kind]}"` : '';
     const head = e.kind === 'part' ? '' : ` marker-end="url(#${arrow(color)})"`;
-    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${e.kind === 'part' ? 1 : 1.4}"${dash}${head}/>`;
+    return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${e.kind === 'part' || !e.live ? 1 : 1.4}"${dash}${head}/>`;
   });
 
   const nodes = view.nodes.map((n) => {
@@ -64,7 +64,7 @@ export function toSvg(view: View, placed: Placed, kind: string, vertical: boolea
       const unknown = n.kind === 'unknown';
       const [fill, stroke] = unknown ? [c('maybe-fill'), c('maybe-stroke')] : [c('surface'), c('k-junction')];
       const dash = unknown ? ' stroke-dasharray="3 2"' : '';
-      const text = unknown ? `font-size="12" fill="${c('maybe-stroke')}"` : `font-size="8" fill="${c('muted')}"`;
+      const text = unknown ? `font-size="12" fill="${c('warning')}"` : `font-size="8" fill="${c('muted')}"`;
       return (
         `<g transform="translate(${x},${y})"><circle cx="${w / 2}" cy="${h / 2}" r="${w / 2 - 0.75}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"${dash}/>` +
         `<text x="${w / 2}" y="${h / 2}" text-anchor="middle" dominant-baseline="central" font-weight="600" ${text}>${esc(n.label)}</text></g>`
@@ -76,11 +76,16 @@ export function toSvg(view: View, placed: Placed, kind: string, vertical: boolea
     const mark = n.more
       ? `<text x="${right}" y="${h / 2}" text-anchor="end" dominant-baseline="central" font-weight="700" fill="${c('muted')}">+</text>`
       : n.row
-        ? `<text x="${right}" y="${h / 2}" text-anchor="end" dominant-baseline="central" font-weight="700" fill="${c('bad-stroke')}">!</text>`
+        ? `<text x="${right}" y="${h / 2}" text-anchor="end" dominant-baseline="central" font-weight="700" fill="${c('danger')}">!</text>`
         : '';
+    const left = LEFT[n.kind] ?? 12;
+    const glyph = verdict(n, kind)?.mark;
+    const status = glyph
+      ? `<text x="${left + 6}" y="${h / 2}" text-anchor="middle" dominant-baseline="central" font-weight="700" fill="${s.text}">${glyph}</text>`
+      : '';
     return (
       `<g transform="translate(${x},${y})"><path d="${shapePath(n.kind, w, h)}" fill="${s.fill}" stroke="${s.stroke}" stroke-width="${s.width}"${dash}/>` +
-      `<text x="${LEFT[n.kind] ?? 12}" y="${h / 2}" dominant-baseline="central" fill="${s.text}">${esc(n.label)}</text>${mark}</g>`
+      `${status}<text x="${left + (n.status ? STATUS_SLOT : 0)}" y="${h / 2}" dominant-baseline="central" fill="${s.text}">${esc(n.label)}</text>${mark}</g>`
     );
   });
 

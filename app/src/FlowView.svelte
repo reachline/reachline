@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Background, MarkerType, Panel, SvelteFlow, type Edge, type Node } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
-  import { isJunction, type View } from './build';
+  import { describe, isJunction, type View } from './build';
   import type { Snippet } from 'svelte';
   import JunctionNode from './flow/JunctionNode.svelte';
   import RoutedEdge from './flow/RoutedEdge.svelte';
@@ -17,11 +17,32 @@
     kind: string;
     selected: string | null;
     fitKey: number;
+    /** A node was chosen, by a click or with Enter or Space. */
     onnode: (id: string) => void;
+    /** The selection was cleared, by Escape or a click on empty space. */
+    ondeselect: () => void;
     /** More controls, after the zoom buttons. */
     tools?: Snippet;
   }
-  let { view, placed, vertical, kind, selected, fitKey, onnode, tools }: Props = $props();
+  let { view, placed, vertical, kind, selected, fitKey, onnode, ondeselect, tools }: Props = $props();
+
+  // Svelte Flow's own description talks of deleting and moving nodes.
+  const ariaLabelConfig = {
+    'node.a11yDescription.default':
+      'Press Enter to select a node and see its details. Selecting a node with more ways in shows them.',
+  };
+
+  /** Svelte Flow keeps keys to its own selection, which is off; these choose a node as a click does. */
+  function onkeydown(e: KeyboardEvent) {
+    const el = e.target as HTMLElement;
+    if (!el.classList.contains('svelte-flow__node') || !el.dataset.id) return;
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      onnode(el.dataset.id);
+    } else if (e.key === 'Escape') {
+      ondeselect();
+    }
+  }
 
   const nodeTypes = { thing: ThingNode, junction: JunctionNode };
   const edgeTypes = { routed: RoutedEdge };
@@ -30,18 +51,27 @@
   let edges = $state.raw<Edge[]>([]);
 
   $effect(() => {
-    nodes = view.nodes.map((n) => {
-      const b = placed.nodes.get(n.id)!;
-      return {
-        id: n.id,
-        type: isJunction(n.kind) ? 'junction' : 'thing',
-        position: { x: b.x, y: b.y },
-        width: b.w,
-        height: b.h,
-        draggable: false,
-        data: { node: n, vertical, selected: n.id === selected },
-      };
-    });
+    // In reading order, so Tab follows the graph's flow: by column, or by row when it runs down.
+    const at = (id: string) => placed.nodes.get(id)!;
+    const order = (a: string, b: string) => {
+      const [p, q] = [at(a), at(b)];
+      return vertical ? p.y - q.y || p.x - q.x : p.x - q.x || p.y - q.y;
+    };
+    nodes = [...view.nodes]
+      .sort((a, b) => order(a.id, b.id))
+      .map((n) => {
+        const b = at(n.id);
+        return {
+          id: n.id,
+          type: isJunction(n.kind) ? 'junction' : 'thing',
+          position: { x: b.x, y: b.y },
+          width: b.w,
+          height: b.h,
+          draggable: false,
+          ariaLabel: describe(n, kind),
+          data: { node: n, vertical, selected: n.id === selected, kind },
+        };
+      });
     edges = view.edges.map((e) => ({
       id: e.id,
       source: e.source,
@@ -62,7 +92,9 @@
   });
 </script>
 
-<div class="pane kind-{kind}">
+<!-- Keys come from the nodes inside, which are focusable. -->
+<!-- svelte-ignore a11y_no_static_element_interactions -->
+<div class="pane kind-{kind}" {onkeydown}>
   <SvelteFlow
     bind:nodes
     bind:edges
@@ -71,8 +103,11 @@
     nodesDraggable={false}
     nodesConnectable={false}
     minZoom={0.05}
+    elementsSelectable={false}
     colorMode={theme.value}
+    {ariaLabelConfig}
     onnodeclick={({ node }) => onnode(node.id)}
+    onpaneclick={ondeselect}
   >
     <Background />
     <Panel position="bottom-left" class="segmented floating" role="group" aria-label="Graph controls">

@@ -3,7 +3,7 @@
 import ElkApi, { type ELK, type ElkNode } from 'elkjs/lib/elk-api.js';
 import workerUrl from 'elkjs/lib/elk-worker.min.js?url';
 import { isJunction, type View, type VNode } from './build';
-import { FONT, type Box, type Placed, type Pt, type Routing } from './shapes';
+import { FONT, STATUS_SLOT, type Box, type Placed, type Pt, type Routing } from './shapes';
 
 export type { Box, Placed, Pt, Routing };
 
@@ -34,12 +34,12 @@ let ctx: CanvasRenderingContext2D | null = null;
 export function sizeOf(n: VNode): { w: number; h: number } {
   if (isJunction(n.kind)) return { w: JUNCTION, h: JUNCTION };
   // Room on the right for the expand/status marker.
-  const bars = n.kind === 'account' ? 8 : 0;
+  const extra = (n.kind === 'account' ? 8 : 0) + (n.status ? STATUS_SLOT : 0);
   // Outside a browser (bench.ts), estimate the text width.
-  if (typeof document === 'undefined') return { w: n.label.length * 7 + 34 + bars, h: THING_H };
+  if (typeof document === 'undefined') return { w: n.label.length * 7 + 34 + extra, h: THING_H };
   ctx ??= document.createElement('canvas').getContext('2d')!;
   ctx.font = FONT;
-  return { w: Math.ceil(ctx.measureText(n.label).width) + 34 + bars, h: THING_H };
+  return { w: Math.ceil(ctx.measureText(n.label).width) + 34 + extra, h: THING_H };
 }
 
 /** Where to put a node ELK hasn't seen: just upstream of what it feeds into. */

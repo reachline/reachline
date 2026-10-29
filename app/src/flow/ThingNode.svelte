@@ -1,27 +1,30 @@
 <script lang="ts">
   import { Handle, Position, type NodeProps } from '@xyflow/svelte';
-  import type { VNode } from '../build';
+  import { verdict, type VNode } from '../build';
   import { shapePath } from '../shapes';
 
   interface Data {
     node: VNode;
     vertical: boolean;
     selected: boolean;
+    /** The scenario's kind, or '' for none. */
+    kind: string;
   }
   let { data, width = 0, height = 0 }: NodeProps & { data: Data } = $props();
   const n = $derived(data.node);
+  const d = $derived(shapePath(n.kind, width, height));
 </script>
 
-<div
-  class="thing k-{n.kind} st-{n.status ?? 'plain'}"
-  class:root={n.root}
-  class:sel={data.selected}
-  title={n.row ?? ''}
->
-  <svg {width} {height} aria-hidden="true"><path d={shapePath(n.kind, width, height)} /></svg>
+<!-- What all this shows is in the node's aria-label (FlowView). -->
+<div class="thing k-{n.kind} st-{n.status ?? 'plain'}" class:root={n.root} class:sel={data.selected} aria-hidden="true">
+  <svg {width} {height}>
+    {#if data.selected}<path class="halo" {d} />{/if}
+    <path {d} />
+  </svg>
+  {#if n.status}<span class="glyph">{verdict(n, data.kind)?.mark ?? ''}</span>{/if}
   <span class="label">{n.label}</span>
-  {#if n.more}<span class="mark more" title="has more ways in: click to expand">+</span>
-  {:else if n.row}<span class="mark row" title={n.row}>!</span>{/if}
+  {#if n.more}<span class="mark more">+</span>
+  {:else if n.row}<span class="mark row">!</span>{/if}
 </div>
 <Handle type="target" position={data.vertical ? Position.Top : Position.Left} isConnectable={false} />
 <Handle type="source" position={data.vertical ? Position.Bottom : Position.Right} isConnectable={false} />
@@ -51,6 +54,15 @@
     stroke: var(--stroke);
     stroke-width: var(--sw);
   }
+  /* As wide as STATUS_SLOT in shapes.ts, gap included. */
+  .glyph {
+    position: relative;
+    flex: none;
+    width: 12px;
+    margin-right: 4px;
+    font-weight: 700;
+    text-align: center;
+  }
   .label {
     position: relative;
     white-space: nowrap;
@@ -73,7 +85,7 @@
     pointer-events: none;
   }
   .row {
-    color: var(--bad-stroke);
+    color: var(--danger);
   }
 
   .k-location {
@@ -131,8 +143,12 @@
   .root {
     --sw: 3px;
   }
-  .sel svg {
-    filter: drop-shadow(0 0 3px var(--focus)) drop-shadow(0 0 1px var(--focus));
+  /* Selected: a ring in the text colour around the shape. Focus is the usual ring, around the box. */
+  .halo {
+    fill: none;
+    stroke: var(--text);
+    stroke-width: calc(var(--sw) + 6px);
+    stroke-dasharray: none;
   }
   @keyframes appear {
     from {

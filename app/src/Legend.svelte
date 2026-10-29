@@ -10,6 +10,16 @@
     ['needs', 'needs'],
     ['mirror', 'mirror'],
     ['part', 'into AND/OR'],
+    ['dead', 'can’t carry access in the scenario'],
+  ] as const;
+
+  // How a scenario marks things. The glyphs match verdict() in build.ts.
+  const STATUSES = [
+    ['good', '✓', 'reached'],
+    ['bad', '✗', 'lost, or reached by the attacker'],
+    ['maybe', '?', 'reached if assumptions hold'],
+    ['start', '', 'where the attacker starts'],
+    ['gone', '', 'gone in the scenario'],
   ] as const;
 </script>
 
@@ -28,12 +38,30 @@
       <span>{label}</span>
     {/each}
   </div>
+  <h3>In a scenario</h3>
+  <div class="grid">
+    {#each STATUSES as [k, mark, label] (k)}
+      <span class="swatch st-{k}" aria-hidden="true">{mark}</span>
+      <span>{label}</span>
+    {/each}
+    <span class="swatch" aria-hidden="true"><b class="more">+</b></span>
+    <span>has more ways in; select it to show them</span>
+    <span class="swatch" aria-hidden="true"><b class="row">!</b></span>
+    <span>flagged by the scenario</span>
+  </div>
 </div>
 
 <style>
-  h2 {
+  #legend {
+    max-width: 20rem;
+  }
+  h2,
+  h3 {
     margin-bottom: var(--space-2);
     font-size: var(--text-md);
+  }
+  h3 {
+    margin-top: var(--space-3);
   }
   .grid {
     display: grid;
@@ -69,5 +97,44 @@
   .e-part {
     stroke: var(--e-part);
     stroke-width: 1;
+  }
+  .e-dead {
+    stroke: var(--e-dead);
+    stroke-width: 1;
+  }
+  .swatch {
+    display: grid;
+    place-items: center;
+    width: 44px;
+    height: 18px;
+    border: 1.5px solid var(--border);
+    border-radius: 3px;
+    background: var(--surface);
+    font-weight: 700;
+    line-height: 1;
+  }
+  .st-good {
+    background: var(--good-fill);
+  }
+  .st-bad {
+    background: var(--bad-fill);
+  }
+  .st-maybe {
+    background: var(--maybe-fill);
+  }
+  .st-start {
+    border-color: var(--start-stroke);
+    background: var(--start-fill);
+    color: var(--start-text);
+  }
+  .st-gone {
+    border: 1.5px dashed var(--gone-stroke);
+    background: var(--gone-fill);
+  }
+  .more {
+    color: var(--muted);
+  }
+  .row {
+    color: var(--danger);
   }
 </style>

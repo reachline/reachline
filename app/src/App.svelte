@@ -271,6 +271,8 @@
     tidyKey++;
   }
 
+  const withStatus = (v: View) => v.nodes.some((n) => n.status);
+
   let seq = 0;
   $effect(() => {
     const v = view;
@@ -278,7 +280,9 @@
     void tidyKey;
     const opts = { direction, routing, placement };
     const prev = restarting ? null : untrack(() => shown?.placed);
-    const local = prev && !elkNext;
+    // Nodes are wider while they show a scenario's status, so turning one on or off lays out afresh.
+    const resized = untrack(() => shown && withStatus(shown.view) !== withStatus(v));
+    const local = prev && !elkNext && !resized;
     elkNext = false;
     const my = ++seq;
     const run = local ? Promise.resolve(placeLocally(v, prev, direction)) : layout(v, opts);
@@ -448,6 +452,7 @@
         {selected}
         {fitKey}
         {onnode}
+        ondeselect={() => (selected = null)}
       >
         {#snippet tools()}
           <button class="quiet" onclick={tidy} title="Lay the whole graph out again"><WandSparkles />Tidy</button>

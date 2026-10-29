@@ -70,7 +70,7 @@
   --k-service: light-dark(#0f766e, #2dd4bf);
   --k-data: light-dark(#15803d, #4ade80);
   --k-account: light-dark(#4338ca, #818cf8);
-  --k-junction: light-dark(#9ca3af, #6b7280);
+  --k-junction: light-dark(#7d838e, #6b7280);
 
   /* scenario status: fill / stroke */
   --good-fill: light-dark(#d4edda, #1d3a25);
@@ -78,22 +78,22 @@
   --bad-fill: light-dark(#f8d7da, #4a1f23);
   --bad-stroke: light-dark(#c62828, #ef5350);
   --maybe-fill: light-dark(#fff3cd, #463a12);
-  --maybe-stroke: light-dark(#b8860b, #e0b341);
-  --gone-fill: light-dark(#eeeeee, #232327);
-  --gone-stroke: light-dark(#9e9e9e, #5c5c63);
-  --gone-text: light-dark(#9e9e9e, #6b6b72);
+  --maybe-stroke: light-dark(#a57400, #e0b341);
+  --gone-fill: light-dark(#efeff1, #232327);
+  --gone-stroke: light-dark(#8a8a92, #6e6e76);
+  --gone-text: light-dark(#62626a, #8f8f97);
   --start-fill: light-dark(#424242, #e7e7ea);
   --start-stroke: light-dark(#000000, #ffffff);
   --start-text: light-dark(#ffffff, #111111);
 
-  /* edges */
-  --e-in: light-dark(#8a8f98, #7c818a);
+  /* edges. Grey means only one thing: a dead edge, which can't carry access in the scenario. */
+  --e-in: light-dark(#5b6c90, #8b9cc0);
   --e-access: light-dark(#3f4652, #b9bec7);
   --e-recovery: light-dark(#9333ea, #c084fc);
   --e-needs: light-dark(#c2410c, #fb923c);
   --e-mirror: light-dark(#0e7490, #22d3ee);
-  --e-part: light-dark(#a3a8b0, #6b7079);
-  --e-dead: light-dark(#dcdce0, #34343a);
+  --e-part: light-dark(#6b7280, #9ca3af);
+  --e-dead: light-dark(#8b8b93, #646470);
 
   /* the text editor */
   --syn-key: light-dark(#1d4ed8, #7ab3ff);
