@@ -2,7 +2,7 @@
 // builders. Junction ids come from their position in the model (not a
 // counter), so a junction keeps its id as the view expands.
 import { leaves, refs, type AndSet, type Expr, type Kind, type Model } from '../../engine/model.ts';
-import type { Outcome } from './data';
+import type { Outcome } from './data.ts';
 
 export type NodeKind = Kind | 'and' | 'or' | 'unknown';
 export type EdgeKind = 'in' | 'needs' | 'mirror' | 'access' | 'recovery' | 'part';
@@ -46,10 +46,13 @@ class Builder {
   nodes = new Map<string, VNode>();
   edges = new Map<string, VEdge>();
 
-  constructor(
-    private m: Model,
-    private sc?: Outcome,
-  ) {}
+  private readonly m: Model;
+  private readonly sc?: Outcome;
+
+  constructor(m: Model, sc?: Outcome) {
+    this.m = m;
+    this.sc = sc;
+  }
 
   ok = (id: string) => !this.sc || this.sc.best.has(id);
   avail = (id: string) => this.sc?.avail.get(id) ?? true;

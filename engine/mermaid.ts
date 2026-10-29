@@ -3,7 +3,7 @@
 import { availability, leaves, refs, type AndSet, type Best, type Expr, type Kind, type Model } from './model.ts';
 import { what } from './report.ts';
 
-const SHAPES: Record<Kind, [string, string]> = {
+export const SHAPES: Record<Kind, [string, string]> = {
   location: ['(["', '"])'],
   device: ['("', '")'],
   state: ['>"', '"]'],
@@ -13,9 +13,9 @@ const SHAPES: Record<Kind, [string, string]> = {
   account: ['[["', '"]]'],
 };
 
-type ScenarioKind = 'lockout' | 'breach';
+export type ScenarioKind = 'lockout' | 'breach';
 
-const CLASSES: Record<ScenarioKind, Record<string, string>> = {
+export const CLASSES: Record<ScenarioKind, Record<string, string>> = {
   lockout: {
     has: 'fill:#d4edda,stroke:#2e7d32',
     maybe: 'fill:#fff3cd,stroke:#b8860b',
@@ -27,7 +27,7 @@ const CLASSES: Record<ScenarioKind, Record<string, string>> = {
     start: 'fill:#424242,stroke:#000,color:#fff',
   },
 };
-const COMMON_CLASSES: Record<string, string> = {
+export const COMMON_CLASSES: Record<string, string> = {
   gone: 'fill:#eeeeee,stroke:#9e9e9e,color:#9e9e9e,stroke-dasharray:4 3',
   junction: 'fill:#ffffff,stroke:#9e9e9e,color:#616161',
   unknown: 'fill:#fff3cd,stroke:#b8860b,stroke-dasharray:4 3',

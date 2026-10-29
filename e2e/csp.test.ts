@@ -5,7 +5,7 @@
 //   pnpm build && pnpm exec playwright install chromium-headless-shell && pnpm test:csp
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync } from 'node:fs';
+import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -72,6 +72,56 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.getByRole('button', { name: 'Tidy' }).click();
   await page.getByRole('combobox', { name: /^View/ }).selectOption('where');
   await page.locator('.svelte-flow__node').first().waitFor();
+
+  // The editor (loaded on demand) marks an error and the graph goes out of date until it's fixed.
+  await page.getByRole('button', { name: 'Text' }).click();
+  await page.locator('.cm-content').click();
+  await page.keyboard.press('ControlOrMeta+Home');
+  await page.keyboard.insertText('bogus: 1\n');
+  await page.locator('.cm-lintRange-error').waitFor();
+  await page.getByText('Out of date: the text has errors').waitFor();
+  await page.keyboard.press('ControlOrMeta+Home');
+  await page.keyboard.press('Shift+ArrowDown');
+  await page.keyboard.press('Delete');
+  await page.locator('.cm-lintRange-error').waitFor({ state: 'detached' });
+  await page.getByText('Out of date').waitFor({ state: 'detached' });
+
+  // A save survives a reload.
+  await page.keyboard.insertText('# saved\n');
+  await page.keyboard.press('ControlOrMeta+s');
+  await page.getByRole('button', { name: 'Saved' }).waitFor();
+  await page.reload();
+  await page.getByRole('button', { name: 'Text' }).click();
+  await page.locator('.cm-content').getByText('# saved').waitFor();
+
+  // History compares the first revision with the text now, and restores it.
+  await page.getByRole('button', { name: 'History' }).click();
+  await page.getByRole('button', { name: /\(latest\)$/ }).waitFor();
+  await page.locator('.history li button').last().click();
+  await page.locator('.cm-changedLine').first().waitFor();
+  await page.getByRole('button', { name: 'Restore this revision' }).click();
+  await page.getByText('Same as the text now.').waitFor();
+  await page.getByRole('button', { name: 'Saved' }).waitFor();
+
+  // Ids complete where the text refers to things.
+  await page.getByRole('button', { name: 'Text' }).click();
+  await page.locator('.cm-content').click();
+  await page.keyboard.press('ControlOrMeta+Home');
+  await page.keyboard.insertText('me: [ho');
+  await page.locator('.cm-tooltip-autocomplete').getByText('home').waitFor();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('ControlOrMeta+z');
+  await page.getByRole('button', { name: 'Saved' }).waitFor();
+
+  // The graph exports; the PNG is the SVG drawn through a blob: image.
+  for (const format of ['SVG', 'PNG']) {
+    await page.getByText('Export', { exact: true }).click();
+    const [file] = await Promise.all([
+      page.waitForEvent('download'),
+      page.getByRole('button', { name: `${format} (the graph)` }).click(),
+    ]);
+    assert.ok(statSync(await file.path()).size > 1000, format);
+  }
 
   await page.getByRole('link', { name: '← Models' }).click();
   await page.getByRole('link', { name: 'example' }).waitFor();

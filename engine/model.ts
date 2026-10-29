@@ -58,8 +58,38 @@ export interface Entry {
 /** Everything reached: id -> the path with the fewest assumptions. */
 export type Best = Map<string, Entry>;
 
+/** A key path into the document, such as ['things', 'mail', 'access', 0]. */
+export type Path = (string | number)[];
+
 /** A problem in the model or the command line; the CLI prints it and exits 1. */
-export class ReachError extends Error {}
+export class ReachError extends Error {
+  /** Where in the document each problem is, for an editor to mark; empty when it isn't in the document. */
+  readonly at: { path: Path; message: string }[];
+
+  constructor(message: string, at: { path: Path; message: string }[] = []) {
+    super(message);
+    this.at = at;
+  }
+}
+
+/** An error at one place in the document. */
+const fault = (path: Path, message: string) => new ReachError(message, [{ path, message }]);
+
+/**
+ * Where a merged thing or scenario came from. Plans replace whole fields, so
+ * each field has a single source: the base model or one plan.
+ */
+interface Origin {
+  at: Path;
+  fields: Record<string, Path>;
+}
+
+const merged = (prev: Origin | undefined, spec: Raw, at: Path): Origin => ({
+  at,
+  fields: { ...prev?.fields, ...Object.fromEntries(Object.keys(spec).map((k) => [k, [...at, k]])) },
+});
+
+const fieldAt = (o: Origin, field: string): Path => o.fields[field] ?? o.at;
 
 export interface Source {
   path: string;
@@ -72,9 +102,10 @@ const entries = (v: unknown): [string, unknown][] => (isMap(v) ? Object.entries(
 
 const KEYS = { model: ['version', 'things', 'scenarios', 'me', 'plans'], plan: ['note', 'things', 'scenarios', 'me'] };
 
-function checkKeys(layer: Raw, allowed: string[], where: string) {
+function checkKeys(layer: Raw, allowed: string[], where: string, at: Path) {
   for (const key of Object.keys(layer)) {
-    if (!allowed.includes(key)) throw new ReachError(`${where}: unknown key: ${key} (expected ${allowed.join(', ')})`);
+    if (!allowed.includes(key))
+      throw fault([...at, key], `${where}: unknown key: ${key} (expected ${allowed.join(', ')})`);
   }
 }
 
@@ -90,11 +121,11 @@ export function load(
     throw new ReachError(`${path}: ${(e as Error).message}`);
   }
   if (!isMap(doc)) throw new ReachError(`${path}: expected a mapping at the top level`);
-  checkKeys(doc, KEYS.model, path);
+  checkKeys(doc, KEYS.model, path, []);
   if ('version' in doc && doc.version !== VERSION) {
-    throw new ReachError(`${path}: format version ${String(doc.version)} (this engine reads version ${VERSION})`);
+    throw fault(['version'], `${path}: format version ${String(doc.version)} (this engine reads version ${VERSION})`);
   }
-  const layers: [Raw, string][] = [[doc, path]];
+  const layers: [Raw, string, Path][] = [[doc, path, []]];
   const named = new Map(entries(doc.plans));
   for (const name of plans) {
     const plan = named.get(name);
@@ -102,46 +133,75 @@ export function load(
       const have = [...named.keys()].join(', ') || 'none';
       throw new ReachError(`unknown plan: ${name} (have ${have})`);
     }
-    if (!isMap(plan)) throw new ReachError(`${path}: plan ${name}: expected a mapping`);
-    checkKeys(plan, KEYS.plan, `${path}: plan ${name}`);
-    layers.push([plan, `${path}: plan ${name}`]);
+    if (!isMap(plan)) throw fault(['plans', name], `${path}: plan ${name}: expected a mapping`);
+    checkKeys(plan, KEYS.plan, `${path}: plan ${name}`, ['plans', name]);
+    layers.push([plan, `${path}: plan ${name}`, ['plans', name]]);
   }
 
   const raw = new Map<string, Raw>();
   const scenarios = new Map<string, Scenario>();
   let me: unknown = null;
-  layers.forEach(([layer, where], i) => {
+  const from: From = { things: new Map(), scenarios: new Map(), me: ['me'] };
+  layers.forEach(([layer, where, prefix], i) => {
     for (const [tid, spec] of entries(layer.things)) {
-      if (spec !== null && !isMap(spec)) throw new ReachError(`${where}: ${tid}: expected a mapping`);
-      if (i && spec === null) raw.delete(tid);
-      else raw.set(tid, { ...raw.get(tid), ...spec });
+      const at = [...prefix, 'things', tid];
+      if (spec !== null && !isMap(spec)) throw fault(at, `${where}: ${tid}: expected a mapping`);
+      if (i && spec === null) {
+        raw.delete(tid);
+        from.things.delete(tid);
+      } else {
+        raw.set(tid, { ...raw.get(tid), ...spec });
+        from.things.set(tid, merged(from.things.get(tid), spec ?? {}, at));
+      }
     }
     for (const [name, sc] of entries(layer.scenarios)) {
-      if (sc === null) scenarios.delete(name);
-      else if (isMap(sc)) scenarios.set(name, { ...scenarios.get(name), ...sc } as Scenario);
-      else throw new ReachError(`${where}: scenario ${name}: expected a mapping`);
+      const at = [...prefix, 'scenarios', name];
+      if (sc === null) {
+        scenarios.delete(name);
+        from.scenarios.delete(name);
+      } else if (isMap(sc)) {
+        scenarios.set(name, { ...scenarios.get(name), ...sc } as Scenario);
+        from.scenarios.set(name, merged(from.scenarios.get(name), sc, at));
+      } else throw fault(at, `${where}: scenario ${name}: expected a mapping`);
     }
-    if ('me' in layer) me = layer.me;
+    if ('me' in layer) {
+      me = layer.me;
+      from.me = [...prefix, 'me'];
+    }
   });
-  const things = new Map([...raw].map(([tid, spec]) => [tid, normalize(tid, spec)]));
+  const things = new Map([...raw].map(([tid, spec]) => [tid, normalize(tid, spec, from.things.get(tid)!)]));
   const meList = Array.isArray(me) ? me.map(String) : [];
-  validate(things, scenarios, meList);
+  validate(things, raw, scenarios, meList, from);
   return { things, scenarios, me: meList };
+}
+
+/** Where everything that was merged came from. */
+interface From {
+  things: Map<string, Origin>;
+  scenarios: Map<string, Origin>;
+  me: Path;
 }
 
 const oneOf = (v: unknown, set: readonly string[]) => typeof v === 'string' && set.includes(v);
 
-function normalize(tid: string, raw: Raw): Spec {
+function normalize(tid: string, raw: Raw, from: Origin): Spec {
   const spec: Raw = { ...raw };
-  if (spec.kind === undefined) throw new ReachError(`${tid}: kind is required (one of ${KINDS.join(', ')})`);
+  if (spec.kind === undefined) throw fault(from.at, `${tid}: kind is required (one of ${KINDS.join(', ')})`);
   if (!oneOf(spec.kind, KINDS)) {
-    throw new ReachError(`${tid}: unknown kind: ${JSON.stringify(spec.kind)} (expected one of ${KINDS.join(', ')})`);
+    throw fault(
+      fieldAt(from, 'kind'),
+      `${tid}: unknown kind: ${JSON.stringify(spec.kind)} (expected one of ${KINDS.join(', ')})`,
+    );
   }
   spec.tags ??= [];
-  if (!Array.isArray(spec.tags)) throw new ReachError(`${tid}: tags must be a list`);
-  for (const tag of spec.tags as unknown[]) {
-    if (!oneOf(tag, TAGS))
-      throw new ReachError(`${tid}: unknown tag: ${JSON.stringify(tag)} (expected ${TAGS.join(' or ')})`);
+  if (!Array.isArray(spec.tags)) throw fault(fieldAt(from, 'tags'), `${tid}: tags must be a list`);
+  for (const [i, tag] of (spec.tags as unknown[]).entries()) {
+    if (!oneOf(tag, TAGS)) {
+      throw fault(
+        [...fieldAt(from, 'tags'), i],
+        `${tid}: unknown tag: ${JSON.stringify(tag)} (expected ${TAGS.join(' or ')})`,
+      );
+    }
   }
   // in: "?" means an unknown home: reachable only by assuming it.
   if (spec.in === '?') {
@@ -151,11 +211,14 @@ function normalize(tid: string, raw: Raw): Spec {
   for (const key of ['in', 'needs', 'access', 'recovery']) {
     spec[key] ??= [];
     if (spec[key] === '?' && (key === 'access' || key === 'recovery')) spec[key] = [['?']];
-    if (!Array.isArray(spec[key])) throw new ReachError(`${tid}: ${key} must be a list`);
+    if (!Array.isArray(spec[key])) throw fault(fieldAt(from, key), `${tid}: ${key} must be a list`);
   }
   for (const key of ['access', 'recovery']) {
     if ((spec[key] as unknown[]).some((s) => !Array.isArray(s))) {
-      throw new ReachError(`${tid}: each ${key} entry must be a list (an AND-set)`);
+      // Found in what was written, since `in: "?"` adds a set to `access`.
+      const i = Array.isArray(raw[key]) ? raw[key].findIndex((s) => !Array.isArray(s)) : -1;
+      const at = fieldAt(from, key);
+      throw fault(i < 0 ? at : [...at, i], `${tid}: each ${key} entry must be a list (an AND-set)`);
     }
   }
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- any falsy value means none
@@ -171,24 +234,58 @@ export function* refs(expr: Expr | AndSet[]): Generator<string> {
 /** Every id and "?" in an expression. A list inside an any-of needs all of these. */
 export const leaves = (e: Expr): string[] => (Array.isArray(e) ? e.flatMap(leaves) : [e]);
 
-function validate(things: Map<string, Spec>, scenarios: Map<string, Scenario>, me: string[]) {
-  const bad: [string, string][] = [];
+/** The ids in a field as written, with where each is: what `refs` gives once the field is normalized. */
+function* located(v: unknown, at: Path): Generator<[string, Path]> {
+  if (Array.isArray(v)) for (const [i, e] of v.entries()) yield* located(e, [...at, i]);
+  else if (v !== '?') yield [v as string, at];
+}
+
+function validate(
+  things: Map<string, Spec>,
+  raw: Map<string, Raw>,
+  scenarios: Map<string, Scenario>,
+  me: string[],
+  from: From,
+) {
+  const bad: { line: string; path: Path; message: string }[] = [];
+  const unknown = (owner: string, r: string, path: Path) =>
+    bad.push({ line: `${owner}: ${r}`, path, message: `unknown reference: ${r}` });
   for (const [tid, spec] of things) {
+    const o = from.things.get(tid)!;
     for (const key of ['in', 'needs', 'access', 'recovery'] as const) {
-      for (const r of refs(spec[key])) if (!things.has(r)) bad.push([tid, r]);
+      for (const [r, at] of located(raw.get(tid)![key] ?? [], fieldAt(o, key))) if (!things.has(r)) unknown(tid, r, at);
     }
     if (spec.mirrors) {
-      for (const r of [spec.mirrors.of, spec.mirrors.by]) if (!things.has(r)) bad.push([tid, r]);
+      const at = fieldAt(o, 'mirrors');
+      if (!things.has(spec.mirrors.of)) unknown(tid, spec.mirrors.of, [...at, 'of']);
+      if (!things.has(spec.mirrors.by)) unknown(tid, spec.mirrors.by, [...at, 'by']);
     }
   }
   for (const [name, sc] of scenarios) {
-    for (const r of [...(sc.lost ?? []), ...(sc.attacker ?? [])]) if (!things.has(r)) bad.push([name, r]);
-    for (const r of [...(sc.assume ?? []), ...(sc.deny ?? [])]) {
-      if (things.get(r)?.kind !== 'state') bad.push([name, `${r} (not a state)`]);
+    const o = from.scenarios.get(name)!;
+    for (const key of ['lost', 'attacker'] as const) {
+      for (const [i, r] of [...(sc[key] ?? [])].entries())
+        if (!things.has(r)) unknown(name, r, [...fieldAt(o, key), i]);
+    }
+    for (const key of ['assume', 'deny'] as const) {
+      for (const [i, r] of [...(sc[key] ?? [])].entries()) {
+        if (things.get(r)?.kind !== 'state') {
+          bad.push({
+            line: `${name}: ${r} (not a state)`,
+            path: [...fieldAt(o, key), i],
+            message: `not a state: ${r}`,
+          });
+        }
+      }
     }
   }
-  for (const r of me) if (!things.has(r)) bad.push(['me', r]);
-  if (bad.length) throw new ReachError('unknown references:\n' + bad.map(([a, b]) => `  ${a}: ${b}`).join('\n'));
+  for (const [i, r] of me.entries()) if (!things.has(r)) unknown('me', r, [...from.me, i]);
+  if (bad.length) {
+    throw new ReachError(
+      'unknown references:\n' + bad.map((b) => `  ${b.line}`).join('\n'),
+      bad.map(({ path, message }) => ({ path, message })),
+    );
+  }
 }
 
 /** What still exists, after needs, in, and mirrors that sync a loss. */
@@ -378,7 +475,7 @@ export class Model {
     this.scenarios = scenarios;
     this.me = me;
     this.states = new Set([...things].filter(([, s]) => s.kind === 'state').map(([t]) => t));
-    if (!scenarios.has('baseline')) throw new ReachError('no baseline scenario');
+    if (!scenarios.has('baseline')) throw fault(['scenarios'], 'no baseline scenario');
     this.baseMe = this.run('baseline').best;
     this.baseNobody = reach(things, [], new Set());
   }

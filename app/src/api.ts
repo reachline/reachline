@@ -10,15 +10,21 @@ import type {
   ModelSummary,
   NewModel,
   PasswordChange,
+  Revision,
+  RevisionSummary,
+  Save,
+  Saved,
 } from '../../server/api.ts';
 import { toLogin } from './route.svelte.ts';
 
 export class ApiFailure extends Error {
   readonly status: number;
+  readonly body: ApiError;
 
-  constructor(status: number, message: string) {
-    super(message);
+  constructor(status: number, body: ApiError) {
+    super(body.error);
     this.status = status;
+    this.body = body;
   }
 }
 
@@ -31,7 +37,7 @@ async function call(method: string, path: string, body?: unknown): Promise<unkno
   if (res.status === 401 && !path.startsWith('/auth/')) toLogin();
   if (!res.ok) {
     const e = (await res.json().catch(() => ({ error: res.statusText }))) as ApiError;
-    throw new ApiFailure(res.status, e.error);
+    throw new ApiFailure(res.status, e);
   }
   return res.status === 204 ? undefined : res.json();
 }
@@ -47,6 +53,9 @@ export const api = {
   models: () => call('GET', '/models') as Promise<ModelSummary[]>,
   model: (id: number) => call('GET', `/models/${id}`) as Promise<ModelDoc>,
   create: (m: NewModel) => call('POST', '/models', m) as Promise<Created>,
+  save: (id: number, s: Save) => call('PUT', `/models/${id}`, s) as Promise<Saved>,
+  revisions: (id: number) => call('GET', `/models/${id}/revisions`) as Promise<RevisionSummary[]>,
+  revision: (id: number, rev: number) => call('GET', `/models/${id}/revisions/${rev}`) as Promise<Revision>,
   rename: (id: number, name: string) => call('PATCH', `/models/${id}`, { name }) as Promise<void>,
   remove: (id: number) => call('DELETE', `/models/${id}`) as Promise<void>,
 };

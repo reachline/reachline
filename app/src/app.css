@@ -40,6 +40,21 @@
   --e-mirror: #0e7490;
   --e-part: #a3a8b0;
   --e-dead: #dcdce0;
+
+  /* the text editor */
+  --code-font: ui-monospace, SFMono-Regular, Menlo, monospace;
+  --code-size: 12px;
+  --syn-key: #1d4ed8;
+  --syn-string: #a16207;
+  --selection: #c7dbff;
+  --active-line: rgb(0 0 0 / 4%); /* translucent: the selection is drawn behind it */
+}
+
+/* Below 16px, iOS zooms in on the editor when it gets focus. */
+@media (max-width: 760px) {
+  :root {
+    --code-size: 16px;
+  }
 }
 
 @media (prefers-color-scheme: dark) {
@@ -77,6 +92,10 @@
     --e-mirror: #22d3ee;
     --e-part: #6b7079;
     --e-dead: #34343a;
+    --syn-key: #7ab3ff;
+    --syn-string: #e0b341;
+    --selection: #2b3d5e;
+    --active-line: rgb(255 255 255 / 5%);
   }
 }
 

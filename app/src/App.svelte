@@ -5,9 +5,12 @@
   import { layout, placeLocally, type Direction, type Placed, type Placement, type Routing } from './layout';
   import { fmtWhy, KINDS } from '../../engine/model.ts';
   import { what } from '../../engine/report.ts';
-  import { api, message } from './api';
+  import type { Conflict } from '../../server/api.ts';
+  import { api, ApiFailure, message } from './api';
+  import { check, definitionOf } from './check';
+  import { download, toMermaid, toPng, toSvg } from './export';
   import { loadModel, outcome, ReachError, type Model } from './data';
-  import { follow } from './route.svelte.ts';
+  import { beforeLeave, follow } from './route.svelte.ts';
   import { shapePath } from './shapes';
 
   let { id }: { id: number } = $props();
@@ -22,6 +25,25 @@
   let name = $state('');
   let model = $state.raw<Model | null>(null);
   let error = $state('');
+  // The text as edited, and as last saved; null until it arrives.
+  let text = $state<string | null>(null);
+  let saved = $state('');
+  let revision = $state(0); // the one saved text is based on
+  let saving = $state(false);
+  let saveError = $state('');
+  // The latest revision, when someone else saved since ours.
+  let conflict = $state<number | null>(null);
+  let exportOpen = $state(false);
+  let exportError = $state('');
+  const dirty = $derived(text !== null && text !== saved);
+  // What shares the screen with the graph.
+  let pane = $state<'text' | 'history' | null>(null);
+  // Once opened, the editor stays mounted (hidden when closed) to keep its undo history.
+  let editorOpened = $state(false);
+  // The latest text doesn't load, so the graph shows the last text that did.
+  let invalid = $state(false);
+  // Where the thing last selected in the graph is defined, for the editor to show.
+  let reveal = $state.raw<{ from: number; to: number } | null>(null);
   let mode = $state<Mode>((q.get('mode') ?? 'ways') as Mode);
   let target = $state(q.get('target') ?? '');
   let scenarioName = $state(q.get('scenario') ?? 'house_fire');
@@ -39,29 +61,133 @@
   api.model(untrack(() => id)).then(
     (doc) => {
       name = doc.name;
-      document.title = `${doc.name} · ReachLine`;
+      text = saved = doc.text;
+      revision = doc.revision;
       open(doc.text);
     },
     (e: unknown) => (error = message(e)),
   );
 
-  function open(text: string) {
+  $effect(() => {
+    if (name) document.title = `${dirty ? '• ' : ''}${name} · ReachLine`;
+  });
+  $effect(() => beforeLeave(() => !dirty || confirm('Leave without saving your changes?')));
+
+  async function save(base = revision) {
+    if (text === null || saving) return;
+    const t = text;
+    saving = true;
+    saveError = '';
     try {
-      const m = loadModel(text, plans);
+      revision = (await api.save(id, { text: t, base })).revision;
+      saved = t;
+      conflict = null;
+    } catch (e) {
+      if (e instanceof ApiFailure && e.status === 409) conflict = (e.body as Conflict).revision;
+      else saveError = message(e);
+    } finally {
+      saving = false;
+    }
+  }
+
+  /** After a conflict: the latest revision replaces the edits (which undo can bring back). */
+  async function loadLatest() {
+    try {
+      const doc = await api.model(id);
+      saved = doc.text;
+      revision = doc.revision;
+      conflict = null;
+      setText(doc.text);
+    } catch (e) {
+      saveError = message(e);
+    }
+  }
+
+  /** Saves an old revision's text as a new revision; undo brings back what was there. */
+  function restore(t: string) {
+    setText(t);
+    void save();
+  }
+
+  /** Text from outside the editor; in the editor, it's one edit that undo can take back. */
+  function setText(t: string) {
+    text = t;
+    lint(t);
+  }
+
+  /** The text, or the graph as it's shown. */
+  async function exportAs(format: 'yaml' | 'mermaid' | 'svg' | 'png') {
+    exportOpen = false;
+    exportError = '';
+    try {
+      download(`${name}.${EXT[format]}`, await exported(format));
+    } catch (e) {
+      exportError = (e as Error).message;
+    }
+  }
+
+  const EXT = { yaml: 'yml', mermaid: 'mmd', svg: 'svg', png: 'png' };
+
+  async function exported(format: 'yaml' | 'mermaid' | 'svg' | 'png'): Promise<Blob> {
+    if (format === 'yaml') return new Blob([text ?? ''], { type: 'text/yaml' });
+    if (!shown) throw new Error('there is no graph on screen');
+    const kind = scenario?.sc.kind ?? '';
+    if (format === 'mermaid') return new Blob([toMermaid(shown.view, vertical, kind)], { type: 'text/plain' });
+    const css = getComputedStyle(document.documentElement);
+    const color = (v: string) => css.getPropertyValue(`--${v}`).trim();
+    const { svg, width, height } = toSvg(shown.view, shown.placed, kind, vertical, color);
+    return format === 'svg' ? new Blob([svg], { type: 'image/svg+xml' }) : toPng(svg, width, height);
+  }
+
+  function onkeydown(e: KeyboardEvent) {
+    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+      e.preventDefault();
+      if (dirty) void save();
+    }
+  }
+
+  function onbeforeunload(e: BeforeUnloadEvent) {
+    if (dirty) e.preventDefault();
+  }
+
+  function open(t: string) {
+    try {
+      show(loadModel(t, plans));
+    } catch (e) {
+      if (!(e instanceof ReachError)) throw e;
+      error = e.message;
+      togglePane('text');
+    }
+  }
+
+  /** Show a model that loaded. The first one picks the starting view; later ones keep it. */
+  function show(m: Model) {
+    if (!untrack(() => model)) {
       // Without ?target=, start on the first critical thing.
       target ||= [...m.things].find(([, t]) => t.tags.includes('critical'))?.[0] ?? [...m.things.keys()].at(0) ?? '';
       const t = untrack(() => target);
       if (m.things.has(t)) expanded = expandToDepth(m, [t], DEPTH);
-      model = m;
-    } catch (e) {
-      if (!(e instanceof ReachError)) throw e;
-      error = e.message;
     }
+    model = m;
+    error = '';
+  }
+
+  function lint(t: string) {
+    const { model: m, problems } = check(t, plans);
+    invalid = !m;
+    if (m) show(m);
+    return problems;
+  }
+
+  function togglePane(p: 'text' | 'history') {
+    pane = pane === p ? null : p;
+    editorOpened ||= pane === 'text';
   }
 
   const scenario = $derived(model?.scenarios.has(scenarioName) ? outcome(model, scenarioName) : undefined);
   const vertical = $derived(direction === 'DOWN');
 
+  const lost = $derived(mode === 'ways' && !!model && !model.things.has(target));
   const view = $derived.by(() => {
     if (!model) return null;
     if (mode === 'where') return whereView(model, scenario);
@@ -131,6 +257,8 @@
 
   function onnode(id: string) {
     selected = id;
+    const at = text !== null && model?.things.has(id) ? definitionOf(text, id, plans) : null;
+    if (at) reveal = { from: at[0], to: at[1] };
     const n = shown?.view.nodes.find((n) => n.id === id);
     if (mode === 'ways' && n?.more) expanded = new Set([...expanded, id]);
   }
@@ -152,10 +280,26 @@
   const EDGE_KINDS = ['in', 'access', 'recovery', 'needs', 'mirror', 'part'] as const;
 </script>
 
-<div class="app">
+<svelte:window {onkeydown} {onbeforeunload} />
+
+<div class="app" class:editing={pane !== null}>
   <header class="bar">
     <a href="/" onclick={follow}>← Models</a>
     <b>{name}</b>
+    <button aria-pressed={pane === 'text'} onclick={() => togglePane('text')}>Text</button>
+    <button aria-pressed={pane === 'history'} onclick={() => togglePane('history')}>History</button>
+    <button onclick={() => save()} disabled={!dirty || saving} title="Ctrl/Cmd+S">
+      {saving ? 'Saving…' : dirty ? 'Save' : 'Saved'}
+    </button>
+    <details class="menu" bind:open={exportOpen}>
+      <summary>Export</summary>
+      <div class="items">
+        <button onclick={() => exportAs('yaml')} disabled={text === null}>YAML (the text)</button>
+        <button onclick={() => exportAs('mermaid')} disabled={!shown}>Mermaid (the graph)</button>
+        <button onclick={() => exportAs('svg')} disabled={!shown}>SVG (the graph)</button>
+        <button onclick={() => exportAs('png')} disabled={!shown}>PNG (the graph)</button>
+      </div>
+    </details>
     <span class="sep"></span>
     <label
       >View
@@ -214,9 +358,49 @@
     </label>
     <button onclick={() => fitKey++}>Fit</button>
     {#if plans.length}<span class="muted" title="From ?plan=">with {plans.join(' + ')}</span>{/if}
+    {#if conflict !== null}
+      <p class="notice">
+        This model was saved elsewhere since you opened it.
+        <button onclick={loadLatest}>Load the newer version</button>
+        (undo brings yours back) or
+        <button onclick={() => save(conflict!)}>Overwrite it with yours</button>
+      </p>
+    {:else if saveError}
+      <p class="notice">Couldn't save: {saveError}</p>
+    {:else if exportError}
+      <p class="notice">Couldn't export: {exportError}</p>
+    {/if}
   </header>
 
-  <main class="canvas">
+  {#if editorOpened && text !== null}
+    <section class="text" class:hidden={pane !== 'text'} aria-label="Model text">
+      {#await import('./Editor.svelte') then { default: Editor }}
+        <Editor
+          {text}
+          onchange={(t: string) => (text = t)}
+          {lint}
+          things={() => [...(model?.things ?? [])].map(([id, t]): [string, string] => [id, t.kind])}
+          {reveal}
+        />
+      {:catch e}
+        <p class="status">The editor didn't load: {message(e)}</p>
+      {/await}
+    </section>
+  {/if}
+  {#if pane === 'history' && text !== null}
+    <section class="text" aria-label="History">
+      {#await import('./History.svelte') then { default: History }}
+        <History {id} latest={revision} current={text} onrestore={restore} />
+      {:catch e}
+        <p class="status">The history didn't load: {message(e)}</p>
+      {/await}
+    </section>
+  {/if}
+
+  <main class="canvas" class:outdated={shown && (invalid || lost)}>
+    {#if shown && (invalid || lost)}
+      <p class="badge">Out of date: {invalid ? 'the text has errors' : `${target} is no longer in the model`}</p>
+    {/if}
     {#if shown}
       <FlowView
         view={shown.view}
@@ -309,6 +493,16 @@
     grid-template-rows: auto 1fr;
     height: 100%;
   }
+  .app.editing {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) 290px;
+  }
+  .text {
+    min-height: 0;
+    border-right: 1px solid var(--border);
+  }
+  .hidden {
+    display: none;
+  }
   .bar {
     grid-column: 1 / -1;
     display: flex;
@@ -335,6 +529,55 @@
   .bar button {
     cursor: pointer;
   }
+  .bar button:disabled {
+    opacity: 0.6;
+    cursor: default;
+  }
+  .menu {
+    position: relative;
+  }
+  .menu summary {
+    padding: 3px 6px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--bg);
+    cursor: pointer;
+    list-style: none;
+  }
+  .menu .items {
+    position: absolute;
+    z-index: 10;
+    top: calc(100% + 4px);
+    left: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 4px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--surface);
+    white-space: nowrap;
+  }
+  .menu .items button {
+    border: none;
+    background: none;
+    text-align: left;
+  }
+  .menu .items button:not(:disabled):hover {
+    background: var(--active-line);
+  }
+  .notice {
+    flex-basis: 100%;
+    margin: 0;
+    padding: 4px 8px;
+    border: 1px solid var(--maybe-stroke);
+    border-radius: 5px;
+    background: var(--maybe-fill);
+  }
+  .bar button[aria-pressed='true'] {
+    border-color: var(--focus);
+    color: var(--focus);
+  }
   .sep {
     flex: 0 0 1px;
     align-self: stretch;
@@ -345,6 +588,25 @@
     min-width: 0;
     min-height: 0;
     border-right: 1px solid var(--border);
+  }
+  .outdated :global(.svelte-flow__viewport) {
+    opacity: 0.4;
+  }
+  .badge {
+    position: absolute;
+    top: 8px;
+    left: 50%;
+    z-index: 5;
+    max-width: calc(100% - 16px);
+    margin: 0;
+    padding: 4px 10px;
+    overflow: hidden;
+    transform: translateX(-50%);
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    border: 1px solid var(--maybe-stroke);
+    border-radius: 5px;
+    background: var(--maybe-fill);
   }
   .side {
     overflow-y: auto;
@@ -428,5 +690,26 @@
   }
   .stats {
     font-size: 11px;
+  }
+  /* Narrow screens: the details go below the graph, and the text replaces both. */
+  @media (max-width: 760px) {
+    .app {
+      grid-template-columns: minmax(0, 1fr);
+      grid-template-rows: auto minmax(0, 1fr) auto;
+    }
+    .canvas {
+      border-right: none;
+    }
+    .side {
+      max-height: 40vh;
+      border-top: 1px solid var(--border);
+    }
+    .app.editing {
+      grid-template-columns: minmax(0, 1fr);
+    }
+    .app.editing .canvas,
+    .app.editing .side {
+      display: none;
+    }
   }
 </style>

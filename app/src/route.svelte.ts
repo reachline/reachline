@@ -2,7 +2,27 @@
 // through follow() so moving between pages doesn't reload the app.
 
 let path = $state(location.pathname);
-addEventListener('popstate', () => (path = location.pathname));
+let here = location.pathname + location.search;
+// Asked before the user leaves a page within the app; false keeps them on it.
+let leaving: (() => boolean) | null = null;
+
+addEventListener('popstate', () => {
+  // Back and forward have already moved, so staying means going back to where we were.
+  if (location.pathname !== path && leaving && !leaving()) {
+    history.pushState(null, '', here);
+    return;
+  }
+  path = location.pathname;
+  here = location.pathname + location.search;
+});
+
+/** What to ask before the user leaves this page; returns a function that stops asking. */
+export function beforeLeave(ask: () => boolean) {
+  leaving = ask;
+  return () => {
+    if (leaving === ask) leaving = null;
+  };
+}
 
 export const route = {
   get path() {
@@ -14,12 +34,14 @@ export function go(to: string, replace = false) {
   if (replace) history.replaceState(null, '', to);
   else history.pushState(null, '', to);
   path = location.pathname;
+  here = location.pathname + location.search;
 }
 
 /** An <a> click handler; modified clicks (new tab and the like) still go to the browser. */
 export function follow(e: MouseEvent) {
   if (e.button || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
   e.preventDefault();
+  if (leaving && !leaving()) return;
   go((e.currentTarget as HTMLAnchorElement).getAttribute('href')!);
 }
 

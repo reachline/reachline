@@ -11,7 +11,8 @@
   let error = $state('');
 
   let newName = $state('');
-  let start = $state<'empty' | 'example'>('example');
+  let start = $state<'empty' | 'example' | 'import'>('example');
+  let imported = $state('');
 
   let renaming = $state<number | null>(null);
   let renameTo = $state('');
@@ -35,9 +36,18 @@
   function create(e: SubmitEvent) {
     e.preventDefault();
     void attempt(async () => {
-      const { id } = await api.create({ name: newName, text: start === 'example' ? example : EMPTY });
+      const text = start === 'example' ? example : start === 'import' ? imported : EMPTY;
+      const { id } = await api.create({ name: newName, text });
       go(`/m/${id}`);
     });
+  }
+
+  /** A file's text goes into the box, where it can still be changed; its name is the default. */
+  async function pick(e: Event) {
+    const file = (e.currentTarget as HTMLInputElement).files?.[0];
+    if (!file) return;
+    imported = await file.text();
+    newName ||= file.name.replace(/\.[^.]*$/, '');
   }
 
   function rename(e: SubmitEvent, id: number) {
@@ -121,7 +131,13 @@
       <legend>Start from</legend>
       <label class="choice"><input type="radio" bind:group={start} value="example" /> the example</label>
       <label class="choice"><input type="radio" bind:group={start} value="empty" /> nothing</label>
+      <label class="choice"><input type="radio" bind:group={start} value="import" /> YAML you upload or paste</label>
     </fieldset>
+    {#if start === 'import'}
+      <label>File <input type="file" accept=".yml,.yaml,text/yaml,application/yaml,text/plain" onchange={pick} /></label
+      >
+      <label>YAML <textarea bind:value={imported} required rows="10" spellcheck="false"></textarea></label>
+    {/if}
     <div class="actions"><button class="primary">Create</button></div>
   </form>
 
@@ -202,5 +218,14 @@
   }
   .hidden {
     display: none;
+  }
+  textarea {
+    padding: 6px 8px;
+    border: 1px solid var(--border);
+    border-radius: 5px;
+    background: var(--bg);
+    color: var(--text);
+    font: 12px var(--code-font);
+    resize: vertical;
   }
 </style>

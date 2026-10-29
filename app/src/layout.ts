@@ -3,13 +3,14 @@
 import ElkApi, { type ELK, type ElkNode } from 'elkjs/lib/elk-api.js';
 import workerUrl from 'elkjs/lib/elk-worker.min.js?url';
 import { isJunction, type View, type VNode } from './build';
+import { FONT, type Box, type Placed, type Pt, type Routing } from './shapes';
 
-export const FONT = '12px ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
+export type { Box, Placed, Pt, Routing };
+
 const THING_H = 28;
 const JUNCTION = 24;
 
 export type Direction = 'RIGHT' | 'DOWN';
-export type Routing = 'ORTHOGONAL' | 'SPLINES' | 'POLYLINE';
 // Network simplex gives straighter edges; Brandes-Köpf is about 7x faster here.
 export type Placement = 'NETWORK_SIMPLEX' | 'BRANDES_KOEPF';
 
@@ -18,22 +19,6 @@ export interface LayoutOpts {
   routing: Routing;
   placement: Placement;
   stable?: boolean; // seed ELK with the previous positions (interactive mode; bench.ts compares it)
-}
-
-export interface Pt {
-  x: number;
-  y: number;
-}
-export interface Box extends Pt {
-  w: number;
-  h: number;
-}
-
-export interface Placed {
-  nodes: Map<string, Box>; // top-left corner
-  edges: Map<string, Pt[]>; // start, bends..., end (absolute)
-  routing: Routing;
-  ms: number;
 }
 
 // In the page, ELK runs in a web worker so a big layout doesn't freeze the UI.
@@ -118,21 +103,6 @@ export async function layout(view: View, opts: LayoutOpts, prev?: Placed | null)
     edges.set(e.id, pts);
   }
   return { nodes, edges, routing: opts.routing, ms: Math.round(performance.now() - t0) };
-}
-
-/** SVG path for an ELK route. Spline routes are cubic Bézier control points. */
-export function routePath(pts: Pt[], routing: Routing): string {
-  if (pts.length < 2) return '';
-  const [s, ...rest] = pts;
-  if (routing === 'SPLINES' && rest.length % 3 === 0) {
-    let d = `M${s.x},${s.y}`;
-    for (let i = 0; i < rest.length; i += 3) {
-      const [a, b, c] = rest.slice(i, i + 3);
-      d += ` C${a.x},${a.y} ${b.x},${b.y} ${c.x},${c.y}`;
-    }
-    return d;
-  }
-  return `M${s.x},${s.y}` + rest.map((p) => ` L${p.x},${p.y}`).join('');
 }
 
 const GAP = 36; // between a new node and what it feeds into
