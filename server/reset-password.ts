@@ -13,7 +13,8 @@ if (!name || process.argv.length > 3) {
   process.exit(2);
 }
 
-const store = openStore(loadConfig(process.env).dataDir);
+const config = loadConfig(process.env);
+const store = openStore(config.dataDir);
 const user = store.userByName(name);
 if (!user) {
   console.error(`reset-password: no user named ${name}`);
@@ -23,3 +24,5 @@ const password = randomPassword();
 store.setPassword(user.id, await hashPassword(password));
 store.deleteSessions(user.id);
 console.log(`New password for ${name}: ${password}`);
+if (!config.password)
+  console.log('Signing in with a password is off (AUTH_METHODS), so it works only once that is on.');

@@ -31,6 +31,29 @@ Your model is a map of your weak points, so ReachLine is self-hosted: you run it
 
 Models aren't encrypted on the server, so whoever controls the server and its backups can read them. Treat the server and its data volume as you would your password manager's backups.
 
+## Signing in
+
+Users sign in with a username and password, with an OpenID Connect provider (single sign-on), or either; `AUTH_METHODS` chooses. `.env.template` describes every setting. An account made at its first sign-in with the provider gets a username from the provider's, and is linked to the provider's identity (issuer and subject), never matched by email or name. Anyone can link or unlink the provider, or add or remove a password, on their account page, as long as one way in remains. A forgotten password is reset on the server: `docker compose exec reachline reset-password <username>`.
+
+ReachLine doesn't check groups: who may sign in is the provider's decision, so limit the application to the right people there. With registration on, anyone the provider lets through gets an account.
+
+### Example: Authentik
+
+1. In Authentik, create an application with an OAuth2/OpenID provider. Make it a confidential client, with the redirect URI `https://reach.example.com/api/auth/oidc/callback` (your `PUBLIC_URL`, then `/api/auth/oidc/callback`), and choose a signing key.
+2. To sign people out of ReachLine when their Authentik session ends, set the provider's logout URI to `https://reach.example.com/api/auth/oidc/logout`, with the back-channel method (Authentik 2025.8 or newer). Authentik's server has to be able to reach that address.
+3. Bind the users or groups who may use ReachLine to the application.
+4. Give ReachLine the provider's details:
+
+   ```sh
+   AUTH_METHODS=password,oidc
+   AUTH_OIDC_ISSUER=https://auth.example.com/application/o/reachline/   # the provider's issuer, trailing slash and all
+   AUTH_OIDC_CLIENT_ID=...
+   AUTH_OIDC_CLIENT_SECRET=...
+   AUTH_OIDC_LABEL=Sign in with Authentik
+   ```
+
+ReachLine's server has to be able to reach the issuer's address too. To use only the provider, set `AUTH_METHODS=oidc`, but first have everyone link their account, since an account with only a password can no longer sign in.
+
 ## Development Instructions
 
 Requires [Node.js](https://nodejs.org) and [pnpm](https://pnpm.io). Node runs the TypeScript directly, with no build step. The command line needs Node 22.18 or newer, and the server needs 24.7 or newer; development happens on Node 26.

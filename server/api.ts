@@ -5,8 +5,30 @@ export interface ApiError {
   error: string;
 }
 
+/** Says the action needs a recent sign-in: sign out and in again, then retry. */
+export interface Reauth extends ApiError {
+  reauth: true;
+}
+
 export interface AuthOptions {
+  /** Whether a new account can be made: with a password, or at a first sign-in with the provider. */
   registration: boolean;
+  /** Whether users may sign in with a password. */
+  password: boolean;
+  /** The label of the button to sign in with the provider, if there is one. */
+  oidc: string | null;
+}
+
+/**
+ * Why signing in or linking with the provider failed, as `?sso=` on the page
+ * it comes back to: `closed` (no account, and registration is closed), `taken`
+ * (another account is linked to that identity) or `failed` (anything else).
+ */
+export type SsoError = 'failed' | 'closed' | 'taken';
+
+/** Where to send the browser next. */
+export interface Redirect {
+  url: string;
 }
 
 export interface Credentials {
@@ -16,10 +38,15 @@ export interface Credentials {
 
 export interface Me {
   username: string;
+  /** Whether the account has a password. */
+  password: boolean;
+  /** What the provider calls the identity linked to the account, if one is. */
+  linked: string | null;
 }
 
+/** `current` is needed unless the account has no password yet. */
 export interface PasswordChange {
-  current: string;
+  current?: string;
   next: string;
 }
 

@@ -14,60 +14,16 @@ import type {
   RevisionSummary,
   Saved,
 } from '../server/api.ts';
-import { createApp } from '../server/app.ts';
 import { loadConfig } from '../server/config.ts';
-import { openDb, Store } from '../server/db.ts';
-
-const ORIGIN = 'http://127.0.0.1:5199';
-
-function server(env: Record<string, string> = {}) {
-  const store = new Store(openDb(':memory:'));
-  return { store, app: createApp(store, loadConfig({ PUBLIC_URL: ORIGIN, ...env })) };
-}
-
-type App = ReturnType<typeof server>['app'];
-
-/** A browser on the app's own origin that keeps its cookie between requests. */
-class Browser {
-  cookie = '';
-  readonly app: App;
-
-  constructor(app: App) {
-    this.app = app;
-  }
-
-  // eslint-disable-next-line @typescript-eslint/no-unnecessary-type-parameters -- the caller names the body's type
-  async call<T = unknown>(method: string, path: string, body?: unknown, headers: Record<string, string> = {}) {
-    const res = await this.app.request(path, {
-      method,
-      headers: {
-        'sec-fetch-site': 'same-origin',
-        ...(body !== undefined && { 'content-type': 'application/json' }),
-        ...(this.cookie && { cookie: this.cookie }),
-        ...headers,
-      },
-      body: body === undefined ? undefined : JSON.stringify(body),
-    });
-    const set = res.headers.get('set-cookie');
-    if (set) this.cookie = set.split(';')[0];
-    return { status: res.status, headers: res.headers, body: (res.status === 204 ? null : await res.json()) as T };
-  }
-
-  async register(username: string, password = 'password1') {
-    assert.equal((await this.call('POST', '/api/auth/register', { username, password })).status, 201);
-    return this;
-  }
-}
-
-const as = (app: App, username: string) => new Browser(app).register(username);
+import { as, Browser, ORIGIN, server } from './browser.ts';
 
 test('a session lasts from sign-in to sign-out, on the server as well as in the browser', async () => {
   const { app } = server();
   const a = await as(app, 'alice');
-  assert.deepEqual((await a.call<Me>('GET', '/api/auth/me')).body, { username: 'alice' });
+  assert.deepEqual((await a.call<Me>('GET', '/api/auth/me')).body, { username: 'alice', password: true, linked: null });
 
   const copy = new Browser(app);
-  copy.cookie = a.cookie;
+  for (const [k, v] of a.cookies) copy.cookies.set(k, v);
   assert.equal((await a.call('POST', '/api/auth/logout')).status, 204);
   assert.equal((await copy.call('GET', '/api/auth/me')).status, 401);
 

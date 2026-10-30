@@ -32,6 +32,18 @@ const MIGRATIONS = [
      created text not null
    );
    create index revisions_model on revisions (model_id, id);`,
+  `create table identities ( -- an account at an OpenID provider, linked by issuer and subject, never by email
+     issuer text not null,
+     subject text not null,
+     user_id integer not null references users on delete cascade,
+     label text not null, -- what the provider calls them, to show on the account page
+     created text not null,
+     primary key (issuer, subject),
+     unique (user_id, issuer)
+   );
+   alter table sessions add column created text not null default ''; -- '' for sessions from before
+   alter table sessions add column method text not null default 'password'; -- or 'oidc'
+   alter table sessions add column provider_sid text; -- the provider's session (its sid), for back-channel logout`,
 ];
 
 /** The store in `dataDir`, created if it's new. */
@@ -77,6 +89,20 @@ export interface SessionUser {
   userId: number;
   username: string;
   expires: string;
+  created: string;
+}
+
+export interface Identity {
+  userId: number;
+  label: string;
+}
+
+export interface NewSession {
+  id: string;
+  userId: number;
+  expires: string;
+  method: 'password' | 'oidc';
+  providerSid?: string;
 }
 
 export class Store {
@@ -95,26 +121,70 @@ export class Store {
       User | undefined;
   }
 
-  createUser(username: string, password: string): number {
+  userById(id: number): User | undefined {
+    return this.db.prepare('select id, username, password from users where id = ?').get(id) as User | undefined;
+  }
+
+  createUser(username: string, password: string | null): number {
     const r = this.db
       .prepare('insert into users (username, password, created) values (?, ?, ?)')
       .run(username, password, now());
     return Number(r.lastInsertRowid);
   }
 
-  setPassword(userId: number, password: string): void {
+  /** A new user without a password, and linked to their identity, named `username` or the first free `username-N`. */
+  createLinkedUser(username: string, issuer: string, subject: string, label: string): User {
+    return tx(this.db, () => {
+      let name = username;
+      for (let n = 2; this.userByName(name); n++) name = `${username.slice(0, 31 - String(n).length)}-${n}`;
+      const id = this.createUser(name, null);
+      this.link(id, issuer, subject, label);
+      return { id, username: name, password: null };
+    });
+  }
+
+  setPassword(userId: number, password: string | null): void {
     this.db.prepare('update users set password = ? where id = ?').run(password, userId);
   }
 
-  createSession(id: string, userId: number, expires: string): void {
-    this.db.prepare('insert into sessions (id, user_id, expires) values (?, ?, ?)').run(id, userId, expires);
+  deleteUser(userId: number): void {
+    this.db.prepare('delete from users where id = ?').run(userId);
+  }
+
+  /** Who this identity at the provider belongs to. */
+  identity(issuer: string, subject: string): Identity | undefined {
+    return this.db
+      .prepare('select user_id as userId, label from identities where issuer = ? and subject = ?')
+      .get(issuer, subject) as Identity | undefined;
+  }
+
+  /** What the user's linked identity at the provider is called. */
+  linkedAs(userId: number, issuer: string): string | undefined {
+    const row = this.db.prepare('select label from identities where user_id = ? and issuer = ?').get(userId, issuer);
+    return (row as { label: string } | undefined)?.label;
+  }
+
+  link(userId: number, issuer: string, subject: string, label: string): void {
+    this.db
+      .prepare('insert into identities (issuer, subject, user_id, label, created) values (?, ?, ?, ?, ?)')
+      .run(issuer, subject, userId, label, now());
+  }
+
+  unlink(userId: number, issuer: string): void {
+    this.db.prepare('delete from identities where user_id = ? and issuer = ?').run(userId, issuer);
+  }
+
+  createSession(s: NewSession): void {
+    this.db
+      .prepare('insert into sessions (id, user_id, expires, created, method, provider_sid) values (?, ?, ?, ?, ?, ?)')
+      .run(s.id, s.userId, s.expires, now(), s.method, s.providerSid ?? null);
   }
 
   /** The session's user, if the session exists and hasn't expired. */
   sessionUser(id: string): SessionUser | undefined {
     return this.db
       .prepare(
-        `select s.user_id as userId, u.username, s.expires
+        `select s.user_id as userId, u.username, s.expires, s.created
          from sessions s join users u on u.id = s.user_id
          where s.id = ? and s.expires > ?`,
       )
@@ -132,6 +202,18 @@ export class Store {
   /** Ends every session of the user's except `keep`. */
   deleteSessions(userId: number, keep = ''): void {
     this.db.prepare('delete from sessions where user_id = ? and id != ?').run(userId, keep);
+  }
+
+  /** Ends the sessions started with the provider's session `sid`, or else all of the user's from the provider. */
+  endProviderSessions(target: { userId?: number; sid?: string }): void {
+    const { userId = null, sid = null } = target;
+    if (userId === null && sid === null) return;
+    this.db
+      .prepare(
+        `delete from sessions where method = 'oidc'
+         and (?1 is null or user_id = ?1) and (?2 is null or provider_sid = ?2)`,
+      )
+      .run(userId, sid);
   }
 
   deleteExpiredSessions(): void {

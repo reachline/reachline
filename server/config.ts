@@ -11,8 +11,21 @@ export interface Config {
   publicUrl: URL;
   dataDir: string;
   registration: boolean;
+  /** Whether users may sign in with a password. */
+  password: boolean;
+  /** The OpenID provider users may sign in with, if any. */
+  oidc?: OidcConfig;
   /** The built app; it may not exist in development, where Vite serves it. */
   appDir: string;
+}
+
+export interface OidcConfig {
+  issuer: URL;
+  clientId: string;
+  /** None for a public client, which PKCE alone protects. */
+  clientSecret?: string;
+  /** What the sign-in button says. */
+  label: string;
 }
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
@@ -38,8 +51,43 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     // Relative to the repository, so `DATA_DIR=data` means the same from any directory.
     dataDir: dataDir ? (isAbsolute(dataDir) ? dataDir : join(ROOT, dataDir)) : join(ROOT, '.dev'),
     registration: flag(env, 'AUTH_REGISTRATION', true),
+    ...methods(env),
     appDir: join(ROOT, 'app/dist'),
   };
+}
+
+const METHODS = ['password', 'oidc'];
+const OIDC_SETTINGS = ['AUTH_OIDC_ISSUER', 'AUTH_OIDC_CLIENT_ID', 'AUTH_OIDC_CLIENT_SECRET', 'AUTH_OIDC_LABEL'];
+
+function methods(env: NodeJS.ProcessEnv): Pick<Config, 'password' | 'oidc'> {
+  const list = (setting(env, 'AUTH_METHODS') ?? 'password').split(',').map((m) => m.trim());
+  const unknown = list.find((m) => !METHODS.includes(m));
+  if (unknown !== undefined) throw new Error(`AUTH_METHODS is a list of password and oidc, not ${unknown || 'empty'}`);
+  if (!list.includes('oidc')) {
+    // Settings that would silently do nothing are more likely a mistake than a choice.
+    const set = OIDC_SETTINGS.find((name) => setting(env, name) !== undefined);
+    if (set) throw new Error(`${set} is set, but AUTH_METHODS doesn't include oidc`);
+    return { password: true };
+  }
+
+  const issuer = new URL(required(env, 'AUTH_OIDC_ISSUER'));
+  if (issuer.protocol !== 'https:' && !(issuer.protocol === 'http:' && LOOPBACK.has(issuer.hostname)))
+    throw new Error('AUTH_OIDC_ISSUER must be https unless it is 127.0.0.1 or localhost');
+  return {
+    password: list.includes('password'),
+    oidc: {
+      issuer,
+      clientId: required(env, 'AUTH_OIDC_CLIENT_ID'),
+      clientSecret: setting(env, 'AUTH_OIDC_CLIENT_SECRET'),
+      label: setting(env, 'AUTH_OIDC_LABEL') ?? 'Sign in with SSO',
+    },
+  };
+}
+
+function required(env: NodeJS.ProcessEnv, name: string): string {
+  const v = setting(env, name);
+  if (v === undefined) throw new Error(`${name} is required when AUTH_METHODS includes oidc`);
+  return v;
 }
 
 /** An empty value, as in a template's `NAME=`, counts as unset. */

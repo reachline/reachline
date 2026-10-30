@@ -175,7 +175,7 @@ test('the pages pass axe', async () => {
     };
 
     await page.goto(ORIGIN);
-    await page.getByRole('heading', { name: 'Sign in' }).waitFor();
+    await page.getByLabel('Username').waitFor();
     await check('sign in');
     await page.getByRole('button', { name: 'Create an account' }).click();
     await check('create an account');
@@ -197,8 +197,12 @@ test('the pages pass axe', async () => {
     await page.getByRole('button', { name: /account menu/ }).click();
     await check('user menu');
     await page.getByRole('link', { name: 'Account settings' }).click();
-    await page.getByRole('heading', { name: 'Account' }).waitFor();
+    await page.getByRole('heading', { name: 'Change password' }).waitFor();
     await check('account');
+    await page.getByRole('button', { name: 'Delete account' }).click();
+    await page.getByRole('dialog', { name: 'Delete your account?' }).waitFor();
+    await check('confirm deleting the account');
+    await page.getByRole('button', { name: 'Cancel' }).click();
     await ctx.close();
   }
 });
