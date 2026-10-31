@@ -1,0 +1,58 @@
+# GitHub requires two-factor authentication of most accounts. A password reset
+# by email still asks for the second factor, and a passkey signs in alone.
+# Without codes or a second factor, recovery needs the email, a recovery
+# factor and a review by GitHub Support, which may say no.
+template:
+  name: GitHub
+  note: A GitHub account with two-factor authentication.
+  checked: 2026-10-30
+  links:
+    About two-factor authentication: https://docs.github.com/en/authentication/securing-your-account-with-two-factor-authentication-2fa/about-two-factor-authentication
+    Recovering your account if you lose your 2FA credentials: https://docs.github.com/en/authentication/securing-your-account-with-two-factor-authentication-2fa/recovering-your-account-if-you-lose-your-2fa-credentials
+  prefix: github
+  slots:
+    vault: Where the password is kept
+    mail: The email account GitHub sends to
+    phone_unlocked: The unlocked phone with your authenticator app and GitHub Mobile
+    phone_number: The phone number for text messages
+    hw_key: Your security key
+    safe: Where the recovery codes are kept
+    laptop_unlocked: The computer with your SSH key, signed in
+  optional:
+    github_totp: true
+    github_sms: false
+    github_key: false
+    github_mobile: false
+    github_passkey: false
+    github_codes: true
+    github_ssh: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  phone_unlocked: {kind: device}
+  phone_number: {kind: service}
+  hw_key: {kind: device}
+  safe: {kind: location}
+  laptop_unlocked: {kind: device}
+
+  github_pw: {kind: secret, in: [vault]}
+  github_totp: {kind: secret, in: [phone_unlocked], note: an authenticator app}
+  github_sms: {kind: secret, in: [phone_number], note: codes by text message}
+  github_key: {kind: secret, in: [hw_key], note: a security key}
+  github_mobile: {kind: secret, in: [phone_unlocked], note: 'GitHub Mobile, signed in'}
+  github_passkey: {kind: secret, in: [phone_unlocked], note: 'a passkey, which signs in without the password'}
+  github_codes: {kind: secret, in: [safe], note: recovery codes}
+  github_ssh: {kind: secret, in: [laptop_unlocked], note: 'an SSH key, which can back a recovery request'}
+
+  github:
+    kind: account
+    tags: [critical, sensitive]
+    access:
+      # The password, or a reset by email; then any second factor.
+      - [[github_pw, mail], [github_totp, github_sms, github_key, github_mobile]]
+      - [github_passkey]
+    recovery:
+      - [[github_pw, mail], github_codes]
+      # Support reviews the request, which takes days and may be refused.
+      - [mail, github_ssh, '?']

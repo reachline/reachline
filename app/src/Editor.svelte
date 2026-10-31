@@ -2,7 +2,17 @@
   // The model's text in CodeMirror. Loaded on demand: it's about as big as the
   // rest of the app.
   import { autocompletion } from '@codemirror/autocomplete';
-  import { defaultKeymap, history, historyKeymap, indentWithTab, isolateHistory } from '@codemirror/commands';
+  import {
+    defaultKeymap,
+    history,
+    historyKeymap,
+    indentWithTab,
+    isolateHistory,
+    redo as redoEdit,
+    redoDepth,
+    undo as undoEdit,
+    undoDepth,
+  } from '@codemirror/commands';
   import { bracketMatching, indentOnInput } from '@codemirror/language';
   import { linter, lintGutter } from '@codemirror/lint';
   import { EditorState } from '@codemirror/state';
@@ -22,8 +32,16 @@
     things: () => Iterable<[string, string]>;
     /** Text to select and scroll to; a new object each time. */
     reveal: { from: number; to: number } | null;
+    /** How many steps undo and redo can take, as that changes. */
+    onhistory: (undo: number, redo: number) => void;
+    /** Once the editor is up, so edits from outside go into its history. */
+    onready: () => void;
   }
-  let { text, onchange, lint, things, reveal }: Props = $props();
+  let { text, onchange, lint, things, reveal, onhistory, onready }: Props = $props();
+
+  /** Undo and redo from outside the editor, such as the header's buttons. */
+  export const undo = () => view && undoEdit(view);
+  export const redo = () => view && redoEdit(view);
 
   let view: EditorView | undefined;
   // The text as the editor last had it, to tell a change from outside.
@@ -67,9 +85,10 @@
           bracketMatching(),
           lintGutter(),
           autocompletion({ override: [completeIds(things)] }),
-          linter((v) => lint(v.state.doc.toString()).map((p) => ({ ...p, severity: 'error' })), { delay: 300 }),
+          linter((v) => lint(v.state.doc.toString()), { delay: 300 }),
           keymap.of([...defaultKeymap, ...historyKeymap, indentWithTab]),
           EditorView.updateListener.of((u) => {
+            if (u.transactions.length) onhistory(undoDepth(u.state), redoDepth(u.state));
             if (!u.docChanged) return;
             last = u.state.doc.toString();
             onchange(last);
@@ -78,6 +97,7 @@
       }),
     });
     view = cm;
+    onready();
     return () => cm.destroy();
   }
 </script>

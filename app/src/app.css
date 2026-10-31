@@ -322,6 +322,32 @@ legend {
 .choice input {
   margin: 0;
 }
+/* Ids in a field: a .chips list of .chip, each with its .icon button to remove it (24px, WCAG's least target). */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  min-height: 1.75rem;
+  padding: 0 2px 0 var(--space-2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  font-family: var(--code-font);
+  font-size: var(--text-sm);
+  overflow-wrap: anywhere;
+}
+.chip button.icon {
+  width: 1.5rem;
+  min-height: 1.5rem;
+}
 
 /*
  * A strip of .quiet buttons. As a choice, one of them is pressed
@@ -337,6 +363,7 @@ legend {
 }
 .segmented button {
   min-height: calc(var(--control-h) - 6px);
+  padding: 0 var(--space-2);
   border-radius: calc(var(--radius) - 2px);
 }
 .segmented button.icon {
@@ -454,8 +481,25 @@ dialog::backdrop {
   clip-path: inset(50%);
   white-space: nowrap;
 }
-/* A button's words, beside its icon where there's room; on phones the icon shows alone. */
+/*
+ * A button's words, beside its icon where there's room; on phones the icon
+ * shows alone, as it does in a .shrinks box that's narrow. A .shrinks box
+ * takes its width from outside, never from what's in it.
+ */
+.shrinks {
+  container: shrinks / inline-size;
+}
 @media (max-width: 760px) {
+  .wide-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+@container shrinks (max-width: 21.5rem) {
   .wide-only {
     position: absolute;
     width: 1px;

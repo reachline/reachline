@@ -229,6 +229,12 @@ test('kinds, tags and keys are closed sets, and kind is required', () => {
   fails({ things: { a: { kind: 'gadget' } } }, 'a', 'gadget');
   fails({ things: { a: { kind: 'device', tags: ['critcal'] } } }, 'a', 'critcal');
   fails({ devices: { a: {} } }, 'devices');
+  fails({ things: { a: { kind: 'device', recovry: [] } } }, 'a', 'recovry');
+  fails({ things: { a: { kind: 'device', mirrors: { of: 'a', bye: 'a' } } } }, 'a', 'bye');
+  fails({ scenarios: { baseline: { kind: 'lockout', lots: [] } } }, 'baseline', 'lots');
+  // A misspelled scenario kind used to run as a breach.
+  fails({ scenarios: { baseline: { kind: 'lockut' } } }, 'baseline', 'kind');
+  fails({ scenarios: { baseline: {} } }, 'baseline', 'kind');
   assert.throws(() => exampleWith({ p: { version: 1 } }, ['p']), /version/);
   // A plan adding a thing must give its kind; one changing a thing needn't.
   assert.throws(() => exampleWith({ p: { things: { new_key: { in: ['home'] } } } }, ['p']), /new_key/);
@@ -247,6 +253,13 @@ test('errors mark where the problem is written, in the model or a plan', () => {
   one(doc({ ...base, things: { a: {} } }), [], 'things.a');
   one(doc({ ...base, things: { a: { kind: 'gadget' } } }), [], 'things.a.kind', 'gadget');
   one(doc({ ...base, things: { a: { kind: 'device', tags: ['critical', 'critcal'] } } }), [], 'things.a.tags.1');
+  one(doc({ ...base, things: { a: { kind: 'device', recovry: [] } } }), [], 'things.a.recovry');
+  one(doc({ scenarios: { baseline: { kind: 'lockut' } } }), [], 'scenarios.baseline.kind', 'lockut');
+  one(
+    exampleDoc({ p: { scenarios: { s: { kind: 'breach', attackers: [] } } } }),
+    ['p'],
+    'plans.p.scenarios.s.attackers',
+  );
   // `in: "?"` adds an AND-set to access; the mark is still on what was written.
   one(doc({ ...base, things: { a: { kind: 'device', in: '?', access: [['a'], 'b'] } } }), [], 'things.a.access.1', 'b');
   one(exampleDoc({ p: { thingz: {} } }), ['p'], 'plans.p.thingz');

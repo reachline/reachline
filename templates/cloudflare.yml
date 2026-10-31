@@ -1,0 +1,48 @@
+# A Cloudflare account with two-factor authentication. Without a second factor
+# or backup codes, recovery takes a code sent to the account's email from a
+# device that has signed in before, and days of waiting. If your domain's DNS
+# or registration is here, add cloudflare to that domain's `in` or `needs`.
+template:
+  name: Cloudflare
+  note: A Cloudflare account with two-factor authentication.
+  checked: 2026-10-30
+  links:
+    Two-factor authentication: https://developers.cloudflare.com/fundamentals/user-profiles/2fa/
+    Account recovery: https://developers.cloudflare.com/fundamentals/user-profiles/account-recovery/
+  prefix: cloudflare
+  slots:
+    vault: Where the password is kept
+    mail: The account's email
+    phone_unlocked: The unlocked phone with your authenticator app
+    hw_key: Your security key
+    safe: Where the backup codes are kept
+    laptop_unlocked: A computer that has signed in to Cloudflare before
+  optional:
+    cloudflare_totp: true
+    cloudflare_key: false
+    cloudflare_mail_code: false
+    cloudflare_codes: true
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  phone_unlocked: {kind: device}
+  hw_key: {kind: device}
+  safe: {kind: location}
+  laptop_unlocked: {kind: device}
+
+  cloudflare_pw: {kind: secret, in: [vault]}
+  cloudflare_totp: {kind: secret, in: [phone_unlocked], note: an authenticator app}
+  cloudflare_key: {kind: secret, in: [hw_key], note: a security key}
+  cloudflare_mail_code: {kind: secret, in: [mail], note: codes by email}
+  cloudflare_codes: {kind: secret, in: [safe], note: backup codes}
+
+  cloudflare:
+    kind: account
+    tags: [critical, sensitive]
+    access:
+      # The password, or a reset by email; then any second factor.
+      - [[cloudflare_pw, mail], [cloudflare_totp, cloudflare_key, cloudflare_mail_code]]
+    recovery:
+      - [[cloudflare_pw, mail], cloudflare_codes]
+      - [mail, laptop_unlocked]

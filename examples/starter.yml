@@ -1,0 +1,43 @@
+version: 1
+
+things:
+  head: {kind: location, note: memorized}
+  body: {kind: location, note: biometrics}
+  carried: {kind: location, note: on me when I'm out}
+  home: {kind: location}
+  safe: {kind: location, in: [home], todo: where backup codes and the emergency sheet are kept}
+
+  phone: {kind: device, in: [carried]}
+  phone_unlocked: {kind: device, access: [[phone, [phone_pin, face]]]}
+  laptop: {kind: device, in: [home]}
+  laptop_unlocked: {kind: device, access: [[laptop, laptop_pw]]}
+
+  phone_pin: {kind: secret, in: [head]}
+  face: {kind: secret, in: [body]}
+  laptop_pw: {kind: secret, in: [head]}
+  pm_master: {kind: secret, in: [head], todo: is it written down anywhere?}
+  mail_pw: {kind: secret, in: [vault]}
+
+  vault:
+    kind: service
+    note: the password manager, unlocked
+    tags: [sensitive]
+    access:
+      - [laptop_unlocked, pm_master]
+      - [phone_unlocked, pm_master]
+  phone_number: {kind: service, note: texts and calls to my number, access: [[phone]]}
+
+  mail:
+    kind: account
+    tags: [critical, sensitive]
+    access: [[mail_pw]]
+    recovery: "?"
+    todo: add its second factor and how recovery works
+
+scenarios:
+  baseline: {kind: lockout}
+  lose_carried: {kind: lockout, lost: [carried]}
+  house_fire: {kind: lockout, lost: [home, carried]}
+  thief_carried: {kind: breach, attacker: [carried]}
+
+me: [head, body, carried, home]

@@ -1,6 +1,6 @@
 // Checking a model's text as it's edited: the model it gives, if any, and its
 // problems as ranges of the text for the editor to mark.
-import { isMap, isNode, isScalar, isSeq, parseDocument, type Document } from 'yaml';
+import { isMap, isNode, isScalar, isSeq, parseDocument, Parser, type Document } from 'yaml';
 import { load, ReachError, type Model, type Path } from '../../engine/model.ts';
 import { loadModel } from './data.ts';
 
@@ -8,6 +8,7 @@ export interface Problem {
   from: number;
   to: number;
   message: string;
+  severity: 'error' | 'warning';
 }
 
 /**
@@ -18,14 +19,17 @@ export interface Problem {
 export function check(text: string, plans: string[]): { model: Model | null; problems: Problem[] } {
   const doc = parseDocument(text);
   if (doc.errors.length) {
-    return { model: null, problems: doc.errors.map((e) => ({ from: e.pos[0], to: e.pos[1], message: e.message })) };
+    return {
+      model: null,
+      problems: doc.errors.map((e) => ({ from: e.pos[0], to: e.pos[1], message: e.message, severity: 'error' })),
+    };
   }
   const problems = new Map<string, Problem>();
   const add = (e: unknown) => {
     if (!(e instanceof ReachError)) throw e;
     for (const { path, message } of e.at.length ? e.at : [{ path: [], message: e.message }]) {
       const [from, to] = rangeOf(doc, text, path);
-      problems.set(`${from}:${to}:${message}`, { from, to, message });
+      problems.set(`${from}:${to}:${message}`, { from, to, message, severity: 'error' });
     }
   };
   let model: Model | null = null;
@@ -42,7 +46,26 @@ export function check(text: string, plans: string[]): { model: Model | null; pro
       add(e);
     }
   }
-  return { model, problems: [...problems.values()] };
+  return { model, problems: [...problems.values(), ...comments(text)] };
+}
+
+const COMMENT =
+  'Comments are removed when the model is edited through its forms or formatted; keep notes in note or todo.';
+
+/** A warning on each comment, found in the concrete syntax tree, which keeps where they are. */
+function comments(text: string): Problem[] {
+  const out: Problem[] = [];
+  const walk = (n: unknown) => {
+    if (Array.isArray(n)) n.forEach(walk);
+    else if (n && typeof n === 'object') {
+      const t = n as { type?: string; offset?: number; source?: string };
+      if (t.type === 'comment' && t.offset !== undefined && t.source !== undefined) {
+        out.push({ from: t.offset, to: t.offset + t.source.length, message: COMMENT, severity: 'warning' });
+      } else Object.values(n).forEach(walk);
+    }
+  };
+  for (const token of new Parser().parse(text)) walk(token);
+  return out;
 }
 
 /** Where a thing is defined: under `things:`, or else in a plan in use. Null if neither has it. */

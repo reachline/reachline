@@ -60,3 +60,12 @@ test('a thing is found where it is defined, or in a plan in use that adds it', (
   assert.equal(at('key_offsite'), null);
   assert.equal(at('key_offsite', ['spare_key']), '      key_offsite');
 });
+
+test('comments are warned about, since guided edits drop them', () => {
+  const text = `# top\n${BASE}things: {a: {kind: device, in: [b, # why\n  c]}}\n`;
+  const warned = check(text, []).problems.filter((p) => p.severity === 'warning');
+  assert.deepEqual(
+    warned.map((p) => text.slice(p.from, p.to)),
+    ['# top', '# why'],
+  );
+});

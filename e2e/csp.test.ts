@@ -140,6 +140,99 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.keyboard.press('ControlOrMeta+z');
   await page.getByText('Saved', { exact: true }).waitFor();
 
+  // Format drops a comment (which is warned about), and the header's Undo takes that back as one step.
+  await page.keyboard.insertText('# gone\n');
+  await page.locator('.cm-lintRange-warning').waitFor();
+  await page.getByRole('button', { name: 'Format' }).click();
+  await page.locator('.cm-content').getByText('# gone').waitFor({ state: 'detached' });
+  const undo = page.getByRole('button', { name: 'Undo', exact: true });
+  await undo.click();
+  await page.locator('.cm-content').getByText('# gone').waitFor();
+  await undo.click();
+  await page.getByText('Saved', { exact: true }).waitFor();
+
+  // Guided edits: add a thing, fill it in, rename it, delete it, and undo that.
+  await page.getByRole('button', { name: 'Details' }).click();
+  await page.getByRole('button', { name: 'Edit', exact: true }).click();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByRole('button', { name: 'Thing…' }).click();
+  const add = page.getByRole('dialog', { name: 'Add a thing' });
+  await add.getByLabel('Name').fill('tablet');
+  await add.getByLabel('Kind').selectOption('device');
+  await add.getByRole('button', { name: 'Add', exact: true }).click();
+  const addIn = page.getByRole('combobox', { name: 'Add to in', exact: true });
+  await addIn.fill('home');
+  await addIn.press('Enter');
+  await page.getByRole('button', { name: 'Remove home from in' }).waitFor();
+  const addWay = page.getByRole('combobox', { name: 'A new access way', exact: true });
+  await addWay.fill('tablet_pin | face');
+  await addWay.press('Enter');
+  await page.getByRole('group', { name: 'New things' }).getByRole('combobox').selectOption('secret');
+  await page.getByRole('button', { name: 'Create and add' }).click();
+  await page.getByText('(tablet_pin | face)').waitFor();
+  const name = page.getByRole('textbox', { name: 'Name', exact: true });
+  await name.fill('slate');
+  await name.blur();
+  await page.getByRole('button', { name: 'Delete slate' }).click();
+  const confirm = page.getByRole('dialog', { name: 'Delete slate?' });
+  await confirm.getByText('removed').first().waitFor();
+  await confirm.getByRole('button', { name: 'Delete' }).click();
+  await page.getByText('Select a node to edit it').waitFor();
+  await undo.click();
+  await page.locator('#thing-ids option[value="slate"]').waitFor({ state: 'attached' });
+  await page.getByRole('button', { name: 'Done' }).click();
+  await page.getByRole('button', { name: 'Text' }).click();
+  // Each guided edit was one step: four more undo the rename, the way in, the place, and the thing.
+  for (let i = 0; i < 4; i++) await undo.click();
+  await page.getByText('Saved', { exact: true }).waitFor();
+
+  // Plans: one on shows what it changes; edits can go into it; applying it makes it part of the model.
+  await page.getByRole('button', { name: 'Plans' }).click();
+  await page.getByRole('checkbox', { name: 'spare_key' }).check();
+  await page.locator('.verdicts li').first().waitFor();
+  await page.getByRole('listitem').filter({ hasText: 'spare_key' }).getByRole('button', { name: 'Edit' }).click();
+  await page.getByRole('combobox', { name: 'Edits go into' }).and(page.locator('select.plan')).waitFor();
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByRole('button', { name: 'Thing…' }).click();
+  await add.getByLabel('Name').fill('key_drawer');
+  await add.getByLabel('Kind').selectOption('device');
+  await add.getByRole('button', { name: 'Add' }).click();
+  await page.getByText('Added by plan spare_key.').waitFor();
+  await page.getByRole('button', { name: 'Plans' }).click();
+  await page.getByRole('button', { name: 'Apply…' }).first().click();
+  const applying = page.getByRole('dialog', { name: 'Apply spare_key?' });
+  await applying.getByText('key_drawer').waitFor();
+  await applying.getByRole('button', { name: 'Apply' }).click();
+  await page.getByRole('checkbox', { name: 'spare_key' }).waitFor({ state: 'detached' });
+  await undo.click();
+  await page.getByRole('checkbox', { name: 'spare_key' }).waitFor();
+  await undo.click();
+  await page.getByText('Saved', { exact: true }).waitFor();
+
+  // Templates: its slots take your things of the same name; it goes in as a plan, or into the model.
+  const fromTemplate = page.getByRole('dialog', { name: 'Add from a template' });
+  const github = page.getByRole('dialog', { name: 'GitHub' });
+  const openGithub = async () => {
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await page.getByRole('button', { name: 'From a template…' }).click();
+    await fromTemplate.getByLabel('Search').fill('git');
+    await fromTemplate.getByRole('button', { name: /GitHub/ }).click();
+    await github.getByLabel('Where the password is kept').and(page.locator('select')).waitFor();
+    assert.equal(await github.getByLabel('Where the password is kept').inputValue(), 'vault');
+  };
+  await openGithub();
+  await github.getByRole('button', { name: 'Add as a plan' }).click();
+  await page.getByRole('checkbox', { name: 'add_github' }).waitFor();
+  await undo.click();
+  await page.getByRole('checkbox', { name: 'add_github' }).waitFor({ state: 'detached' });
+  await openGithub();
+  await github.getByRole('button', { name: 'Add to model' }).click();
+  await page.getByText('Added by plan').waitFor({ state: 'detached' });
+  await page.locator('#thing-ids option[value="github_pw"]').waitFor({ state: 'attached' });
+  await undo.click();
+  await page.getByText('Saved', { exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Done' }).click();
+
   // The graph exports; the PNG is the SVG drawn through a blob: image.
   for (const format of ['SVG', 'PNG']) {
     await page.getByRole('button', { name: 'Export' }).click();
@@ -191,6 +284,30 @@ test('the pages pass axe', async () => {
     await page.waitForURL(/\/m\/\d+/);
     await page.locator('.svelte-flow__node').first().waitFor();
     await check('model');
+    await page.getByRole('button', { name: 'Edit', exact: true }).click();
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await page.getByRole('button', { name: 'Thing…' }).click();
+    await check('add a thing');
+    const add = page.getByRole('dialog', { name: 'Add a thing' });
+    await add.getByLabel('Name').fill('tablet');
+    await add.getByLabel('Kind').selectOption('device');
+    await add.getByRole('button', { name: 'Add', exact: true }).click();
+    await page.getByRole('textbox', { name: 'Name', exact: true }).waitFor();
+    await check('editing a thing and a scenario');
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    await page.getByText('Saved', { exact: true }).waitFor();
+    await page.getByRole('button', { name: 'Plans' }).click();
+    await page.getByRole('checkbox', { name: 'spare_key' }).check();
+    await page.locator('.verdicts li').first().waitFor();
+    await check('plans');
+    await page.getByRole('button', { name: 'Add', exact: true }).click();
+    await page.getByRole('button', { name: 'From a template…' }).click();
+    await page.getByRole('dialog', { name: 'Add from a template' }).waitFor();
+    await check('templates');
+    await page.getByRole('button', { name: /GitHub/ }).click();
+    await page.getByRole('dialog', { name: 'GitHub' }).getByText('Adds').waitFor();
+    await check('a template');
+    await page.keyboard.press('Escape');
     await page.goBack();
     await page.getByRole('link', { name: 'example' }).waitFor();
     await check('models');

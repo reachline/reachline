@@ -31,7 +31,7 @@ export interface Spec {
 }
 
 export interface Scenario {
-  kind: string; // 'lockout' | 'breach'
+  kind: (typeof SCENARIO_KINDS)[number];
   lost?: string[];
   attacker?: string[];
   assume?: string[];
@@ -100,7 +100,15 @@ type Raw = Record<string, unknown>;
 const isMap = (v: unknown): v is Raw => typeof v === 'object' && v !== null && !Array.isArray(v);
 const entries = (v: unknown): [string, unknown][] => (isMap(v) ? Object.entries(v) : []);
 
-const KEYS = { model: ['version', 'things', 'scenarios', 'me', 'plans'], plan: ['note', 'things', 'scenarios', 'me'] };
+const KEYS = {
+  model: ['version', 'things', 'scenarios', 'me', 'plans'],
+  plan: ['note', 'things', 'scenarios', 'me'],
+  thing: ['kind', 'tags', 'in', 'needs', 'access', 'recovery', 'mirrors', 'note', 'todo'],
+  mirrors: ['of', 'by'],
+  scenario: ['kind', 'lost', 'attacker', 'assume', 'deny', 'note'],
+};
+
+export const SCENARIO_KINDS = ['lockout', 'breach'] as const;
 
 function checkKeys(layer: Raw, allowed: string[], where: string, at: Path) {
   for (const key of Object.keys(layer)) {
@@ -146,6 +154,8 @@ export function load(
     for (const [tid, spec] of entries(layer.things)) {
       const at = [...prefix, 'things', tid];
       if (spec !== null && !isMap(spec)) throw fault(at, `${where}: ${tid}: expected a mapping`);
+      if (spec) checkKeys(spec, KEYS.thing, `${where}: ${tid}`, at);
+      if (isMap(spec?.mirrors)) checkKeys(spec.mirrors, KEYS.mirrors, `${where}: ${tid}: mirrors`, [...at, 'mirrors']);
       if (i && spec === null) {
         raw.delete(tid);
         from.things.delete(tid);
@@ -160,6 +170,7 @@ export function load(
         scenarios.delete(name);
         from.scenarios.delete(name);
       } else if (isMap(sc)) {
+        checkKeys(sc, KEYS.scenario, `${where}: scenario ${name}`, at);
         scenarios.set(name, { ...scenarios.get(name), ...sc } as Scenario);
         from.scenarios.set(name, merged(from.scenarios.get(name), sc, at));
       } else throw fault(at, `${where}: scenario ${name}: expected a mapping`);
@@ -170,6 +181,15 @@ export function load(
     }
   });
   const things = new Map([...raw].map(([tid, spec]) => [tid, normalize(tid, spec, from.things.get(tid)!)]));
+  for (const [name, sc] of scenarios) {
+    if (!oneOf(sc.kind, SCENARIO_KINDS)) {
+      const o = from.scenarios.get(name)!;
+      throw fault(
+        'kind' in sc ? fieldAt(o, 'kind') : o.at,
+        `${path}: scenario ${name}: kind must be ${SCENARIO_KINDS.join(' or ')}`,
+      );
+    }
+  }
   const meList = Array.isArray(me) ? me.map(String) : [];
   validate(things, raw, scenarios, meList, from);
   return { things, scenarios, me: meList };

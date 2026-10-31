@@ -25,22 +25,46 @@ export function report(m: Model, name: string): string[] {
   return out;
 }
 
-export function diff(before: Model, after: Model, names: string[]): string[] {
-  const out: string[] = [];
-  for (const name of names) {
-    if (!after.scenarios.has(name)) {
-      out.push('', `${name}  (removed by plan)`);
-      continue;
-    }
-    out.push(...header(after.scenario(name), name));
+/** What a plan changes in one scenario: each thing whose verdict changes, and the problems it leaves. */
+export interface ScenarioChange {
+  name: string;
+  /** Null when the plan removes the scenario. */
+  sc: Scenario | null;
+  changed: { thing: string; before: string; after: string; how: string }[];
+  still: string[];
+}
+
+/** Each scenario's verdicts before and after; "ok" where there's no problem. */
+export function compare(before: Model, after: Model, names: string[]): ScenarioChange[] {
+  return names.map((name) => {
+    if (!after.scenarios.has(name)) return { name, sc: null, changed: [], still: [] };
     const rb = before.scenarios.has(name) ? before.rows(name) : new Map<string, Row>();
     const ra = after.rows(name);
     const status = (rows: Map<string, Row>, t: string) => rows.get(t)?.[0] ?? 'ok';
-    const changed = [...new Set([...rb.keys(), ...ra.keys()])].filter((t) => status(rb, t) !== status(ra, t));
-    for (const t of changed) {
-      out.push(`  ${t.padEnd(14)} ${status(rb, t)}  →  ${status(ra, t)}  ${ra.get(t)?.[1] ?? ''}`.trimEnd());
+    const things = [...new Set([...rb.keys(), ...ra.keys()])].filter((t) => status(rb, t) !== status(ra, t));
+    return {
+      name,
+      sc: after.scenario(name),
+      changed: things.map((t) => ({
+        thing: t,
+        before: status(rb, t),
+        after: status(ra, t),
+        how: ra.get(t)?.[1] ?? '',
+      })),
+      still: [...ra.keys()].filter((t) => !things.includes(t)),
+    };
+  });
+}
+
+export function diff(before: Model, after: Model, names: string[]): string[] {
+  const out: string[] = [];
+  for (const { name, sc, changed, still } of compare(before, after, names)) {
+    if (!sc) {
+      out.push('', `${name}  (removed by plan)`);
+      continue;
     }
-    const still = [...ra.keys()].filter((t) => !changed.includes(t));
+    out.push(...header(sc, name));
+    for (const c of changed) out.push(`  ${c.thing.padEnd(14)} ${c.before}  →  ${c.after}  ${c.how}`.trimEnd());
     if (still.length) out.push(`  ${'still'.padEnd(14)} ${still.join(', ')}`);
     if (!changed.length && !still.length) out.push('  ok');
     else if (!changed.length) out.push('  (no change)');

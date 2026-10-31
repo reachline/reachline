@@ -25,6 +25,33 @@ scenarios:
 
 ReachLine follows every path, recovery included, and gives each critical or sensitive thing a verdict: **LOST**, **REACHED**, **UNSURE** (the path relies on something marked `?` because you don't know it) or **DEPENDS** (it relies on a condition of the moment, such as an app being unlocked). It also shows the graph of why. **Plans** are overlays that answer "what changes if I do this?", such as adding a spare security key or replacing a sync with a backup, as a before/after for every scenario. They live in the same file, under `plans:`.
 
+## The model
+
+A model has `things`, `scenarios`, the things you start a lockout with (`me`), and `plans`. `examples/model.yml` is a made-up person's setup, small but using every part of the format. Every thing has an id under `things:`, and all ids share one namespace. A thing's fields:
+
+| Field      | Meaning |
+| ---------- | ------- |
+| `kind`     | Required: `location`, `device`, `state`, `secret`, `service`, `data` or `account`. Only `state` changes how a thing behaves; the rest are for reading, and for the shapes in the graph. |
+| `tags`     | `critical` (lockout scenarios check you can still reach it) and `sensitive` (breach scenarios check an attacker can't). |
+| `in`       | The containers or places it lives in, physical (`laptop` in `home`) or digital (`mail_pw` in `vault`). Reaching any one reaches it, and it's lost only when all of them are. `in: "?"` means you don't know where it is: it's reached only by assuming it. |
+| `access`   | The ways to reach it: a list of AND-sets. An element of a set may be a list, meaning any one of, and a list inside that is an AND again: `[[pw, [totp, [key, pin]]]]` is pw AND (totp OR (key AND pin)). |
+| `recovery` | The same shape as `access`, reported separately (account recovery). |
+| `needs`    | What must still exist, whether or not you can reach it: the server it runs on, the DNS it depends on. It's lost if any of them is. |
+| `mirrors`  | `{of: source, by: syncer}`: a synced copy. It's lost once its source is lost while the syncer still runs, since the next sync empties it. |
+| `note`, `todo` | Free text. `./reach.ts --todo` lists the todos. |
+
+`"?"` stands for a fact about your setup you don't know. ReachLine tracks which unknowns each path relies on, and reports those paths as UNSURE.
+
+A `state` is a condition of the moment rather than a fact about the setup, such as a password manager being unlocked on the laptop. Nothing assumes a state either way: a result that hinges on one says DEPENDS, and a scenario can pin states with `assume` (true) and `deny` (false). A device usually has two entries: the device itself, which a thief takes or a fire destroys, and `<device>_unlocked`, a working session that needs the device and its unlock.
+
+A scenario has a `kind` (`lockout` or `breach`), what's `lost` (lockout) or what the `attacker` has (breach), optionally `assume` and `deny`, and a `note`. Every model has a `baseline` lockout scenario, usually losing nothing.
+
+A plan has the same `things`, `scenarios` and `me` as the model, plus a `note`. A field it gives replaces the model's whole field (so restate the full `access` list), a new id adds a thing, and `id: null` removes one, which nothing may still refer to. Plans apply in the order given: `./reach.ts --plan spare_key --plan backup`.
+
+The app writes the model in one layout, without comments, whenever you edit it through its forms or press Format, so keep explanations in `note` and `todo`.
+
+A template (in `templates/`) adds a common service in one go: its things, under a `template:` header that names the slots it binds to your own things (a thing of yours with the slot's id is chosen for you, and `examples/starter.yml` uses those ids) and the options you may not have set up. Add one from the app's Add menu, into the model or as a plan. New templates are welcome by pull request; cite the service's own docs in `links`, and `test/template.test.ts` checks each one loads.
+
 ## Your server, your data
 
 Your model is a map of your weak points, so ReachLine is self-hosted: you run it on a server you own, for yourself or a few people you trust. There is no central instance, no telemetry, and the page makes no requests anywhere but your server (its Content Security Policy enforces that). The engine runs in your browser. The server stores each model as YAML text, keeps every saved revision, and never interprets it.
@@ -87,7 +114,7 @@ The command line runs the engine on a local file: `data/model.yml`, or the synth
 ./reach.ts --mermaid mail --scenario house_fire       # a Mermaid chart
 ```
 
-To model your own setup, create `data/model.yml`, starting from `examples/model.yml`: its header documents every field. `data/` is gitignored. Pass `--model examples/model.yml` to see the example again. See the top of `reach.ts` for every command-line option.
+To model your own setup, create `data/model.yml`, starting from `examples/model.yml` (see [The model](#the-model)). `data/` is gitignored. Pass `--model examples/model.yml` to see the example again. See the top of `reach.ts` for every command-line option.
 
 ### Checking
 

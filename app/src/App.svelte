@@ -4,23 +4,63 @@
     FileClock,
     FileCode,
     Info,
+    Layers,
+    Plus,
+    Redo2,
     RotateCcw,
     SlidersHorizontal,
+    TextAlignStart,
+    Undo2,
     UnfoldVertical,
     WandSparkles,
     Waypoints,
   } from '@lucide/svelte';
   import { untrack } from 'svelte';
   import { expandToDepth, waysInView, whereView, type View } from './build';
+  import AddDialog from './AddDialog.svelte';
   import Details from './Details.svelte';
+  import {
+    addPlan,
+    addScenario,
+    addThing,
+    applyPlan,
+    changes,
+    edit,
+    overlaps,
+    planFields,
+    plansOf,
+    removePlan,
+    renamePlan,
+    setPlanNote,
+    removeScenario,
+    removeThing,
+    renameScenario,
+    renameThing,
+    setField,
+    setMe,
+    setScenarioField,
+    validId,
+    written,
+    type Change,
+    type Created,
+    type Edit,
+    type Editing,
+    type Layer,
+  } from './edit';
   import FlowView from './FlowView.svelte';
   import Legend from './Legend.svelte';
   import { layout, placeLocally, type Direction, type Placed, type Placement, type Routing } from './layout';
-  import { KINDS } from '../../engine/model.ts';
+  import { KINDS, SCENARIO_KINDS } from '../../engine/model.ts';
+  import { compare, type ScenarioChange } from '../../engine/report.ts';
+  import Plans from './Plans.svelte';
+  import TemplateDialog from './TemplateDialog.svelte';
+  import type { Template } from './template';
+  import Verdicts from './Verdicts.svelte';
   import type { Conflict } from '../../server/api.ts';
   import { api, ApiFailure, message } from './api';
   import { check, definitionOf } from './check';
   import { download, toMermaid, toPng, toSvg } from './export';
+  import { format } from './format';
   import { loadModel, outcome, ReachError, type Model } from './data';
   import ModelSwitcher from './ModelSwitcher.svelte';
   import { keep, load } from './prefs';
@@ -35,7 +75,12 @@
 
   // Initial settings can come from the URL, e.g. ?target=mail&scenario=nas_dies&dir=DOWN
   const q = new URLSearchParams(location.search);
-  const plans = (q.get('plan') ?? '').split(',').filter(Boolean);
+  // The plans that are on, kept in ?plan=. They apply in the order the document lists them.
+  let on = $state((q.get('plan') ?? '').split(',').filter(Boolean));
+  const inOrder = (t: string) =>
+    plansOf(t)
+      .map((p) => p.name)
+      .filter((n) => on.includes(n));
 
   let name = $state('');
   let model = $state.raw<Model | null>(null);
@@ -49,15 +94,17 @@
   // The latest revision, when someone else saved since ours.
   let conflict = $state<number | null>(null);
   let exportError = $state('');
+  let editError = $state('');
   const dirty = $derived(text !== null && text !== saved);
   // The panel beside the graph: which tab is open (none when it's closed), and
   // how wide it is, as this device last had them. Phones start with it closed,
   // since there it covers the graph.
-  type Tab = 'details' | 'text' | 'history';
+  type Tab = 'details' | 'text' | 'history' | 'plans';
   const TABS = [
     ['details', 'Details', Info],
     ['text', 'Text', FileCode],
     ['history', 'History', FileClock],
+    ['plans', 'Plans', Layers],
   ] as const;
   const PANEL = { min: 280, usual: 380, wide: 640 };
   const lastTab = load('panel.tab');
@@ -76,8 +123,17 @@
   $effect(() => keep('panel.width', width));
   // Once opened, the editor stays mounted (hidden when closed) to keep its undo history.
   let editorOpened = $state(untrack(() => tab) === 'text');
+  let editor = $state<{ undo: () => void; redo: () => void }>();
+  const mounted: { resolve?: () => void } = {};
+  const editorMounted = new Promise<void>((resolve) => (mounted.resolve = resolve));
+  const loadEditor = () => import('./Editor.svelte');
+  let editorModule = $state(untrack(() => editorOpened) ? loadEditor() : undefined);
+  let steps = $state({ undo: 0, redo: 0 });
+  let formatError = $state('');
   // The latest text doesn't load, so the graph shows the last text that did.
   let invalid = $state(false);
+  // The text last checked. Checking waits for typing to pause, so the text can be ahead of it.
+  let checked = $state<string | null>(null);
   // Where the thing last selected in the graph is defined, for the editor to show.
   let reveal = $state.raw<{ from: number; to: number } | null>(null);
   let mode = $state<Mode>((q.get('mode') ?? 'ways') as Mode);
@@ -133,22 +189,47 @@
       saved = doc.text;
       revision = doc.revision;
       conflict = null;
-      setText(doc.text);
+      void setText(doc.text);
     } catch (e) {
       saveError = message(e);
     }
   }
 
   /** Saves an old revision's text as a new revision; undo brings back what was there. */
-  function restore(t: string) {
-    setText(t);
+  async function restore(t: string) {
+    await setText(t);
     void save();
   }
 
-  /** Text from outside the editor; in the editor, it's one edit that undo can take back. */
-  function setText(t: string) {
+  /**
+   * Text from outside the editor. It waits for the editor, so that it's one
+   * edit in its history, which undo can take back.
+   */
+  async function setText(t: string) {
+    openEditor();
+    try {
+      await editorModule;
+      await editorMounted;
+    } catch {
+      // Without the editor there's no undo, but the change still stands.
+    }
     text = t;
     lint(t);
+  }
+
+  function openEditor() {
+    editorOpened = true;
+    editorModule ??= loadEditor();
+  }
+
+  function formatText() {
+    if (text === null) return;
+    formatError = '';
+    try {
+      void setText(format(text));
+    } catch {
+      formatError = 'Only text without YAML errors can be formatted.';
+    }
   }
 
   /** The text, or the graph as it's shown. */
@@ -189,9 +270,20 @@
   }
 
   function onkeydown(e: KeyboardEvent) {
-    if ((e.metaKey || e.ctrlKey) && e.key.toLowerCase() === 's') {
+    if (!(e.metaKey || e.ctrlKey) || e.defaultPrevented) return;
+    const key = e.key.toLowerCase();
+    if (key === 's') {
       e.preventDefault();
       if (dirty) void save();
+    }
+    // Outside the editor (which has its own keys) and fields (which have their own undo).
+    const field =
+      e.target instanceof Element && e.target.closest('input, textarea, select, [contenteditable], .editor');
+    if (field || !editor) return;
+    if (key === 'z' || key === 'y') {
+      e.preventDefault();
+      if (key === 'y' || e.shiftKey) editor.redo();
+      else editor.undo();
     }
   }
 
@@ -201,7 +293,8 @@
 
   function open(t: string) {
     try {
-      show(loadModel(t, plans));
+      show(loadModel(t, inOrder(t)));
+      checked = t;
     } catch (e) {
       if (!(e instanceof ReachError)) throw e;
       error = e.message;
@@ -222,15 +315,296 @@
   }
 
   function lint(t: string) {
-    const { model: m, problems } = check(t, plans);
+    const { model: m, problems } = check(t, inOrder(t));
     invalid = !m;
+    checked = t;
     if (m) show(m);
     return problems;
   }
 
   function showTab(t: Tab | null) {
     tab = t;
-    editorOpened ||= t === 'text';
+    if (t === 'text') openEditor();
+  }
+
+  // Guided edits. They go to one layer: the model itself, or a plan.
+  let editMode = $state(load('details.edit') === true);
+  $effect(() => keep('details.edit', editMode));
+  let chosenLayer = $state<Layer>(null);
+  const planList = $derived(text === null ? [] : plansOf(text));
+  const plans = $derived(planList.map((p) => p.name).filter((n) => on.includes(n)));
+  // A plan that's gone (deleted, or undone) can't take edits: they'd make it again.
+  const layer = $derived(planList.some((p) => p.name === chosenLayer) ? chosenLayer : null);
+
+  /** Turns plans on or off, and shows the model with them. */
+  function setOn(next: string[]) {
+    on = next;
+    if (layer !== null && !next.includes(layer)) chosenLayer = null;
+    const url = new URL(location.href);
+    if (next.length) url.searchParams.set('plan', next.join(','));
+    else url.searchParams.delete('plan');
+    history.replaceState(history.state, '', url);
+    if (text !== null) lint(text);
+  }
+
+  /** Where edits go; a plan they go into is on. */
+  function setLayer(l: Layer) {
+    chosenLayer = l;
+    if (l !== null && !on.includes(l)) setOn([...on, l]);
+  }
+  let addThingDialog = $state<HTMLDialogElement>();
+  let addScenarioDialog = $state<HTMLDialogElement>();
+  let templateDialog = $state<HTMLDialogElement>();
+
+  function setEditMode(on: boolean) {
+    editMode = on;
+    // Mounted, the editor keeps the guided edits in its history.
+    if (on) openEditor();
+  }
+
+  /** Applies edits to the text, as one step undo can take back. */
+  function apply(...edits: Edit[]): boolean {
+    if (text === null) return false;
+    editError = '';
+    try {
+      void setText(edit(text, ...edits));
+      return true;
+    } catch (e) {
+      editError = (e as Error).message;
+      return false;
+    }
+  }
+
+  const creating = (created: Created[] = []) => created.map(({ id, kind }) => addThing(layer, id, { kind }));
+
+  const editing = $derived.by((): Editing | null => {
+    // Only text that's been checked and loads: forms never read text half typed.
+    if (text === null || text !== checked || !model || invalid) return null;
+    const w = written(text, layer);
+    const t = text;
+    return {
+      layer,
+      plans: planList.map((p) => p.name),
+      setLayer,
+      sets: (section, id) => (layer === null ? [] : planFields(t, layer, section, id)),
+      inModel: (section, id) => !!written(t, null)[section][id],
+      revert: (section, id, field) => {
+        const value = (written(t, null)[section][id] as Record<string, unknown> | undefined)?.[field];
+        apply(section === 'things' ? setField(layer, id, field, value) : setScenarioField(layer, id, field, value));
+      },
+      written: w,
+      ids: new Map(Object.entries(w.things).map(([id, spec]) => [id, String(spec.kind)])),
+      setThing: (id, field, value, created) => apply(...creating(created), setField(layer, id, field, value)),
+      setScenario: (name, field, value, created) =>
+        apply(...creating(created), setScenarioField(layer, name, field, value)),
+      setMe: (me, created) => apply(...creating(created), setMe(layer, me)),
+      renameThing: (from, to) => {
+        const problem = nameProblem(to, Object.keys(w.things));
+        if (problem || !apply(renameThing(from, to))) return problem || editError;
+        if (selected === from) selected = to;
+        if (target === from) target = to;
+        expanded = new Set([...expanded].map((x) => (x === from ? to : x)));
+        return '';
+      },
+      renameScenario: (from, to) => {
+        const problem = nameProblem(to, Object.keys(w.scenarios));
+        if (problem || !apply(renameScenario(from, to))) return problem || editError;
+        if (scenarioName === from) scenarioName = to;
+        return '';
+      },
+      deleteThing: (id) =>
+        confirmEdit(
+          `Delete ${id}?`,
+          layer === null
+            ? `It goes from the model and every plan. Ways in that need it go too; where it's one of several options, the others stay.`
+            : `The plan removes it, and what refers to it.`,
+          removeThing(layer, id),
+          () => {
+            if (selected === id) selected = null;
+          },
+        ),
+      deleteScenario: (name) =>
+        confirmEdit(
+          `Delete ${name}?`,
+          'The scenario goes, and nothing else changes.',
+          removeScenario(layer, name),
+          () => {
+            scenarioName = 'baseline';
+          },
+        ),
+    };
+  });
+
+  function nameProblem(name: string, taken: string[]): string {
+    if (!validId(name)) return 'Use lowercase letters, digits and _, starting with a letter.';
+    if (taken.includes(name)) return `${name} is already taken.`;
+    return '';
+  }
+
+  // An edit waiting for confirmation, with what it would change.
+  let confirmDialog = $state<HTMLDialogElement>();
+  interface Asking {
+    title: string;
+    text: string;
+    action: string;
+    changes: Change[];
+    verdicts: ScenarioChange[] | null;
+    warnings: string[];
+    edit: Edit;
+    then: () => void;
+  }
+  let asking = $state<Asking | null>(null);
+
+  function confirmEdit(
+    title: string,
+    body: string,
+    e: Edit,
+    then: () => void,
+    { action = 'Delete', of = layer, verdicts = true }: { action?: string; of?: Layer; verdicts?: boolean } = {},
+  ) {
+    if (text === null) return;
+    editError = '';
+    try {
+      const after = edit(text, e);
+      // Plans other than the one changed that wouldn't load afterwards.
+      const warnings = planList
+        .filter((p) => p.name !== of && plansOf(after).some((q) => q.name === p.name))
+        .flatMap((p) => {
+          try {
+            loadModel(after, [p.name]);
+            return [];
+          } catch (err) {
+            return [`${p.name} would no longer load: ${(err as Error).message}`];
+          }
+        });
+      asking = {
+        title,
+        text: body,
+        action,
+        changes: changes(written(text, of), written(after, of)),
+        verdicts: verdicts ? verdictsAfter(after) : null,
+        warnings,
+        edit: e,
+        then,
+      };
+      confirmDialog?.showModal();
+    } catch (err) {
+      editError = (err as Error).message;
+    }
+  }
+
+  /** How verdicts compare, with the plans that are on, between two texts; null if either doesn't load. */
+  function compareTexts(before: string, after: string, beforePlans: string[], afterPlans: string[]) {
+    try {
+      const [b, a] = [loadModel(before, beforePlans), loadModel(after, afterPlans)];
+      return compare(b, a, [...new Set([...a.scenarios.keys(), ...b.scenarios.keys()])]);
+    } catch {
+      return null;
+    }
+  }
+
+  const verdictsAfter = (after: string) => (text === null ? null : compareTexts(text, after, plans, inOrder(after)));
+
+  function confirmed() {
+    confirmDialog?.close();
+    if (asking && apply(asking.edit)) asking.then();
+    asking = null;
+  }
+
+  function turn(name: string, isOn: boolean) {
+    setOn(isOn ? [...on, name] : on.filter((n) => n !== name));
+  }
+
+  function editPlan(name: Layer) {
+    setLayer(name);
+    setEditMode(true);
+    showTab('details');
+  }
+
+  function createPlan(name: string, note: string) {
+    if (apply(addPlan(name, note))) editPlan(name);
+  }
+
+  function renamePlanTo(from: string, to: string): string {
+    const problem = nameProblem(
+      to,
+      planList.map((p) => p.name),
+    );
+    if (problem || !apply(renamePlan(from, to))) return problem || editError;
+    on = on.map((n) => (n === from ? to : n));
+    setOn(on);
+    if (chosenLayer === from) chosenLayer = to;
+    return '';
+  }
+
+  function applyPlanNamed(name: string) {
+    confirmEdit(
+      `Apply ${name}?`,
+      'Its changes become part of the model, and the plan goes. These are the changes to the model:',
+      applyPlan(name),
+      () => setOn(on.filter((n) => n !== name)),
+      { action: 'Apply', of: null, verdicts: false },
+    );
+  }
+
+  function deletePlanNamed(name: string) {
+    confirmEdit(
+      `Delete ${name}?`,
+      'The plan and everything in it goes. The model doesn’t change.',
+      removePlan(name),
+      () => setOn(on.filter((n) => n !== name)),
+      { of: null, verdicts: false },
+    );
+  }
+
+  // With plans on: the model with them against without them, while the Plans tab shows it.
+  const comparison = $derived(
+    tab === 'plans' && text !== null && plans.length && !invalid ? compareTexts(text, text, [], plans) : null,
+  );
+
+  function added(id: string, kind: string) {
+    if (!apply(addThing(layer, id, { kind }))) return;
+    selected = id;
+    setEditMode(true);
+    showTab('details');
+  }
+
+  function addedScenario(name: string, kind: string) {
+    if (!apply(addScenario(layer, name, kind === 'breach' ? { kind, attacker: [] } : { kind, lost: [] }))) return;
+    scenarioName = name;
+    setEditMode(true);
+    showTab('details');
+  }
+
+  type Things = Record<string, Record<string, unknown>>;
+  const adding = (layer: Layer, things: Things) =>
+    Object.entries(things).map(([id, spec]) => addThing(layer, id, spec));
+
+  function previewTemplate(things: Things) {
+    if (text === null) return null;
+    try {
+      return verdictsAfter(edit(text, ...adding(null, things)));
+    } catch {
+      return null;
+    }
+  }
+
+  /** A template's things go into the model, or into a plan of their own to weigh first. */
+  function addedTemplate(t: Template, prefix: string, things: Things, asPlan: boolean) {
+    const main = prefix in things ? prefix : null;
+    if (!asPlan) {
+      if (!apply(...adding(null, things))) return;
+      if (main) selected = main;
+      showTab('details');
+      return;
+    }
+    const taken = planList.map((p) => p.name);
+    let name = `add_${prefix}`;
+    for (let i = 2; taken.includes(name); i++) name = `add_${prefix}_${i}`;
+    if (!apply(addPlan(name, `From the ${t.name} template`), ...adding(name, things))) return;
+    setOn([...on, name]);
+    if (main) selected = main;
+    showTab('plans');
   }
 
   const scenario = $derived(model?.scenarios.has(scenarioName) ? outcome(model, scenarioName) : undefined);
@@ -356,6 +730,45 @@
       >
     {/if}
     <span class="spacer"></span>
+    <button class="quiet" popovertarget="add-menu" disabled={!editing}
+      ><Plus /><span class="wide-only">Add</span></button
+    >
+    <div id="add-menu" class="menu" popover>
+      <button
+        class="quiet"
+        popovertarget="add-menu"
+        popovertargetaction="hide"
+        onclick={() => addThingDialog?.showModal()}>Thing…</button
+      >
+      <button
+        class="quiet"
+        popovertarget="add-menu"
+        popovertargetaction="hide"
+        onclick={() => addScenarioDialog?.showModal()}>Scenario…</button
+      >
+      <button
+        class="quiet"
+        popovertarget="add-menu"
+        popovertargetaction="hide"
+        onclick={() => templateDialog?.showModal()}>From a template…</button
+      >
+    </div>
+    <button
+      class="quiet icon"
+      aria-label="Undo"
+      title="Undo"
+      aria-keyshortcuts="Control+Z Meta+Z"
+      disabled={!steps.undo}
+      onclick={() => editor?.undo()}><Undo2 /></button
+    >
+    <button
+      class="quiet icon"
+      aria-label="Redo"
+      title="Redo"
+      aria-keyshortcuts="Control+Shift+Z Meta+Shift+Z"
+      disabled={!steps.redo}
+      onclick={() => editor?.redo()}><Redo2 /></button
+    >
     <button class="quiet" popovertarget="export-menu"><Download /><span class="wide-only">Export</span></button>
     <div id="export-menu" class="menu" popover>
       {#each FORMATS as [format, label] (format)}
@@ -371,7 +784,7 @@
     <UserMenu {user} {onsignout} />
   </header>
 
-  {#if conflict !== null || saveError || exportError}
+  {#if conflict !== null || saveError || exportError || editError}
     <div class="banner">
       {#if conflict !== null}
         <p class="notice" role="alert">
@@ -382,6 +795,8 @@
         </p>
       {:else if saveError}
         <p class="notice" role="alert">Couldn't save: {saveError}</p>
+      {:else if editError}
+        <p class="notice" role="alert">Couldn't make that change: {editError}</p>
       {:else}
         <p class="notice" role="alert">Couldn't export: {exportError}</p>
       {/if}
@@ -421,17 +836,18 @@
         {/each}
       </select>
     </label>
-    {#if plans.length}<span class="muted" title="From ?plan=">with {plans.join(' + ')}</span>{/if}
+    {#if plans.length}<span class="muted">with {plans.join(' + ')}</span>{/if}
   </div>
 
-  <div class="tabs">
+  <!-- Open, the tabs are as wide as the panel, and give their words up to fit it. -->
+  <div class="tabs" class:shrinks={tab !== null}>
     <div class="segmented" role="group" aria-label="Panel">
       {#each TABS as [t, label, Icon] (t)}
         <button
           class="quiet"
           aria-pressed={tab === t}
           aria-controls="panel"
-          onclick={() => showTab(tab === t ? null : t)}><Icon />{label}</button
+          onclick={() => showTab(tab === t ? null : t)}><Icon /><span class="wide-only">{label}</span></button
         >
       {/each}
     </div>
@@ -507,22 +923,55 @@
         target={mode === 'ways' ? target : null}
         onwaysinto={waysInto}
         oncollapse={collapse}
+        edit={editMode}
+        {editing}
+        onedit={setEditMode}
+        ontext={() => showTab('text')}
       />
     {/if}
-    {#if editorOpened && text !== null}
-      <section class="tab" class:hidden={tab !== 'text'} aria-label="Model text">
-        {#await import('./Editor.svelte') then { default: Editor }}
+    {#if editorOpened && editorModule && text !== null}
+      <section class="tab text" class:hidden={tab !== 'text'} aria-label="Model text">
+        <div class="bar">
+          <button class="quiet" onclick={formatText} title="Lay the text out the way guided edits do, without comments"
+            ><TextAlignStart />Format</button
+          >
+          {#if formatError}<p class="error" role="alert">{formatError}</p>{/if}
+        </div>
+        {#await editorModule then { default: Editor }}
           <Editor
+            bind:this={editor}
             {text}
-            onchange={(t: string) => (text = t)}
+            onchange={(t: string) => {
+              text = t;
+              formatError = '';
+            }}
             {lint}
             things={() => [...(model?.things ?? [])].map(([id, t]): [string, string] => [id, t.kind])}
             {reveal}
+            onhistory={(undo: number, redo: number) => (steps = { undo, redo })}
+            onready={() => mounted.resolve?.()}
           />
         {:catch e}
           <p class="status">The editor didn't load: {message(e)}</p>
         {/await}
       </section>
+    {/if}
+    {#if tab === 'plans'}
+      <Plans
+        plans={planList}
+        {on}
+        {layer}
+        overlaps={text === null ? [] : overlaps(text, plans)}
+        {comparison}
+        editable={!!editing}
+        onturn={turn}
+        onedit={editPlan}
+        onapply={applyPlanNamed}
+        ondelete={deletePlanNamed}
+        oncreate={createPlan}
+        onrename={renamePlanTo}
+        onnote={(name: string, note: string) => apply(setPlanNote(name, note))}
+      />
     {/if}
     {#if tab === 'history' && text !== null}
       <section class="tab" aria-label="History">
@@ -535,6 +984,59 @@
     {/if}
   </aside>
 </div>
+
+<AddDialog
+  bind:dialog={addThingDialog}
+  title="Add a thing"
+  kinds={KINDS}
+  taken={(n: string) => !!editing?.ids.has(n)}
+  onadd={(n: string, k: string) => added(n, k)}
+/>
+<AddDialog
+  bind:dialog={addScenarioDialog}
+  title="Add a scenario"
+  kinds={SCENARIO_KINDS}
+  taken={(n: string) => !!editing?.written.scenarios[n]}
+  onadd={(n: string, k: string) => addedScenario(n, k)}
+/>
+<TemplateDialog
+  bind:dialog={templateDialog}
+  ids={editing?.ids ?? new Map<string, string>()}
+  preview={previewTemplate}
+  onadd={(t: Template, prefix: string, things: Things, asPlan: boolean) => addedTemplate(t, prefix, things, asPlan)}
+/>
+<dialog
+  bind:this={confirmDialog}
+  aria-labelledby="confirm-title"
+  aria-describedby="confirm-text"
+  onclose={() => (asking = null)}
+>
+  {#if asking}
+    <div class="confirm">
+      <h2 id="confirm-title">{asking.title}</h2>
+      <p id="confirm-text">{asking.text}</p>
+      {#each asking.warnings as w (w)}<p class="notice">{w}</p>{/each}
+      {#if asking.changes.length}
+        <ul class="changes">
+          {#each asking.changes as c, i (i)}
+            <li>
+              <b class="mono">{c.id}</b>{#if c.field}&nbsp;{c.field}{/if}:
+              {#if c.field}<span class="mono">{c.before}</span>&nbsp;→&nbsp;{/if}<span class="mono">{c.after}</span>
+            </li>
+          {/each}
+        </ul>
+      {/if}
+      {#if asking.verdicts}
+        <h3>Verdicts</h3>
+        <div class="scroll"><Verdicts changes={asking.verdicts} /></div>
+      {/if}
+      <div class="buttons">
+        <button class="quiet" onclick={() => confirmDialog?.close()}>Cancel</button>
+        <button class={asking.action === 'Delete' ? 'danger' : 'primary'} onclick={confirmed}>{asking.action}</button>
+      </div>
+    </div>
+  {/if}
+</dialog>
 
 <style>
   /*
@@ -654,8 +1156,52 @@
   .tab {
     height: 100%;
   }
+  .text {
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+  }
+  .bar {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: var(--space-2);
+    padding: var(--space-1) var(--space-2);
+    border-bottom: 1px solid var(--border);
+  }
+  .bar .error {
+    font-size: var(--text-sm);
+  }
   .hidden {
     display: none;
+  }
+  .confirm {
+    display: grid;
+    gap: var(--space-4);
+    padding: var(--space-5);
+  }
+  .confirm h2 {
+    font-size: var(--text-lg);
+  }
+  .confirm h3 {
+    font-size: var(--text-md);
+  }
+  .scroll {
+    max-height: 30vh;
+    overflow-y: auto;
+  }
+  .changes {
+    display: grid;
+    gap: var(--space-2);
+    max-height: 40vh;
+    margin: 0;
+    padding-left: var(--space-4);
+    overflow-y: auto;
+    font-size: var(--text-sm);
+  }
+  .buttons {
+    display: flex;
+    justify-content: flex-end;
+    gap: var(--space-2);
   }
   .stats {
     font-size: var(--text-sm);

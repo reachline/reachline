@@ -1,6 +1,7 @@
 <script lang="ts">
   import { Pencil, Plus, Trash } from '@lucide/svelte';
   import example from '../../examples/model.yml?raw';
+  import starter from '../../examples/starter.yml?raw';
   import type { ModelSummary } from '../../server/api.ts';
   import { api, message } from './api';
   import { EMPTY } from './data';
@@ -14,7 +15,7 @@
 
   let creating = $state<HTMLDialogElement>();
   let newName = $state('');
-  let start = $state<'empty' | 'example' | 'import'>('example');
+  let start = $state<'empty' | 'starter' | 'example' | 'import'>('example');
   let imported = $state('');
   let createError = $state('');
 
@@ -38,7 +39,7 @@
     e.preventDefault();
     void attempt(
       async () => {
-        const text = start === 'example' ? example : start === 'import' ? imported : EMPTY;
+        const text = { example, starter, import: imported, empty: EMPTY }[start];
         const { id } = await api.create({ name: newName, text });
         go(`/m/${id}`);
       },
@@ -104,7 +105,7 @@
   {#if models === null}
     <p class="muted">Loading…</p>
   {:else if !models.length}
-    <p class="card empty muted">No models yet. Start one from the example, from nothing, or from YAML you have.</p>
+    <p class="card empty muted">No models yet. Start one from the example, a starter, nothing, or YAML you have.</p>
   {:else}
     <ul class="card models">
       {#each models as m (m.id)}
@@ -153,6 +154,9 @@
     <fieldset>
       <legend>Start from</legend>
       <label class="choice"><input type="radio" bind:group={start} value="example" /> The example</label>
+      <label class="choice"
+        ><input type="radio" bind:group={start} value="starter" /> A starter: phone, laptop, password manager and email</label
+      >
       <label class="choice"><input type="radio" bind:group={start} value="empty" /> Nothing</label>
       <label class="choice"><input type="radio" bind:group={start} value="import" /> YAML you upload or paste</label>
     </fieldset>

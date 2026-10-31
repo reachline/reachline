@@ -1,0 +1,56 @@
+# A Google account with 2-Step Verification. A passkey skips the second step.
+# Backup codes stand in for the second step. Account recovery weighs a
+# recovery email or phone with how familiar the device and place look, and
+# isn't guaranteed, so it's unknown here.
+template:
+  name: Google
+  note: A Google account (Gmail, Drive, Photos) with 2-Step Verification.
+  checked: 2026-10-30
+  links:
+    Turn on 2-Step Verification: https://support.google.com/accounts/answer/185839
+    Tips to complete account recovery steps: https://support.google.com/accounts/answer/7299973
+  prefix: google
+  slots:
+    vault: Where the password is kept
+    phone_unlocked: The unlocked phone, signed in to Google or with your authenticator app
+    phone_number: The phone number for codes and recovery
+    hw_key: Your security key
+    safe: Where the backup codes are kept
+    recovery_mail: Your recovery email's account
+  optional:
+    google_prompt: true
+    google_totp: false
+    google_sms: true
+    google_key: false
+    google_codes: false
+    google_passkey: false
+    google_recovery_mail: true
+    google_recovery_phone: true
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  phone_unlocked: {kind: device}
+  phone_number: {kind: service}
+  hw_key: {kind: device}
+  safe: {kind: location}
+  recovery_mail: {kind: account}
+
+  google_pw: {kind: secret, in: [vault]}
+  google_prompt: {kind: secret, in: [phone_unlocked], note: Google prompts on a signed-in phone}
+  google_totp: {kind: secret, in: [phone_unlocked], note: an authenticator app}
+  google_sms: {kind: secret, in: [phone_number], note: codes by text or voice call}
+  google_key: {kind: secret, in: [hw_key], note: a security key}
+  google_codes: {kind: secret, in: [safe], note: backup codes}
+  google_passkey: {kind: secret, in: [phone_unlocked], note: 'a passkey, which skips the second step'}
+  google_recovery_mail: {kind: secret, in: [recovery_mail], note: a recovery email}
+  google_recovery_phone: {kind: secret, in: [phone_number], note: a recovery phone}
+
+  google:
+    kind: account
+    tags: [critical, sensitive]
+    access:
+      - [google_pw, [google_prompt, google_totp, google_sms, google_key, google_codes]]
+      - [google_passkey]
+    recovery:
+      - [google_recovery_mail, '?']
+      - [google_recovery_phone, '?']
