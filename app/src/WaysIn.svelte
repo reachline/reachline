@@ -6,6 +6,7 @@
   import { asElement } from './edit';
   import type { Created } from './edit';
   import IdInput from './IdInput.svelte';
+  import Tip from './Tip.svelte';
 
   interface Props {
     label: string;
@@ -40,9 +41,9 @@
   }
 </script>
 
-<fieldset aria-describedby="{uid}-hint">
-  <legend>{label}</legend>
-  <p class="hint" id="{uid}-hint">{hint}</p>
+<!-- Named by the label alone, not the ⓘ beside it in the legend. -->
+<fieldset aria-labelledby="{uid}-label" aria-describedby="{uid}-hint">
+  <legend><span id="{uid}-label">{label}</span><Tip id="{uid}-hint" about={label} text={hint} /></legend>
   {#each sets as set, i (i)}
     <div class="way">
       <div class="head">

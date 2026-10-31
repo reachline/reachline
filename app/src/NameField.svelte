@@ -1,6 +1,8 @@
 <script lang="ts">
   // A thing's, scenario's or plan's name. A change renames it everywhere; a
   // name that can't be used is explained, and the field goes back.
+  import Tip from './Tip.svelte';
+
   interface Props {
     label: string;
     value: string;
@@ -22,7 +24,13 @@
 </script>
 
 <div class="field">
-  <label for="{uid}-name">{label}</label>
+  <span
+    ><label for="{uid}-name">{label}</label><Tip
+      id="{uid}-hint"
+      about={label}
+      text={fixed ?? 'Renaming changes it everywhere it’s used.'}
+    /></span
+  >
   <input
     id="{uid}-name"
     {value}
@@ -31,14 +39,10 @@
     autocomplete="off"
     autocapitalize="off"
     spellcheck="false"
-    aria-describedby="{uid}-hint"
+    aria-describedby="{uid}-hint{problem ? ` ${uid}-problem` : ''}"
     aria-invalid={problem ? 'true' : undefined}
   />
-  {#if problem}
-    <span class="hint error" id="{uid}-hint" role="alert">{problem}</span>
-  {:else}
-    <span class="hint" id="{uid}-hint">{fixed ?? 'Renaming changes it everywhere it’s used.'}</span>
-  {/if}
+  {#if problem}<span class="hint error" id="{uid}-problem" role="alert">{problem}</span>{/if}
 </div>
 
 <style>

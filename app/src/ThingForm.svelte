@@ -7,6 +7,7 @@
   import IdInput from './IdInput.svelte';
   import IdList from './IdList.svelte';
   import NameField from './NameField.svelte';
+  import Tip from './Tip.svelte';
   import WaysIn from './WaysIn.svelte';
 
   interface Props {
@@ -20,6 +21,8 @@
   }
   let { id, spec, ids, onset, onrename, ondelete }: Props = $props();
 
+  const uid = $props.id();
+
   const str = (v: unknown) => (typeof v === 'string' ? v : '');
   const list = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
   const tags = $derived(list(spec.tags));
@@ -27,9 +30,11 @@
   // The source of a copy, kept here until what syncs it is given too.
   let copyOf = $state<{ of: string; created: Created[] } | null>(null);
   const TAG_HINTS = {
-    critical: 'lockouts check you can still reach it',
-    sensitive: 'breaches check an attacker can’t',
+    critical: 'Lockouts check you can still reach it.',
+    sensitive: 'Breaches check an attacker can’t.',
   };
+  const IN_HINT = 'Where it lives. Reaching any one of these reaches it; it’s lost once all of them are.';
+  const MIRRORS_HINT = 'A synced copy, lost once its source is lost while the sync still runs.';
 </script>
 
 <div class="form">
@@ -45,18 +50,21 @@
   <fieldset>
     <legend>Tags</legend>
     {#each TAGS as t (t)}
-      <label class="check"
-        ><input
-          type="checkbox"
-          checked={tags.includes(t)}
-          onchange={(e) =>
-            onset(
-              'tags',
-              TAGS.filter((x) => (x === t ? e.currentTarget.checked : tags.includes(x))),
-            )}
-        />
-        {t} <span class="hint">{TAG_HINTS[t]}</span></label
-      >
+      <div class="check">
+        <label
+          ><input
+            type="checkbox"
+            checked={tags.includes(t)}
+            aria-describedby="{uid}-{t}"
+            onchange={(e) =>
+              onset(
+                'tags',
+                TAGS.filter((x) => (x === t ? e.currentTarget.checked : tags.includes(x))),
+              )}
+          />
+          {t}</label
+        ><Tip id="{uid}-{t}" about={t} text={TAG_HINTS[t]} />
+      </div>
     {/each}
   </fieldset>
 
@@ -70,14 +78,14 @@
   </label>
 
   {#if spec.in === '?'}
-    <fieldset>
-      <legend>In</legend>
+    <fieldset aria-labelledby="{uid}-in" aria-describedby="{uid}-in-hint">
+      <legend><span id="{uid}-in">In</span><Tip id="{uid}-in-hint" about="In" text={IN_HINT} /></legend>
       <p>Unknown: it's reached only by assuming it.</p>
     </fieldset>
   {:else}
     <IdList
       label="In"
-      hint="Where it lives. Reaching any one of these reaches it; it's lost once all of them are."
+      hint={IN_HINT}
       values={list(spec.in)}
       {ids}
       onchange={(v: string[], created: Created[]) => onset('in', v, created)}
@@ -115,13 +123,18 @@
     onchange={(v: string[], created: Created[]) => onset('needs', v, created)}
   />
 
-  <fieldset>
-    <legend>Mirrors</legend>
+  <fieldset aria-labelledby="{uid}-mirrors" aria-describedby="{uid}-mirrors-hint">
+    <legend
+      ><span id="{uid}-mirrors">Mirrors</span><Tip
+        id="{uid}-mirrors-hint"
+        about="Mirrors"
+        text={MIRRORS_HINT}
+      /></legend
+    >
     {#if mirrors}
       <p>A copy of <span class="mono">{mirrors.of}</span>, synced by <span class="mono">{mirrors.by}</span>.</p>
       <div><button class="quiet" onclick={() => onset('mirrors', null)}>Not a copy</button></div>
     {:else}
-      <p class="hint">A synced copy, lost once its source is lost while the sync still runs.</p>
       {#if copyOf}
         <p>A copy of <span class="mono">{copyOf.of}</span>, synced by:</p>
         <IdInput
@@ -154,10 +167,10 @@
     display: grid;
     gap: var(--space-4);
   }
-  .check {
+  .check,
+  .check label {
     display: flex;
-    flex-wrap: wrap;
-    align-items: baseline;
+    align-items: center;
     gap: var(--space-2);
   }
 </style>

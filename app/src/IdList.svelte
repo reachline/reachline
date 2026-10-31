@@ -3,6 +3,7 @@
   import { X } from '@lucide/svelte';
   import type { Created } from './edit';
   import IdInput from './IdInput.svelte';
+  import Tip from './Tip.svelte';
 
   interface Props {
     label: string;
@@ -17,9 +18,11 @@
   const uid = $props.id();
 </script>
 
-<fieldset aria-describedby={hint ? `${uid}-hint` : undefined}>
-  <legend>{label}</legend>
-  {#if hint}<p class="hint" id="{uid}-hint">{hint}</p>{/if}
+<!-- Named by the label alone, not the ⓘ beside it in the legend. -->
+<fieldset aria-labelledby="{uid}-label" aria-describedby={hint ? `${uid}-hint` : undefined}>
+  <legend
+    ><span id="{uid}-label">{label}</span>{#if hint}<Tip id="{uid}-hint" about={label} text={hint} />{/if}</legend
+  >
   {#if values.length}
     <ul class="chips">
       {#each values as v, i (i)}

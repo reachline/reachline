@@ -421,6 +421,19 @@ dialog::backdrop {
   gap: var(--space-3);
   padding: var(--space-4);
 }
+/* An ⓘ beside a label or legend, and the .popup it opens: what the field is for. */
+button.tip {
+  width: 1.5rem;
+  min-height: 1.5rem;
+  margin-left: var(--space-1);
+  color: var(--muted);
+  vertical-align: middle;
+}
+.popup.tip {
+  max-width: min(22rem, calc(100vw - 2 * var(--space-4)));
+  font-size: var(--text-sm);
+  font-weight: 400;
+}
 .menu button {
   justify-content: flex-start;
 }
