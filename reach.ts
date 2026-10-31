@@ -24,18 +24,26 @@ that can't carry access in it, and --depth N stops N steps out (default 2;
 "all" for everything, which gets unreadable fast).
 
 Each thing reached gets the smallest set of assumptions its path relies on:
-unknowns ("?", a fact about the setup I don't know) and states (things of kind
-`state`, conditions of the moment like "password manager unlocked on the
+unknowns (`unknown`, a fact about the setup I don't know) and states (things of
+kind `state`, conditions of the moment like "password manager unlocked on the
 laptop"). Neither is assumed by default; a scenario can pin states with
-`assume: [...]` (true) or `deny: [...]` (false). Results that rely on unknowns are UNSURE; results that
-rely only on states DEPEND on them. Lockout scenarios list critical things I
-can no longer reach, or only reach through assumptions, where that's worse than
-baseline. Breach scenarios list sensitive things the attacker reaches, either
-outright or through fewer assumptions than an attacker starting with nothing.
+`assume: [...]` (true) or `deny: [...]` (false). Results that rely on unknowns
+are UNSURE; results that rely only on states DEPEND on them.
+
+`check: [lockout, breach]` marks what I care about for its own sake (mail,
+documents, money), not the keys and devices that lead to it; the engine follows
+those. Lockout scenarios list checked things I can no longer reach, or only
+through assumptions, where that's worse than on a normal day. Breach scenarios
+list checked things the attacker reaches, either outright or through fewer
+assumptions than an attacker starting with nothing.
+
+The normal day is built in as the scenario `baseline`: `me` (what I have
+without getting it through anything else, such as head, body, carried and
+home), with nothing lost.
 
 A plan has the same `things`, `scenarios` and `me` as the model. For each thing
-it lists, the fields given replace the model's (whole fields: restate the full
-access list); a new id adds a thing, and `id: null` removes one. Scenarios merge
+it lists, the fields given replace the model's (whole fields: restate the whole
+condition); a new id adds a thing, and `id: null` removes one. Scenarios merge
 the same way, and a plan's `me` replaces the model's.
 
 The engine itself is in engine/ and has no file access, so the UI in app/

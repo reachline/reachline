@@ -27,8 +27,8 @@ export function check(text: string, plans: string[]): { model: Model | null; pro
   const problems = new Map<string, Problem>();
   const add = (e: unknown) => {
     if (!(e instanceof ReachError)) throw e;
-    for (const { path, message } of e.at.length ? e.at : [{ path: [], message: e.message }]) {
-      const [from, to] = rangeOf(doc, text, path);
+    for (const { path, message, span } of e.at.length ? e.at : [{ path: [], message: e.message }]) {
+      const [from, to] = (span && within(doc, text, path, span)) ?? rangeOf(doc, text, path);
       problems.set(`${from}:${to}:${message}`, { from, to, message, severity: 'error' });
     }
   };
@@ -76,6 +76,19 @@ export function definitionOf(text: string, id: string, plans: string[]): [number
 }
 
 const keyOf = (k: unknown) => String(isScalar(k) ? k.value : k);
+
+/**
+ * Where a span of a string's value is in the text: a condition's word. Only
+ * where the text is the value as it is, plain or between quotes; otherwise
+ * (escapes, a value over several lines) null, and the whole value is marked.
+ */
+function within(doc: Document, text: string, path: Path, [from, to]: [number, number]): [number, number] | null {
+  const node = doc.getIn(path, true);
+  if (!isScalar(node) || typeof node.value !== 'string' || !node.range) return null;
+  const source = text.slice(node.range[0], node.range[1]);
+  const start = source === node.value ? 0 : /^["']/.test(source) && source.slice(1, -1) === node.value ? 1 : -1;
+  return start < 0 ? null : [node.range[0] + start + from, node.range[0] + start + to];
+}
 
 function planNames(doc: Document): string[] {
   const plans = doc.get('plans');

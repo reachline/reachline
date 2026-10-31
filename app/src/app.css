@@ -350,6 +350,51 @@ legend {
 }
 
 /*
+ * Suggestions for the word being typed: a .combo around a field
+ * (role=combobox) and its .listbox of role=option items, the one the arrow
+ * keys are on aria-selected. The field keeps the focus throughout.
+ */
+.combo {
+  position: relative;
+}
+.listbox {
+  position: absolute;
+  z-index: 10;
+  inset: 100% 0 auto;
+  max-height: 14rem;
+  overflow-y: auto;
+  margin: var(--space-1) 0 0;
+  padding: var(--space-1);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow);
+  list-style: none;
+}
+.listbox [role='option'] {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2);
+  min-height: 1.75rem;
+  padding: 0 var(--space-2);
+  border-radius: calc(var(--radius) - 2px);
+  font-family: var(--code-font);
+  font-size: var(--text-sm);
+  font-weight: 400;
+  cursor: pointer;
+}
+.listbox [aria-selected='true'] {
+  background: var(--selected);
+  color: var(--accent);
+}
+@media (hover: hover) {
+  .listbox [role='option']:not([aria-selected='true']):hover {
+    background: var(--hover);
+  }
+}
+
+/*
  * A strip of .quiet buttons. As a choice, one of them is pressed
  * (aria-pressed). .floating lifts it over the graph.
  */

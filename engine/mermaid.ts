@@ -1,6 +1,7 @@
 // Mermaid flowcharts: where things live, every way into a thing, and the
 // paths a scenario uses.
-import { availability, leaves, refs, type AndSet, type Best, type Expr, type Kind, type Model } from './model.ts';
+import { refs, split, UNKNOWN, type Cond } from './cond.ts';
+import { availability, type Best, type Kind, type Model } from './model.ts';
 import { what } from './report.ts';
 
 export const SHAPES: Record<Kind, [string, string]> = {
@@ -79,43 +80,25 @@ class Mermaid {
     if (!live) this.dead.add(i);
   }
 
-  /** A junction over items; it holds if any (OR) or every (AND) item does. */
-  join(label: 'AND' | 'OR', items: Expr[], part: (x: Expr) => [string, boolean]): [string, boolean] {
-    const j = this.junction(label);
-    const oks = items.map((x) => {
-      const [nid, ok] = part(x);
-      this.edge(nid, j, undefined, ok);
-      return ok;
+  /** The node standing for a condition, and whether it holds by `ok` (an unknown might, so it counts). */
+  cond(c: Cond, ok: (id: string) => boolean = (id) => this.ok(id)): [string, boolean] {
+    if (c === UNKNOWN) return [this.junction(UNKNOWN, 'unknown'), true];
+    if (typeof c === 'string') return [this.node(c), ok(c)];
+    const j = this.junction(c.op.toUpperCase());
+    const oks = c.of.map((x) => {
+      const [nid, live] = this.cond(x, ok);
+      this.edge(nid, j, undefined, live);
+      return live;
     });
-    return [j, label === 'OR' ? oks.some(Boolean) : oks.every(Boolean)];
+    return [j, c.op === 'or' ? oks.some(Boolean) : oks.every(Boolean)];
   }
 
-  /** The node standing for one element of an access set, and whether it
-   *  holds in the scenario (an unknown might, so it counts). */
-  element(e: Expr): [string, boolean] {
-    if (e === '?') return [this.junction('?', 'unknown'), true];
-    if (typeof e === 'string') return [this.node(e), this.ok(e)];
-    return this.join('OR', e, (x) => this.option(x));
-  }
-
-  /** One option of an any-of: a list needs every one of its leaves. */
-  option(x: Expr): [string, boolean] {
-    return Array.isArray(x) ? this.join('AND', leaves(x), (l) => this.element(l)) : this.element(x);
-  }
-
-  accessSet(s: AndSet, target: string, arrow: string) {
-    // A lone any-of set is just more alternatives into the target.
-    if (s.length === 1 && Array.isArray(s[0])) {
-      for (const x of s[0]) {
-        const [nid, ok] = this.option(x);
-        this.edge(nid, target, arrow, ok);
-      }
-    } else if (s.length === 1) {
-      const [nid, ok] = this.element(s[0]);
-      this.edge(nid, target, arrow, ok);
-    } else {
-      const [j, ok] = this.join('AND', s, (e) => this.element(e));
-      this.edge(j, target, arrow, ok);
+  /** Edges into target from a condition: each top-level option of access or
+   *  recovery, or each top-level requirement of needs, is an edge of its own. */
+  into(c: Cond | null, op: 'and' | 'or', target: string, arrow: string, ok?: (id: string) => boolean) {
+    for (const part of c === null ? [] : split(c, op)) {
+      const [nid, live] = this.cond(part, ok);
+      this.edge(nid, this.node(target), arrow, live);
     }
   }
 
@@ -148,8 +131,8 @@ class Mermaid {
 export function mermaidWhere(m: Model): string {
   const mm = new Mermaid(m);
   for (const [tid, spec] of m.things) {
-    for (const c of spec.in) mm.edge(mm.node(c), mm.node(tid));
-    for (const n of spec.needs) mm.edge(mm.node(n), mm.node(tid), '-.->|needs|');
+    for (const c of spec.in) mm.edge(c === UNKNOWN ? mm.junction(UNKNOWN, 'unknown') : mm.node(c), mm.node(tid));
+    mm.into(spec.needs, 'and', tid, '-.->|needs|');
     if (spec.mirrors) {
       mm.edge(mm.node(spec.mirrors.of), mm.node(tid), `-.->|"mirrored by ${spec.mirrors.by}"|`);
     }
@@ -181,16 +164,22 @@ export function mermaidWaysIn(
     mm.node(tid);
     const spec = m.things.get(tid)!;
     const mir = spec.mirrors ? [spec.mirrors.of] : [];
-    const ins = [...spec.in, ...spec.needs, ...mir, ...refs(spec.access), ...refs(spec.recovery)];
+    const ins = [
+      ...spec.in.filter((c) => c !== UNKNOWN),
+      ...refs(spec.needs),
+      ...mir,
+      ...refs(spec.access),
+      ...refs(spec.recovery),
+    ];
     if (depth !== null && d >= depth) {
       if (ins.length) mm.classes.set(tid, 'more');
       continue;
     }
-    for (const c of spec.in) mm.edge(mm.node(c), tid, undefined, mm.ok(c));
-    for (const n of spec.needs) mm.edge(mm.node(n), tid, '-.->|needs|', avail === null || avail.get(n));
+    mm.into(spec.in.length ? { op: 'or', of: spec.in } : null, 'or', tid, '-->');
+    mm.into(spec.needs, 'and', tid, '-.->|needs|', (n) => avail === null || avail.get(n)!);
     for (const n of mir) mm.edge(mm.node(n), tid, `-.->|"mirrored by ${spec.mirrors!.by}"|`);
-    for (const s of spec.access) mm.accessSet(s, tid, '-->');
-    for (const s of spec.recovery) mm.accessSet(s, tid, '-.->|recovery|');
+    mm.into(spec.access, 'or', tid, '-->');
+    mm.into(spec.recovery, 'or', tid, '-.->|recovery|');
     frontier.push(...ins.map((r): [string, number] => [r, d + 1]));
   }
   if (run) mm.color(run.sc.kind, run.best, avail!, m.start(run.sc));
@@ -209,14 +198,9 @@ export function mermaidScenario(m: Model, name: string): string {
     mm.node(tid);
     const { why } = best.get(tid)!;
     if (why.kind === 'start' || why.kind === 'state') return;
-    if (why.kind === 'in') {
-      walk(why.via);
-      mm.edge(why.via, tid);
-      return;
-    }
-    const arrow = why.kind === 'access' ? '-->' : '-.->|recovery|';
-    const picks = why.uses.map((x) => {
-      if (x === '?') return mm.junction('?', 'unknown');
+    const arrow = why.kind === 'recovery' ? '-.->|recovery|' : '-->';
+    const picks = (why.kind === 'in' ? [why.via] : why.uses).map((x) => {
+      if (x === UNKNOWN) return mm.junction(UNKNOWN, 'unknown');
       walk(x);
       return x;
     });
@@ -228,8 +212,7 @@ export function mermaidScenario(m: Model, name: string): string {
       mm.edge(j, tid, arrow);
     }
   };
-  const flag = sc.kind === 'lockout' ? 'critical' : 'sensitive';
-  let targets = [...m.things].filter(([, s]) => s.tags.includes(flag)).map(([t]) => t);
+  let targets = [...m.things].filter(([, s]) => s.check.includes(sc.kind)).map(([t]) => t);
   if (sc.kind === 'breach') {
     const rows = m.rows(name);
     targets = targets.filter((t) => rows.has(t));

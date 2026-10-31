@@ -3,7 +3,8 @@
 // of truth. An edit goes to the base model or to one plan; a rename is always
 // everywhere, since a plan can't express one.
 import { isMap, isScalar, parse, parseDocument, type Document, type YAMLMap } from 'yaml';
-import { fmtSet, leaves, type AndSet, type Expr, type Kind } from '../../engine/model.ts';
+import { CondError, fmtCond, parseCond, RESERVED, UNKNOWN, words, type Cond, type Op } from '../../engine/cond.ts';
+import { BASELINE, CONDITIONS, type Kind } from '../../engine/model.ts';
 import { emit } from './format.ts';
 
 /** Where an edit goes: the base model (null), or a plan by name. */
@@ -19,10 +20,15 @@ export function edit(text: string, ...edits: Edit[]): string {
   return emit(doc);
 }
 
-/** Ids the forms give things, scenarios and plans: they never need quoting, in YAML 1.1 or 1.2. */
+/** Ids the forms give things, scenarios and plans: they never need quoting, in YAML 1.1 or 1.2, and aren't a word of a condition. */
 export const ID = /^[a-z][a-z0-9_]*$/;
-const RESERVED = new Set(['y', 'n', 'yes', 'no', 'on', 'off', 'true', 'false', 'null']);
-export const validId = (id: string) => ID.test(id) && !RESERVED.has(id);
+const TAKEN = new Set(['y', 'n', 'yes', 'no', 'on', 'off', 'true', 'false', 'null', ...RESERVED, BASELINE]);
+/** Why an id can't be used, or '' if it can. */
+export function idProblem(id: string): string {
+  if (!ID.test(id)) return 'Use lowercase letters, digits and _, starting with a letter.';
+  return TAKEN.has(id) ? `${id} is a word YAML or ReachLine reads as its own; choose another.` : '';
+}
+export const validId = (id: string) => !idProblem(id);
 
 /** Fields that hold ids. */
 export const REFS = {
@@ -115,38 +121,58 @@ export const addScenario =
     mapAt(doc, at(layer, 'scenarios')).items.push(doc.createPair(name, spec));
   };
 
+const isCondition = (field: string) => (CONDITIONS as readonly string[]).includes(field);
+const group = (op: Op, of: Cond[]): Cond => (of.length === 1 ? of[0] : { op, of });
+
+/** Where a template's optional things were all left out: a step the service doesn't ask for. */
+const SKIP = Symbol('skip');
+
 /**
- * A field's value without an id, never widening access: the id leaves lists
- * and any-of options, and a way in that names it outright goes. A way in whose
- * any-of it empties goes too, unless `optional`: then the id was a method you
- * never set up, so the service doesn't ask for that step.
+ * Access or recovery without some ids, as if they were false: a part that's
+ * gone makes its `and` fail, and an option that's gone drops out of its `or`.
+ * With `optional`, an `or` left with no options drops out of its `and`
+ * instead, since those were methods never set up. Null if nothing's left.
+ */
+function deny(c: Cond, gone: (id: string) => boolean, optional: boolean): Cond | null | typeof SKIP {
+  if (typeof c === 'string') return gone(c) ? null : c;
+  const parts = c.of.map((x) => deny(x, gone, optional));
+  if (c.op === 'and' && parts.includes(null)) return null;
+  const kept = parts.filter((p): p is Cond => p !== null && p !== SKIP);
+  // An `and` emptied by leaving things out would need nothing at all, so it goes.
+  if (kept.length) return group(c.op, kept);
+  return c.op === 'or' && optional ? SKIP : null;
+}
+
+/** Needs without some ids: they're dropped from wherever they are, as from a list. */
+function drop(c: Cond, gone: (id: string) => boolean): Cond | null {
+  if (typeof c === 'string') return gone(c) ? null : c;
+  const kept = c.of.map((x) => drop(x, gone)).filter((p) => p !== null);
+  return kept.length ? group(c.op, kept) : null;
+}
+
+/**
+ * A field's value without an id, never widening access: lists drop it, and
+ * access and recovery treat it as false (see `deny`). A condition that
+ * doesn't parse is left alone.
  */
 export function prune(field: string, value: unknown, id: string | string[], optional = false): unknown {
-  // Several at once, since an any-of left with one option reads as a plain part.
+  // Several at once, since an `or` left with one option reads as a plain part.
   const gone = (x: unknown) => (Array.isArray(id) ? id.includes(x as string) : x === id);
   if (field === 'mirrors') {
     const m = value as { of?: unknown; by?: unknown } | null;
     return m && (gone(m.of) || gone(m.by)) ? null : value;
   }
-  if (!Array.isArray(value)) return value;
-  if (field !== 'access' && field !== 'recovery') return value.filter((x) => !gone(x));
-  return value.flatMap((s: unknown) => {
-    if (!Array.isArray(s)) return [s];
-    const out: Expr[] = [];
-    for (const e of s as Expr[]) {
-      if (!Array.isArray(e)) {
-        if (gone(e)) return [];
-        out.push(e);
-        continue;
-      }
-      const options = e.filter((o) => !leaves(o).some(gone));
-      if (options.length === 1 && !Array.isArray(options[0])) out.push(options[0]);
-      else if (options.length) out.push(options);
-      else if (!optional) return [];
-    }
-    // An AND-set emptied by leaving things out would need nothing at all.
-    return out.length || !s.length ? [out] : [];
-  });
+  if (Array.isArray(value)) return value.filter((x) => !gone(x));
+  if (!isCondition(field) || typeof value !== 'string') return value;
+  let c: Cond;
+  try {
+    c = parseCond(value);
+  } catch (e) {
+    if (e instanceof CondError) return value;
+    throw e;
+  }
+  const out = field === 'needs' ? drop(c, gone) : deny(c, gone, optional);
+  return out === null || out === SKIP ? null : fmtCond(out);
 }
 
 /**
@@ -214,15 +240,28 @@ function pruneLayer(
     );
 }
 
-/** Swaps one id for another wherever a value refers to it. */
-export const swap = (v: unknown, from: string, to: string): unknown =>
-  v === from
-    ? to
-    : Array.isArray(v)
-      ? v.map((x) => swap(x, from, to))
-      : v && typeof v === 'object'
-        ? Object.fromEntries(Object.entries(v).map(([k, x]) => [k, swap(x, from, to)]))
-        : v;
+/** A field's value with one id swapped for another, wherever it refers to it. */
+export function swap(field: string, v: unknown, from: string, to: string): unknown {
+  if (typeof v === 'string' && isCondition(field)) {
+    // Word by word, from the end, so the rest of the text stays as written.
+    return words(v)
+      .filter((w) => w.text === from)
+      .reverse()
+      .reduce((s, w) => s.slice(0, w.from) + to + s.slice(w.to), v);
+  }
+  if (Array.isArray(v)) return v.map((x: unknown) => (x === from ? to : x));
+  if (field === 'mirrors' && v && typeof v === 'object')
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x === from ? to : x]));
+  return v;
+}
+
+/** Every id a field's value refers to. */
+export function idsIn(field: string, v: unknown): string[] {
+  if (typeof v === 'string' && isCondition(field)) return words(v).flatMap((w) => (w.text === UNKNOWN ? [] : [w.text]));
+  if (Array.isArray(v)) return v.filter((x) => x !== UNKNOWN).map(String);
+  if (field === 'mirrors' && v && typeof v === 'object') return Object.values(v).map(String);
+  return [];
+}
 
 /** Renames a key in place, in each mapping at these paths that has it. */
 function renameKey(doc: Document, paths: Path[], from: string, to: string) {
@@ -252,12 +291,13 @@ export const renameThing =
           for (const field of REFS[section]) {
             const path = at(l, section, name, field);
             const v = js(doc, path);
-            if (v !== undefined && !same(swap(v, from, to), v)) put(doc, path, swap(v, from, to));
+            const swapped = swap(field, v, from, to);
+            if (v !== undefined && !same(swapped, v)) put(doc, path, swapped);
           }
         }
       }
       const me = js(doc, at(l, 'me'));
-      if (Array.isArray(me) && me.includes(from)) put(doc, at(l, 'me'), swap(me, from, to));
+      if (Array.isArray(me) && me.includes(from)) put(doc, at(l, 'me'), swap('me', me, from, to));
     }
   };
 
@@ -364,8 +404,7 @@ const obj = (v: unknown): Record<string, unknown> =>
 
 /**
  * What a form editing this layer shows: the model as written, or the model
- * with this plan over it. Not the engine's view, which normalizes (`in: "?"`
- * becomes a way in).
+ * with this plan over it. Not the engine's view, which parses conditions.
  */
 export function written(text: string, layer: Layer): Written {
   const doc = obj(parse(text));
@@ -391,12 +430,9 @@ export interface Change {
   after: string;
 }
 
-/** How a field reads: access as the CLI writes it, lists comma-separated. */
+/** How a field reads: a condition as written, lists comma-separated. */
 export function show(field: string, v: unknown): string {
   if (v === undefined || v === null || (Array.isArray(v) && !v.length)) return 'none';
-  if ((field === 'access' || field === 'recovery') && Array.isArray(v)) {
-    return v.map((s) => (Array.isArray(s) ? fmtSet(s as AndSet) || 'nothing' : String(s))).join(', or ');
-  }
   if (field === 'mirrors') return `copy of ${String(obj(v).of)}, synced by ${String(obj(v).by)}`;
   if (Array.isArray(v)) return v.join(', ');
   return typeof v === 'string' ? v : JSON.stringify(v);
@@ -423,19 +459,6 @@ export function changes(before: Written, after: Written): Change[] {
     out.push({ id: 'me', field: null, before: show('me', before.me), after: show('me', after.me) });
   return out;
 }
-
-/**
- * Parts typed as the CLI writes them: `a | b + c` is any one of a, or b and
- * c. Gives the options, each the ids it needs; null if something's missing.
- */
-export function parseParts(s: string): string[][] | null {
-  const options = s.split('|').map((o) => o.split('+').map((id) => id.trim()));
-  return options.every((o) => o.every(Boolean)) ? options : null;
-}
-
-/** Options as an element of an AND-set: one id stays an id, several are any-of. */
-export const asElement = (options: string[][]): Expr[] =>
-  options.length === 1 ? options[0] : [options.map((o) => (o.length === 1 ? o[0] : o))];
 
 /** The model's plans in order, with their notes; none if the text isn't YAML. */
 export function plansOf(text: string): { name: string; note: string }[] {

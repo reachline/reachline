@@ -30,7 +30,8 @@
     border: 1.5px solid var(--k-junction);
   }
   .k-unknown {
-    font-size: 12px;
+    border-radius: 999px;
+    font-size: 10px;
     color: var(--warning);
     background: var(--maybe-fill);
     border: 1.5px dashed var(--maybe-stroke);

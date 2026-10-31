@@ -1,8 +1,9 @@
 <script lang="ts">
-  // A scenario's fields, as written in the layer being edited, and for a
-  // lockout, what every lockout starts with (`me`).
+  // A scenario's fields, as written in the layer being edited. The normal day
+  // is built in, so it has none: there it's what you have (`me`), which every
+  // lockout starts from.
   import { Trash } from '@lucide/svelte';
-  import { SCENARIO_KINDS } from '../../engine/model.ts';
+  import { BASELINE, SCENARIO_KINDS } from '../../engine/model.ts';
   import type { Created } from './edit';
   import IdList from './IdList.svelte';
   import NameField from './NameField.svelte';
@@ -20,16 +21,29 @@
   let { name, spec, me, ids, onset, onme, onrename, ondelete }: Props = $props();
 
   const list = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
-  const baseline = $derived(name === 'baseline');
+  const ME_HINT =
+    'What you have without getting it through anything else, which everything is reached from: usually places, ' +
+    'such as head (what you remember), body, carried, home, and contacts (people who’d lend you a device). ' +
+    'A lockout takes some away; a breach starts from what the attacker has instead.';
 </script>
 
 <div class="form">
   <NameField
     label="Scenario"
     value={name}
-    fixed={baseline ? 'Every model has a baseline: what you reach before anything is lost.' : undefined}
+    fixed={name === BASELINE
+      ? 'The normal day is built in: you, with nothing lost. Every lockout is compared with it.'
+      : undefined}
     {onrename}
   />
+  {#if name === BASELINE}
+    <IdList label="On a normal day you have" hint={ME_HINT} values={me} {ids} onchange={onme} />
+  {:else}
+    {@render fields()}
+  {/if}
+</div>
+
+{#snippet fields()}
   <label class="field"
     >Kind
     <select value={spec.kind} onchange={(e) => onset('kind', e.currentTarget.value)}>
@@ -75,21 +89,10 @@
       value={typeof spec.note === 'string' ? spec.note : ''}
       onchange={(e) => onset('note', e.currentTarget.value.trim())}></textarea>
   </label>
-  {#if spec.kind === 'lockout'}
-    <IdList
-      label="Every lockout starts with"
-      hint="What you have before anything is lost (me), for every lockout scenario."
-      values={me}
-      {ids}
-      onchange={onme}
-    />
-  {/if}
-  {#if !baseline}
-    <div>
-      <button class="danger" onclick={ondelete}><Trash />Delete {name}</button>
-    </div>
-  {/if}
-</div>
+  <div>
+    <button class="danger" onclick={ondelete}><Trash />Delete {name}</button>
+  </div>
+{/snippet}
 
 <style>
   .form {

@@ -9,11 +9,9 @@ import { EMPTY } from '../app/src/data.ts';
 import {
   addThing,
   applyPlan,
-  asElement,
   changes,
   edit,
   overlaps,
-  parseParts,
   plansOf,
   prune,
   removeThing,
@@ -49,9 +47,9 @@ test('the canonical format keeps the data, and formatting twice changes nothing'
     '        note: >',
     '          folded',
     '          text',
-    '    "123": {kind: data, in: ["?"]}',
+    '    "123": {kind: data, in: [unknown]}',
     '    odd: {kind: data, note: "yes", todo: "- dash", in: [home]}',
-    'scenarios:\r\n  baseline: {kind: lockout}',
+    'scenarios:\r\n  fire: {kind: lockout}',
   ].join('\n');
   for (const text of [EXAMPLE, messy, EMPTY]) {
     const once = format(text);
@@ -61,6 +59,15 @@ test('the canonical format keeps the data, and formatting twice changes nothing'
   }
   assert.equal(format(EXAMPLE), EXAMPLE, 'the example is kept in the canonical format');
   assert.equal(format(EMPTY), EMPTY);
+  // A condition is spaced one way; one that doesn't parse is left as written.
+  assert.equal(
+    format('things:\n  a: {kind: device, access: "x  and(y or z )"}\n'),
+    'things:\n  a: {kind: device, access: x and (y or z)}\n',
+  );
+  assert.equal(
+    format('things:\n  a: {kind: device, access: x and}\n'),
+    'things:\n  a: {kind: device, access: x and}\n',
+  );
 });
 
 test('a rename changes no verdict but the id, in the model and every plan', () => {
@@ -82,28 +89,39 @@ test('applying a plan gives what having it on did', () => {
 });
 
 test('removing a thing never widens a way in', () => {
-  const access = (p: unknown) => prune('access', p, 'k');
-  // Required outright: the way in goes.
-  assert.deepEqual(access([['pw', 'k'], ['other']]), [['other']]);
+  const access = (c: string) => prune('access', c, 'k');
+  // Required outright: that option goes.
+  assert.equal(access('(pw and k) or other'), 'other');
   // One option of several: the others stay, one alone unwrapped.
-  assert.deepEqual(access([['pw', ['totp', 'k']]]), [['pw', 'totp']]);
-  assert.deepEqual(access([['pw', ['totp', ['k', 'pin'], 'sms']]]), [['pw', ['totp', 'sms']]]);
-  // The last option: the step can't be done, so the way in goes.
-  assert.deepEqual(access([['pw', ['k']]]), []);
+  assert.equal(access('pw and (totp or k)'), 'pw and totp');
+  assert.equal(access('pw and (totp or (k and pin) or sms)'), 'pw and (totp or sms)');
+  // The last option: the step can't be done, so nothing gets in.
+  assert.equal(access('pw and k'), null);
   // Left out of a template, it was never set up: the step isn't asked for.
-  assert.deepEqual(prune('access', [['pw', ['k']]], 'k', true), [['pw']]);
-  assert.deepEqual(prune('access', [[['k']]], 'k', true), []);
+  const optional = (c: string, ids: string[]) => prune('access', c, ids, true);
+  assert.equal(optional('pw and k', ['k']), null);
+  assert.equal(optional('pw and (k or sms)', ['k', 'sms']), 'pw');
+  assert.equal(optional('k or sms', ['k', 'sms']), null);
+  assert.equal(optional('x or ((k or sms) and (a or b))', ['k', 'sms', 'a', 'b']), 'x');
+  // Needs drop it, as a list would.
+  assert.equal(prune('needs', 'vm and (k or proxy)', 'k'), 'vm and proxy');
   assert.deepEqual(prune('in', ['k', 'home'], 'k'), ['home']);
   assert.deepEqual(prune('mirrors', { of: 'k', by: 'job' }, 'k'), null);
 
   const removed = edit(EXAMPLE, removeThing(null, 'hw_key'));
   assert.ok(!/\bhw_key\b/.test(removed));
   for (const plans of [[], ['spare_key'], ['backup']]) model(removed, plans);
-  assert.deepEqual(thing(removed, 'mail')!.access, [
-    ['mail_pw', 'mail_totp'],
-    ['phone_unlocked', 'mail_session_phone'],
-  ]);
-  assert.deepEqual(thing(removed, 'registrar')!.access, []);
+  const access_ = (text: string, id: string) =>
+    (parse(text) as { things: Record<string, { access?: string }> }).things[id].access;
+  assert.equal(access_(removed, 'mail'), '(mail_pw and mail_totp) or (phone_unlocked and mail_session_phone)');
+  assert.equal(access_(removed, 'registrar'), undefined);
+});
+
+test('a rename swaps whole words in a condition, and nothing else', () => {
+  const renamed = edit(EXAMPLE, renameThing('phone', 'mobile'));
+  const t = (parse(renamed) as { things: Record<string, { access?: string }> }).things;
+  assert.equal(t.phone_unlocked.access, 'mobile and (phone_pin or face)');
+  assert.equal(t.phone_number.access, 'mobile or carrier');
 });
 
 test('an edit to a plan goes into the plan, and the model is untouched', () => {
@@ -111,7 +129,7 @@ test('an edit to a plan goes into the plan, and the model is untouched', () => {
   const base = (t: string) => JSON.stringify((parse(t) as { things: object }).things);
   assert.equal(base(text), base(EXAMPLE));
   assert.equal(thing(text, 'phone_number', ['backup']), undefined);
-  assert.deepEqual(thing(text, 'mail', ['backup'])!.recovery, [['mail_codes']]);
+  assert.equal(thing(text, 'mail', ['backup'])!.recovery, 'mail_codes');
   assert.equal(thing(text, 'bank', ['spare_key'])!.note, 'n');
   // Setting a plan's field back to the model's drops it from the plan.
   const back = edit(text, setField('spare_key', 'bank', 'note', thing(EXAMPLE, 'bank')!.note));
@@ -128,18 +146,10 @@ test('a new thing goes after the last of its kind', () => {
   assert.throws(() => edit(EXAMPLE, addThing(null, 'phone', { kind: 'device' })), /already/);
 });
 
-test('parts typed as the CLI writes them', () => {
-  assert.deepEqual(parseParts('pw'), [['pw']]);
-  assert.deepEqual(parseParts(' a | b + c '), [['a'], ['b', 'c']]);
-  assert.equal(parseParts('a |'), null);
-  assert.deepEqual(asElement([['a', 'b']]), ['a', 'b']);
-  assert.deepEqual(asElement([['a'], ['b', 'c']]), [['a', ['b', 'c']]]);
-});
-
 test('a layer reads as written, and its changes field by field', () => {
   const plan = written(EXAMPLE, 'spare_key');
   assert.deepEqual(plan.things.hw_key.in, []);
-  assert.equal(written(EXAMPLE, null).things.old_drive.in, '?');
+  assert.deepEqual(written(EXAMPLE, null).things.old_drive.in, ['unknown']);
   const after = written(edit(EXAMPLE, removeThing(null, 'hw_key')), null);
   const found = changes(written(EXAMPLE, null), after);
   assert.ok(found.some((c) => c.id === 'hw_key' && c.after === 'removed'));
@@ -149,8 +159,8 @@ test('a layer reads as written, and its changes field by field', () => {
 test('plans that set the same field are found', () => {
   assert.deepEqual(overlaps(EXAMPLE, ['spare_key', 'backup']), []);
   // The model's value: nothing to set.
-  assert.equal(edit(EXAMPLE, setField('backup', 'mail', 'recovery', [['mail_codes'], ['phone_number']])), EXAMPLE);
-  const text = edit(EXAMPLE, setField('backup', 'mail', 'recovery', [['phone_number']]));
+  assert.equal(edit(EXAMPLE, setField('backup', 'mail', 'recovery', 'mail_codes or phone_number')), EXAMPLE);
+  const text = edit(EXAMPLE, setField('backup', 'mail', 'recovery', 'phone_number'));
   assert.deepEqual(overlaps(text, ['spare_key', 'backup']), [{ at: 'mail.recovery', plans: ['spare_key', 'backup'] }]);
   assert.deepEqual(
     plansOf(EXAMPLE).map((p) => p.name),

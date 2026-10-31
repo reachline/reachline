@@ -1,6 +1,6 @@
 <script lang="ts">
   // Asks for a name and a kind: a new thing, or a new scenario.
-  import { validId } from './edit';
+  import { idProblem } from './edit';
 
   interface Props {
     title: string;
@@ -28,8 +28,9 @@
   function submit(e: SubmitEvent) {
     e.preventDefault();
     const n = name.trim();
-    if (!validId(n)) problem = 'Use lowercase letters, digits and _, starting with a letter.';
-    else if (taken(n)) problem = `${n} is already taken.`;
+    problem = idProblem(n);
+    if (problem) return;
+    if (taken(n)) problem = `${n} is already taken.`;
     else {
       dialog?.close();
       onadd(n, kind);

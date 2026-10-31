@@ -47,12 +47,8 @@ things:
 
   github:
     kind: account
-    tags: [critical, sensitive]
-    access:
-      # The password, or a reset by email; then any second factor.
-      - [[github_pw, mail], [github_totp, github_sms, github_key, github_mobile]]
-      - [github_passkey]
-    recovery:
-      - [[github_pw, mail], github_codes]
-      # Support reviews the request, which takes days and may be refused.
-      - [mail, github_ssh, '?']
+    check: [lockout, breach]
+    # The password, or a reset by email; then any second factor. Or a passkey alone.
+    access: ((github_pw or mail) and (github_totp or github_sms or github_key or github_mobile)) or github_passkey
+    # Recovery codes; or Support reviews a request, which takes days and may be refused.
+    recovery: ((github_pw or mail) and github_codes) or (mail and github_ssh and unknown)

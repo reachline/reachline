@@ -19,8 +19,7 @@ const choices = (t: Template, over: Partial<Choices> = {}): Choices => ({
   include: new Set(t.optional.filter((o) => o.on).map((o) => o.id)),
   ...over,
 });
-const load = (things: object) =>
-  new Model({ path: 't.yml', text: stringify({ things, scenarios: { baseline: { kind: 'lockout' } } }) });
+const load = (things: object) => new Model({ path: 't.yml', text: stringify({ things }) });
 
 test('every template loads, with every option and with none', () => {
   assert.ok(templates.length >= 3);
@@ -49,7 +48,7 @@ test('every template adds to the starter model, its slots bound to the starterâ€
 
 test('a service with no second factor set up asks for the password alone', () => {
   const things = instantiate(github, choices(github, { include: new Set() }));
-  assert.deepEqual(things.github.access, [[['github_pw', 'mail']]]);
+  assert.equal(things.github.access, 'github_pw or mail');
   assert.equal(things.github.recovery, undefined);
   // What nothing needs any more isn't created.
   assert.ok(!('hw_key' in things) && !('phone_unlocked' in things));
@@ -59,6 +58,6 @@ test('slots bind to your things, and the prefix renames what is the templateâ€™s
   const things = instantiate(github, choices(github, { prefix: 'github_work', slots: { vault: 'my_vault' } }));
   assert.ok(!('vault' in things) && !('github' in things));
   assert.deepEqual(things.github_work_pw.in, ['my_vault']);
-  // By default only the authenticator app: the any-of of one is just it, and the passkey's way in goes.
-  assert.deepEqual(things.github_work.access, [[['github_work_pw', 'mail'], 'github_work_totp']]);
+  // By default only the authenticator app: an `or` of one is just it, and the passkey's way in goes.
+  assert.equal(things.github_work.access, '(github_work_pw or mail) and github_work_totp');
 });

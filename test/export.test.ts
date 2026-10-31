@@ -40,7 +40,7 @@ test('the SVG draws every node and edge, inside its bounds, in colours app.css h
 });
 
 test('labels are escaped in the SVG', () => {
-  const m = loadModel("things:\n  'a<&b': {kind: device}\nscenarios:\n  baseline: {kind: lockout}\n");
+  const m = loadModel("things:\n  'a<&b': {kind: device}\n");
   const v = waysInView(m, ['a<&b'], new Set());
   const { svg } = toSvg(v, placed(v), '', false, () => '#000');
   assert.ok(svg.includes('a&#60;&#38;b') && !svg.includes('a<&b'));

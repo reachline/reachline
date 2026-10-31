@@ -39,7 +39,7 @@
     setField,
     setMe,
     setScenarioField,
-    validId,
+    idProblem,
     written,
     type Change,
     type Created,
@@ -305,8 +305,8 @@
   /** Show a model that loaded. The first one picks the starting view; later ones keep it. */
   function show(m: Model) {
     if (!untrack(() => model)) {
-      // Without ?target=, start on the first critical thing.
-      target ||= [...m.things].find(([, t]) => t.tags.includes('critical'))?.[0] ?? [...m.things.keys()].at(0) ?? '';
+      // Without ?target=, start on the first thing checked for lockouts.
+      target ||= [...m.things].find(([, t]) => t.check.includes('lockout'))?.[0] ?? [...m.things.keys()].at(0) ?? '';
       const t = untrack(() => target);
       if (m.things.has(t)) expanded = expandToDepth(m, [t], DEPTH);
     }
@@ -436,7 +436,7 @@
   });
 
   function nameProblem(name: string, taken: string[]): string {
-    if (!validId(name)) return 'Use lowercase letters, digits and _, starting with a letter.';
+    if (idProblem(name)) return idProblem(name);
     if (taken.includes(name)) return `${name} is already taken.`;
     return '';
   }

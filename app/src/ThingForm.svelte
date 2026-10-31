@@ -2,13 +2,13 @@
   // Every field of a thing, as written in the layer being edited. Each change
   // is applied as it's made (fields of text once they lose focus).
   import { Trash } from '@lucide/svelte';
-  import { KINDS, TAGS, type AndSet } from '../../engine/model.ts';
+  import { CHECKS, KINDS } from '../../engine/model.ts';
+  import CondField from './CondField.svelte';
   import type { Created } from './edit';
   import IdInput from './IdInput.svelte';
   import IdList from './IdList.svelte';
   import NameField from './NameField.svelte';
   import Tip from './Tip.svelte';
-  import WaysIn from './WaysIn.svelte';
 
   interface Props {
     id: string;
@@ -25,15 +25,21 @@
 
   const str = (v: unknown) => (typeof v === 'string' ? v : '');
   const list = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
-  const tags = $derived(list(spec.tags));
+  const checks = $derived(list(spec.check));
   const mirrors = $derived(spec.mirrors as { of?: string; by?: string } | null | undefined);
   // The source of a copy, kept here until what syncs it is given too.
   let copyOf = $state<{ of: string; created: Created[] } | null>(null);
-  const TAG_HINTS = {
-    critical: 'Lockouts check you can still reach it.',
-    sensitive: 'Breaches check an attacker can’t.',
+  const CHECK_HINT =
+    'Check what you care about for its own sake (your mail, your documents, your money), not the passwords, keys, ' +
+    'devices and servers that lead to it. ReachLine follows those, so a stolen key shows up as the accounts it opens.';
+  const CHECK_HINTS = {
+    lockout: 'Lockouts report it if you can’t reach it any more.',
+    breach: 'Breaches report it if an attacker can reach it.',
   };
-  const IN_HINT = 'Where it lives. Reaching any one of these reaches it; it’s lost once all of them are.';
+  const IN_HINT =
+    'Reaching any one of these reaches it; it’s lost only once all of them are. ' +
+    'unknown is a place you don’t know: never lost, and reached only by assuming it.';
+  const GRAMMAR = 'Join ids with and or or, and bracket a group, as in pw and (totp or key).';
   const MIRRORS_HINT = 'A synced copy, lost once its source is lost while the sync still runs.';
 </script>
 
@@ -47,23 +53,25 @@
     </select>
   </label>
 
-  <fieldset>
-    <legend>Tags</legend>
-    {#each TAGS as t (t)}
+  <fieldset aria-labelledby="{uid}-check" aria-describedby="{uid}-check-hint">
+    <legend
+      ><span id="{uid}-check">Check for</span><Tip id="{uid}-check-hint" about="Check for" text={CHECK_HINT} /></legend
+    >
+    {#each CHECKS as c (c)}
       <div class="check">
         <label
           ><input
             type="checkbox"
-            checked={tags.includes(t)}
-            aria-describedby="{uid}-{t}"
+            checked={checks.includes(c)}
+            aria-describedby="{uid}-{c}"
             onchange={(e) =>
               onset(
-                'tags',
-                TAGS.filter((x) => (x === t ? e.currentTarget.checked : tags.includes(x))),
+                'check',
+                CHECKS.filter((x) => (x === c ? e.currentTarget.checked : checks.includes(x))),
               )}
           />
-          {t}</label
-        ><Tip id="{uid}-{t}" about={t} text={TAG_HINTS[t]} />
+          {c}</label
+        ><Tip id="{uid}-{c}" about={c} text={CHECK_HINTS[c]} />
       </div>
     {/each}
   </fieldset>
@@ -77,50 +85,36 @@
     <textarea rows="2" value={str(spec.todo)} onchange={(e) => onset('todo', e.currentTarget.value.trim())}></textarea>
   </label>
 
-  {#if spec.in === '?'}
-    <fieldset aria-labelledby="{uid}-in" aria-describedby="{uid}-in-hint">
-      <legend><span id="{uid}-in">In</span><Tip id="{uid}-in-hint" about="In" text={IN_HINT} /></legend>
-      <p>Unknown: it's reached only by assuming it.</p>
-    </fieldset>
-  {:else}
-    <IdList
-      label="In"
-      hint={IN_HINT}
-      values={list(spec.in)}
-      {ids}
-      onchange={(v: string[], created: Created[]) => onset('in', v, created)}
-    />
-  {/if}
-  <label class="check"
-    ><input
-      type="checkbox"
-      checked={spec.in === '?'}
-      onchange={(e) => onset('in', e.currentTarget.checked ? '?' : [])}
-    />
-    Where it lives is unknown</label
-  >
-
-  <WaysIn
-    label="Access"
-    hint="Each way in needs all of its parts. Type a + b for all of them, a | b for any one, ? for an unknown."
+  <IdList
+    label="Lives in"
+    hint={IN_HINT}
+    values={list(spec.in)}
+    {ids}
+    unknown
+    onchange={(v: string[], created: Created[]) => onset('in', v, created)}
+  />
+  <CondField
+    label="Accessed with"
+    hint={`It’s reached when this holds. unknown stands for what you don’t know, such as what support asks for. ${GRAMMAR}`}
     value={spec.access}
     {ids}
-    onchange={(v: AndSet[], created: Created[]) => onset('access', v, created)}
+    unknown
+    onchange={(v: string | null, created: Created[]) => onset('access', v, created)}
   />
-  <WaysIn
-    label="Recovery"
-    hint="Ways back in once access fails, such as recovery codes or a reset by email."
+  <CondField
+    label="Recovered with"
+    hint={`A way back in once access fails, such as recovery codes or a reset by email. ${GRAMMAR}`}
     value={spec.recovery}
     {ids}
-    onchange={(v: AndSet[], created: Created[]) => onset('recovery', v, created)}
+    unknown
+    onchange={(v: string | null, created: Created[]) => onset('recovery', v, created)}
   />
-
-  <IdList
+  <CondField
     label="Needs"
-    hint="What must still exist, reachable or not: the server it runs on, the DNS it depends on."
-    values={list(spec.needs)}
+    hint={`It exists only while this holds, reachable or not: the server it runs on, the domain it depends on. ${GRAMMAR}`}
+    value={spec.needs}
     {ids}
-    onchange={(v: string[], created: Created[]) => onset('needs', v, created)}
+    onchange={(v: string | null, created: Created[]) => onset('needs', v, created)}
   />
 
   <fieldset aria-labelledby="{uid}-mirrors" aria-describedby="{uid}-mirrors-hint">
@@ -141,7 +135,7 @@
           label={`What syncs ${id} from ${copyOf.of}`}
           placeholder="synced by…"
           {ids}
-          onadd={([[by]]: string[][], created: Created[]) => {
+          onadd={(by: string, created: Created[]) => {
             onset('mirrors', { of: copyOf!.of, by }, [...copyOf!.created, ...created]);
             copyOf = null;
           }}
@@ -151,7 +145,7 @@
           label="A synced copy of"
           placeholder="copy of…"
           {ids}
-          onadd={([[of]]: string[][], created: Created[]) => (copyOf = { of, created })}
+          onadd={(of: string, created: Created[]) => (copyOf = { of, created })}
         />
       {/if}
     {/if}

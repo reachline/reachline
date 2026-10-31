@@ -9,6 +9,8 @@ export type { Box, Placed, Pt, Routing };
 
 const THING_H = 28;
 const JUNCTION = 24;
+/** An unknown is a pill, wide enough to say so. */
+const UNKNOWN_W = 54;
 
 export type Direction = 'RIGHT' | 'DOWN';
 // Network simplex gives straighter edges; Brandes-Köpf is about 7x faster here.
@@ -32,7 +34,7 @@ const getElk = () =>
 let ctx: CanvasRenderingContext2D | null = null;
 
 export function sizeOf(n: VNode): { w: number; h: number } {
-  if (isJunction(n.kind)) return { w: JUNCTION, h: JUNCTION };
+  if (isJunction(n.kind)) return { w: n.kind === 'unknown' ? UNKNOWN_W : JUNCTION, h: JUNCTION };
   // Room on the right for the expand/status marker.
   const extra = (n.kind === 'account' ? 8 : 0) + (n.status ? STATUS_SLOT : 0);
   // Outside a browser (bench.ts), estimate the text width.

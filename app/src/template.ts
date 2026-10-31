@@ -2,7 +2,7 @@
 // things you probably have already and options for what you've set up. Read
 // from templates/; turned into things to add with your choices.
 import { parse } from 'yaml';
-import { prune, REFS, swap, validId } from './edit.ts';
+import { idsIn, prune, REFS, swap, validId } from './edit.ts';
 
 type Fields = Record<string, unknown>;
 
@@ -73,20 +73,14 @@ export interface Choices {
   include: Set<string>;
 }
 
-/** Every id a value refers to: a list's items, a mapping's values (mirrors). */
-const ids = (v: unknown): string[] =>
-  typeof v === 'string'
-    ? [v]
-    : Array.isArray(v)
-      ? v.flatMap(ids)
-      : v && typeof v === 'object'
-        ? Object.values(v).flatMap(ids)
-        : [];
-const refsIn = (spec: Fields) => REFS.things.flatMap((f) => ids(spec[f]));
+const refsIn = (spec: Fields) => REFS.things.flatMap((f) => idsIn(f, spec[f]));
+/** A thing's fields with one id swapped for another. */
+const swapAll = (spec: Fields, from: string, to: string): Fields =>
+  Object.fromEntries(Object.entries(spec).map(([f, v]) => [f, REFS.things.includes(f) ? swap(f, v, from, to) : v]));
 
 /**
  * The things a template adds, with your choices. An optional thing left out
- * is removed as one never set up: an any-of it empties is a step the service
+ * is removed as one never set up: an `or` it empties is a step the service
  * doesn't ask for. A slot nothing needs any more isn't created.
  */
 export function instantiate(t: Template, c: Choices): Record<string, Fields> {
@@ -112,12 +106,12 @@ export function instantiate(t: Template, c: Choices): Record<string, Fields> {
   for (const [slot, mine] of Object.entries(c.slots)) {
     if (mine === null || !(slot in things)) continue;
     drop(slot);
-    map((_, spec) => swap(spec, slot, mine) as Fields);
+    map((_, spec) => swapAll(spec, slot, mine));
   }
   const renamed = (id: string) =>
     id === t.prefix || id.startsWith(`${t.prefix}_`) ? c.prefix + id.slice(t.prefix.length) : id;
   for (const id of Object.keys(things)) {
-    if (renamed(id) !== id) map((_, spec) => swap(spec, id, renamed(id)) as Fields);
+    if (renamed(id) !== id) map((_, spec) => swapAll(spec, id, renamed(id)));
   }
   return Object.fromEntries(Object.entries(things).map(([id, spec]) => [renamed(id), spec]));
 }

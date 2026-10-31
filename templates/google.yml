@@ -47,10 +47,6 @@ things:
 
   google:
     kind: account
-    tags: [critical, sensitive]
-    access:
-      - [google_pw, [google_prompt, google_totp, google_sms, google_key, google_codes]]
-      - [google_passkey]
-    recovery:
-      - [google_recovery_mail, '?']
-      - [google_recovery_phone, '?']
+    check: [lockout, breach]
+    access: (google_pw and (google_prompt or google_totp or google_sms or google_key or google_codes)) or google_passkey
+    recovery: (google_recovery_mail and unknown) or (google_recovery_phone and unknown)

@@ -64,9 +64,10 @@ export function toSvg(view: View, placed: Placed, kind: string, vertical: boolea
       const unknown = n.kind === 'unknown';
       const [fill, stroke] = unknown ? [c('maybe-fill'), c('maybe-stroke')] : [c('surface'), c('k-junction')];
       const dash = unknown ? ' stroke-dasharray="3 2"' : '';
-      const text = unknown ? `font-size="12" fill="${c('warning')}"` : `font-size="8" fill="${c('muted')}"`;
+      const text = unknown ? `font-size="10" fill="${c('warning')}"` : `font-size="8" fill="${c('muted')}"`;
+      // A circle, or for an unknown a pill: a rectangle with round ends.
       return (
-        `<g transform="translate(${x},${y})"><circle cx="${w / 2}" cy="${h / 2}" r="${w / 2 - 0.75}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"${dash}/>` +
+        `<g transform="translate(${x},${y})"><rect x="0.75" y="0.75" width="${w - 1.5}" height="${h - 1.5}" rx="${h / 2 - 0.75}" fill="${fill}" stroke="${stroke}" stroke-width="1.5"${dash}/>` +
         `<text x="${w / 2}" y="${h / 2}" text-anchor="middle" dominant-baseline="central" font-weight="600" ${text}>${esc(n.label)}</text></g>`
       );
     }

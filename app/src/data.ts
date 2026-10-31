@@ -4,8 +4,8 @@ import { availability, Model, ReachError, type Best, type Row, type Scenario } f
 
 export { Model, ReachError };
 
-/** The smallest model the engine accepts, for a model that starts empty. */
-export const EMPTY = 'version: 1\nme: []\nthings: {}\n\nscenarios:\n  baseline: {kind: lockout}\n';
+/** A model that starts empty. */
+export const EMPTY = 'version: 1\nme: []\nthings: {}\n';
 
 /** The model's text with the named plans (from its `plans:`) applied in order. */
 export function loadModel(text: string, plans: string[] = []): Model {

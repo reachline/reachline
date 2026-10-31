@@ -8,9 +8,9 @@ things:
   safe: {kind: location, in: [home], todo: where backup codes and the emergency sheet are kept}
 
   phone: {kind: device, in: [carried]}
-  phone_unlocked: {kind: device, access: [[phone, [phone_pin, face]]]}
+  phone_unlocked: {kind: device, access: phone and (phone_pin or face)}
   laptop: {kind: device, in: [home]}
-  laptop_unlocked: {kind: device, access: [[laptop, laptop_pw]]}
+  laptop_unlocked: {kind: device, access: laptop and laptop_pw}
 
   phone_pin: {kind: secret, in: [head]}
   face: {kind: secret, in: [body]}
@@ -21,21 +21,18 @@ things:
   vault:
     kind: service
     note: the password manager, unlocked
-    tags: [sensitive]
-    access:
-      - [laptop_unlocked, pm_master]
-      - [phone_unlocked, pm_master]
-  phone_number: {kind: service, note: texts and calls to my number, access: [[phone]]}
+    check: [breach]
+    access: (laptop_unlocked and pm_master) or (phone_unlocked and pm_master)
+  phone_number: {kind: service, note: texts and calls to my number, access: phone}
 
   mail:
     kind: account
-    tags: [critical, sensitive]
-    access: [[mail_pw]]
-    recovery: "?"
+    check: [lockout, breach]
+    access: mail_pw
+    recovery: unknown
     todo: add its second factor and how recovery works
 
 scenarios:
-  baseline: {kind: lockout}
   lose_carried: {kind: lockout, lost: [carried]}
   house_fire: {kind: lockout, lost: [home, carried]}
   thief_carried: {kind: breach, attacker: [carried]}

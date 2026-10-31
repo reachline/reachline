@@ -47,7 +47,7 @@
     <span class="swatch" aria-hidden="true"><b class="more">+</b></span>
     <span>has more ways in; select it to show them</span>
     <span class="swatch" aria-hidden="true"><b class="row">!</b></span>
-    <span>flagged by the scenario</span>
+    <span>checked, and reported by the scenario</span>
   </div>
 </div>
 

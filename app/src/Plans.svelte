@@ -3,7 +3,7 @@
   // what the plans that are on change, against the model alone.
   import { Check, FilePlus, Pencil, Trash } from '@lucide/svelte';
   import type { ScenarioChange } from '../../engine/report.ts';
-  import { validId, type Layer } from './edit';
+  import { idProblem, type Layer } from './edit';
   import NameField from './NameField.svelte';
   import Verdicts from './Verdicts.svelte';
 
@@ -50,8 +50,9 @@
   function create(e: SubmitEvent) {
     e.preventDefault();
     const n = name.trim();
-    if (!validId(n)) problem = 'Use lowercase letters, digits and _, starting with a letter.';
-    else if (plans.some((p) => p.name === n)) problem = `${n} is already a plan.`;
+    problem = idProblem(n);
+    if (problem) return;
+    if (plans.some((p) => p.name === n)) problem = `${n} is already a plan.`;
     else {
       oncreate(n, note.trim());
       name = note = problem = '';

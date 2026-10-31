@@ -12,10 +12,10 @@ You describe your setup in a hand-written YAML file:
 ```yaml
 things:
   mail:
-    kind: account                 # or location, device, secret, service, data, state
-    tags: [critical, sensitive]   # lockouts check you keep it; breaches, that attackers can't reach it
-    access: [[mail_pw, [mail_totp, hw_key]]]   # password AND (TOTP OR key)
-    recovery: [[mail_codes], [phone_number]]   # recovery codes, OR an SMS reset
+    kind: account                          # or location, device, secret, service, data, state
+    check: [lockout, breach]               # report it if you lose it, or if an attacker gets it
+    access: mail_pw and (mail_totp or hw_key)
+    recovery: mail_codes or phone_number   # recovery codes, or an SMS reset
 
 scenarios:
   sim_swap:
@@ -23,30 +23,36 @@ scenarios:
     attacker: [carrier]
 ```
 
-ReachLine follows every path, recovery included, and gives each critical or sensitive thing a verdict: **LOST**, **REACHED**, **UNSURE** (the path relies on something marked `?` because you don't know it) or **DEPENDS** (it relies on a condition of the moment, such as an app being unlocked). It also shows the graph of why. **Plans** are overlays that answer "what changes if I do this?", such as adding a spare security key or replacing a sync with a backup, as a before/after for every scenario. They live in the same file, under `plans:`.
+ReachLine follows every path, recovery included, and gives each checked thing a verdict: **LOST**, **REACHED**, **UNSURE** (the path relies on something marked `unknown` because you don't know it) or **DEPENDS** (it relies on a condition of the moment, such as an app being unlocked). It also shows the graph of why. **Plans** are overlays that answer "what changes if I do this?", such as adding a spare security key or replacing a sync with a backup, as a before/after for every scenario. They live in the same file, under `plans:`.
 
 ## The model
 
-A model has `things`, `scenarios`, the things you start a lockout with (`me`), and `plans`. `examples/model.yml` is a made-up person's setup, small but using every part of the format. Every thing has an id under `things:`, and all ids share one namespace. A thing's fields:
+A model has `things`, `scenarios`, what you have on a normal day (`me`), and `plans`. `examples/model.yml` is a made-up person's setup, small but using every part of the format. Every thing has an id under `things:`, and all ids share one namespace.
+
+In every scenario, ReachLine asks two questions of each thing: does it still exist, and can someone get to it? Its fields answer them:
 
 | Field      | Meaning |
 | ---------- | ------- |
 | `kind`     | Required: `location`, `device`, `state`, `secret`, `service`, `data` or `account`. Only `state` changes how a thing behaves; the rest are for reading, and for the shapes in the graph. |
-| `tags`     | `critical` (lockout scenarios check you can still reach it) and `sensitive` (breach scenarios check an attacker can't). |
-| `in`       | The containers or places it lives in, physical (`laptop` in `home`) or digital (`mail_pw` in `vault`). Reaching any one reaches it, and it's lost only when all of them are. `in: "?"` means you don't know where it is: it's reached only by assuming it. |
-| `access`   | The ways to reach it: a list of AND-sets. An element of a set may be a list, meaning any one of, and a list inside that is an AND again: `[[pw, [totp, [key, pin]]]]` is pw AND (totp OR (key AND pin)). |
-| `recovery` | The same shape as `access`, reported separately (account recovery). |
-| `needs`    | What must still exist, whether or not you can reach it: the server it runs on, the DNS it depends on. It's lost if any of them is. |
+| `check`    | `lockout` (lockouts report it if you can't reach it any more) and `breach` (breaches report it if an attacker can). Check what you care about for its own sake (your mail, your documents, your money), not the passwords, keys, devices and servers that lead to it. ReachLine follows those, so a stolen key shows up as the accounts it opens. |
+| `in`       | Where it lives, physically (`laptop` in `home`) or digitally (`mail_pw` in `vault`): `[home, office]` says it's in both. Reaching any one of them reaches it, and it's lost only once all of them are. `unknown` is a place you don't know: never lost, and reached only by assuming it. |
+| `needs`    | A condition: it exists only while this holds, whether or not you can reach it. The server it runs on, the domain it depends on: `vm and (proxy_a or proxy_b)`. |
+| `access`   | A condition: it's reached when this holds. `(code_pw and (code_totp or (hw_key and key_pin))) or recovery_codes`. |
+| `recovery` | The same as `access`, reported separately (account recovery): `mail and unknown`. |
 | `mirrors`  | `{of: source, by: syncer}`: a synced copy. It's lost once its source is lost while the syncer still runs, since the next sync empties it. |
 | `note`, `todo` | Free text. `./reach.ts --todo` lists the todos. |
 
-`"?"` stands for a fact about your setup you don't know. ReachLine tracks which unknowns each path relies on, and reports those paths as UNSURE.
+A list states facts that are all true at once (`in`, `check`, and in a scenario `lost`, `attacker`, `assume` and `deny`). A condition is ids joined by `and` and `or`, with brackets, nested as deep as you like. `and` and `or` can't share a level without brackets (`a and b or c` is an error that says where to add them), so nobody has to remember which binds tighter. `and`, `or` and `unknown` are reserved, so no thing can have them as its id.
+
+`unknown` stands for a fact about your setup you don't know, in `in`, `access` and `recovery`. ReachLine tracks which unknowns each path relies on, and reports those paths as UNSURE.
 
 A `state` is a condition of the moment rather than a fact about the setup, such as a password manager being unlocked on the laptop. Nothing assumes a state either way: a result that hinges on one says DEPENDS, and a scenario can pin states with `assume` (true) and `deny` (false). A device usually has two entries: the device itself, which a thief takes or a fire destroys, and `<device>_unlocked`, a working session that needs the device and its unlock.
 
-A scenario has a `kind` (`lockout` or `breach`), what's `lost` (lockout) or what the `attacker` has (breach), optionally `assume` and `deny`, and a `note`. Every model has a `baseline` lockout scenario, usually losing nothing.
+`me` is what you have without getting it through anything else, the roots everything is reached from: usually places, such as `head` (what you remember), `body` (biometrics, turning up in person), `carried`, `home` and `contacts` (people who'd lend you a device). That's the normal day, a built-in scenario called `baseline`.
 
-A plan has the same `things`, `scenarios` and `me` as the model, plus a `note`. A field it gives replaces the model's whole field (so restate the full `access` list), a new id adds a thing, and `id: null` removes one, which nothing may still refer to. Plans apply in the order given: `./reach.ts --plan spare_key --plan backup`.
+A scenario has a `kind` (`lockout` or `breach`), what's `lost` (lockout) or what the `attacker` has (breach), optionally `assume` and `deny`, and a `note`. A lockout takes some of `me` away, and is reported against the normal day, so what's already shaky isn't blamed on the fire. A breach starts from what the attacker has, and is reported against an attacker with nothing, so a guess anyone could make isn't blamed on the theft.
+
+A plan has the same `things`, `scenarios` and `me` as the model, plus a `note`. A field it gives replaces the model's whole field (so restate the whole `access` condition), a new id adds a thing, and `id: null` removes one, which nothing may still refer to. Plans apply in the order given: `./reach.ts --plan spare_key --plan backup`.
 
 The app writes the model in one layout, without comments, whenever you edit it through its forms or press Format, so keep explanations in `note` and `todo`.
 

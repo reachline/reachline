@@ -41,7 +41,7 @@ for (const t of [...ids].sort((a, b) => deepest(b) - deepest(a)).slice(0, 4)) {
   await time(build.waysInView(model, [t], 'all'), `ways into ${t} (all)`);
 }
 
-// Start every critical thing at depth 2, then click each `+` in turn (BFS
+// Start every thing checked for lockouts at depth 2, then click each `+` in turn (BFS
 // order), relaying out after each click with and without seeding positions.
 console.log('\nexpand-on-click: share of on-screen nodes that move per click');
 for (const stable of [false, true]) {
@@ -49,7 +49,7 @@ for (const stable of [false, true]) {
     kept = 0,
     shift = 0,
     clicks = 0;
-  for (const t of ids.filter((id) => model.things.get(id)!.tags.includes('critical'))) {
+  for (const t of ids.filter((id) => model.things.get(id)!.check.includes('lockout'))) {
     const expanded = build.expandToDepth(model, [t], 2);
     let view = build.waysInView(model, [t], expanded);
     let placed = await layout(view, { ...opts, stable });

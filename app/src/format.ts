@@ -1,6 +1,8 @@
 // The canonical text of a model, which guided edits and Format write: the same
 // data, always laid out the same way, without comments or block scalars.
 import { isAlias, isMap, isScalar, isSeq, parse, parseDocument, type Document } from 'yaml';
+import { CondError, fmtCond, parseCond } from '../../engine/cond.ts';
+import { CONDITIONS } from '../../engine/model.ts';
 
 /** Things and scenarios go on one line when they fit in this many columns. */
 const WIDTH = 100;
@@ -8,8 +10,6 @@ const INDENT = '  ';
 
 /** Mappings laid out as blocks, one entry per line, where they hold anything. */
 const CONTAINERS = new Set(['things', 'scenarios', 'plans']);
-/** Fields that are a block list of flow AND-sets when they have more than one. */
-const SETS = new Set(['access', 'recovery']);
 
 /** The text in canonical form. Throws on a YAML syntax error. */
 export function format(text: string): string {
@@ -21,6 +21,7 @@ export function format(text: string): string {
 /** A document's canonical text. */
 export function emit(doc: Document): string {
   if (doc.contents === null) return '';
+  tidyConditions(doc);
   const value = resolve(doc, doc.contents);
   return (isMap(value) ? layer(doc, value, 0).join('\n') : flow(doc, value)) + '\n';
 }
@@ -71,10 +72,7 @@ function entry(doc: Document, key: string, value: unknown, depth: number): strin
   const inner = pad + INDENT;
   const lines = [head];
   for (const [field, v] of pairs(doc, value)) {
-    const k = `${inner}${scalar(field, 'key')}:`;
-    if (SETS.has(field) && isSeq(v) && v.items.length > 1) {
-      lines.push(k, ...v.items.map((s) => `${inner}${INDENT}- ${flow(doc, s)}`));
-    } else lines.push(`${k} ${flow(doc, v, 'block')}`);
+    lines.push(`${inner}${scalar(field, 'key')}: ${flow(doc, v, 'block')}`);
   }
   return lines.join('\n');
 }
@@ -97,6 +95,28 @@ function pairs(doc: Document, map: unknown): [string, unknown][] {
     const k = resolve(doc, p.key);
     return [String(isScalar(k) ? k.value : k), p.value];
   });
+}
+
+/** Each condition, in the model and its plans, spaced and bracketed one way; one that doesn't parse is left as it is. */
+function tidyConditions(doc: Document) {
+  const plans = doc.get('plans', true);
+  const layers = [doc.contents, ...(isMap(plans) ? plans.items.map((p) => p.value) : [])];
+  for (const layer of layers) {
+    const things = isMap(layer) ? layer.get('things', true) : null;
+    if (!isMap(things)) continue;
+    for (const { value: spec } of things.items) {
+      if (!isMap(spec)) continue;
+      for (const field of CONDITIONS) {
+        const v = spec.get(field, true);
+        if (!isScalar(v) || typeof v.value !== 'string') continue;
+        try {
+          v.value = fmtCond(parseCond(v.value));
+        } catch (e) {
+          if (!(e instanceof CondError)) throw e;
+        }
+      }
+    }
+  }
 }
 
 const resolve = (doc: Document, n: unknown): unknown => (isAlias(n) ? n.resolve(doc) : n);

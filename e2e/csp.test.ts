@@ -160,16 +160,23 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await add.getByLabel('Name').fill('tablet');
   await add.getByLabel('Kind').selectOption('device');
   await add.getByRole('button', { name: 'Add', exact: true }).click();
-  const addIn = page.getByRole('combobox', { name: 'Add to in', exact: true });
+  const addIn = page.getByRole('combobox', { name: 'Add to lives in', exact: true });
   await addIn.fill('home');
   await addIn.press('Enter');
-  await page.getByRole('button', { name: 'Remove home from in' }).waitFor();
-  const addWay = page.getByRole('combobox', { name: 'A new access way', exact: true });
-  await addWay.fill('tablet_pin | face');
-  await addWay.press('Enter');
+  await page.getByRole('button', { name: 'Remove home from lives in' }).waitFor();
+  // A condition completes the word at the caret, and offers to create what isn't a thing yet.
+  const access = page.getByRole('combobox', { name: 'Accessed with', exact: true });
+  await access.pressSequentially('tablet_pin or fa');
+  await page
+    .getByRole('listbox', { name: 'Things for accessed with' })
+    .getByRole('option', { name: /^face/ })
+    .waitFor();
+  await access.press('ArrowDown');
+  await access.press('Enter');
+  await access.press('Enter');
   await page.getByRole('group', { name: 'New things' }).getByRole('combobox').selectOption('secret');
   await page.getByRole('button', { name: 'Create and add' }).click();
-  await page.getByText('(tablet_pin | face)').waitFor();
+  await page.locator('#thing-ids option[value="tablet_pin"]').waitFor({ state: 'attached' });
   const name = page.getByRole('textbox', { name: 'Name', exact: true });
   await name.fill('slate');
   await name.blur();

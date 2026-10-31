@@ -1,29 +1,30 @@
 // The model and the reach engine, ported from the original reach.py. Nothing here
 // touches the filesystem, so it runs in the browser as well as the CLI.
 import { parse } from 'yaml';
+import { CondError, fmtCond, holds, parseCond, RESERVED, split, UNKNOWN, words, type Cond } from './cond.ts';
 
 /** What a thing is. Only `state` changes how the engine treats it. */
 export const KINDS = ['location', 'device', 'state', 'secret', 'service', 'data', 'account'] as const;
 export type Kind = (typeof KINDS)[number];
 
-/** Closed, so a misspelled tag can't silently drop a thing from every check. */
-export const TAGS = ['critical', 'sensitive'] as const;
-export type Tag = (typeof TAGS)[number];
+/** What a thing is checked for. Closed, so a misspelling can't silently drop it from every check. */
+export const CHECKS = ['lockout', 'breach'] as const;
+export type Check = (typeof CHECKS)[number];
 
 /** The format version a file may declare with a top-level `version:` (optional). */
 export const VERSION = 1;
 
-/** An element of an access set: an id, "?" (unknown), or a list meaning any-of. */
-export type Expr = string | Expr[];
-export type AndSet = Expr[];
+/** The fields that hold a condition. */
+export const CONDITIONS = ['needs', 'access', 'recovery'] as const;
 
 export interface Spec {
   kind: Kind;
-  tags: Tag[];
+  check: Check[];
+  /** Places, any of which reaches it; `unknown` is one you don't know. */
   in: string[];
-  needs: string[];
-  access: AndSet[];
-  recovery: AndSet[];
+  needs: Cond | null;
+  access: Cond | null;
+  recovery: Cond | null;
   mirrors: { of: string; by: string } | null;
   note?: unknown;
   todo?: unknown;
@@ -47,8 +48,8 @@ export type Why =
   | { kind: 'start' }
   | { kind: 'state' }
   | { kind: 'in'; via: string }
-  // uses: what the path takes from the set, one option per any-of ("?" for an unknown).
-  | { kind: 'access' | 'recovery'; via: AndSet; uses: string[] };
+  // via: the top-level `or` option taken; uses: the ids it takes, one option per `or` (or `unknown`).
+  | { kind: 'access' | 'recovery'; via: Cond; uses: string[] };
 
 export interface Entry {
   a: Assumptions;
@@ -64,16 +65,24 @@ export type Path = (string | number)[];
 /** A problem in the model or the command line; the CLI prints it and exits 1. */
 export class ReachError extends Error {
   /** Where in the document each problem is, for an editor to mark; empty when it isn't in the document. */
-  readonly at: { path: Path; message: string }[];
+  readonly at: Located[];
 
-  constructor(message: string, at: { path: Path; message: string }[] = []) {
+  constructor(message: string, at: Located[] = []) {
     super(message);
     this.at = at;
   }
 }
 
+/** A problem at a path, and for a condition, where in its text (`span`, as offsets into the string). */
+export interface Located {
+  path: Path;
+  message: string;
+  span?: [number, number];
+}
+
 /** An error at one place in the document. */
-const fault = (path: Path, message: string) => new ReachError(message, [{ path, message }]);
+const fault = (path: Path, message: string, span?: [number, number]) =>
+  new ReachError(message, [{ path, message, ...(span && { span }) }]);
 
 /**
  * Where a merged thing or scenario came from. Plans replace whole fields, so
@@ -103,12 +112,19 @@ const entries = (v: unknown): [string, unknown][] => (isMap(v) ? Object.entries(
 const KEYS = {
   model: ['version', 'things', 'scenarios', 'me', 'plans'],
   plan: ['note', 'things', 'scenarios', 'me'],
-  thing: ['kind', 'tags', 'in', 'needs', 'access', 'recovery', 'mirrors', 'note', 'todo'],
+  thing: ['kind', 'check', 'in', 'needs', 'access', 'recovery', 'mirrors', 'note', 'todo'],
   mirrors: ['of', 'by'],
   scenario: ['kind', 'lost', 'attacker', 'assume', 'deny', 'note'],
 };
 
 export const SCENARIO_KINDS = ['lockout', 'breach'] as const;
+
+/**
+ * The normal day: you with `me`, nothing lost, no states pinned. It's built
+ * in, first among the scenarios, and every lockout is reported against it.
+ */
+export const BASELINE = 'baseline';
+const NORMAL_DAY: Scenario = { kind: 'lockout' };
 
 function checkKeys(layer: Raw, allowed: string[], where: string, at: Path) {
   for (const key of Object.keys(layer)) {
@@ -153,6 +169,8 @@ export function load(
   layers.forEach(([layer, where, prefix], i) => {
     for (const [tid, spec] of entries(layer.things)) {
       const at = [...prefix, 'things', tid];
+      if (RESERVED.includes(tid))
+        throw fault(at, `${where}: ${tid}: ${RESERVED.join(', ')} are words of a condition, not ids`);
       if (spec !== null && !isMap(spec)) throw fault(at, `${where}: ${tid}: expected a mapping`);
       if (spec) checkKeys(spec, KEYS.thing, `${where}: ${tid}`, at);
       if (isMap(spec?.mirrors)) checkKeys(spec.mirrors, KEYS.mirrors, `${where}: ${tid}: mirrors`, [...at, 'mirrors']);
@@ -166,6 +184,12 @@ export function load(
     }
     for (const [name, sc] of entries(layer.scenarios)) {
       const at = [...prefix, 'scenarios', name];
+      if (name === BASELINE) {
+        throw fault(
+          at,
+          `${where}: scenario ${BASELINE}: the normal day is built in (me, with nothing lost); remove this`,
+        );
+      }
       if (sc === null) {
         scenarios.delete(name);
         from.scenarios.delete(name);
@@ -192,7 +216,7 @@ export function load(
   }
   const meList = Array.isArray(me) ? me.map(String) : [];
   validate(things, raw, scenarios, meList, from);
-  return { things, scenarios, me: meList };
+  return { things, scenarios: new Map([[BASELINE, NORMAL_DAY], ...scenarios]), me: meList };
 }
 
 /** Where everything that was merged came from. */
@@ -213,32 +237,29 @@ function normalize(tid: string, raw: Raw, from: Origin): Spec {
       `${tid}: unknown kind: ${JSON.stringify(spec.kind)} (expected one of ${KINDS.join(', ')})`,
     );
   }
-  spec.tags ??= [];
-  if (!Array.isArray(spec.tags)) throw fault(fieldAt(from, 'tags'), `${tid}: tags must be a list`);
-  for (const [i, tag] of (spec.tags as unknown[]).entries()) {
-    if (!oneOf(tag, TAGS)) {
+  for (const key of ['check', 'in']) {
+    spec[key] ??= [];
+    if (!Array.isArray(spec[key])) throw fault(fieldAt(from, key), `${tid}: ${key} must be a list`);
+  }
+  for (const [i, c] of (spec.check as unknown[]).entries()) {
+    if (!oneOf(c, CHECKS)) {
       throw fault(
-        [...fieldAt(from, 'tags'), i],
-        `${tid}: unknown tag: ${JSON.stringify(tag)} (expected ${TAGS.join(' or ')})`,
+        [...fieldAt(from, 'check'), i],
+        `${tid}: unknown check: ${JSON.stringify(c)} (expected ${CHECKS.join(' or ')})`,
       );
     }
   }
-  // in: "?" means an unknown home: reachable only by assuming it.
-  if (spec.in === '?') {
-    spec.in = [];
-    spec.access = [['?'], ...((spec.access as AndSet[] | undefined) ?? [])];
-  }
-  for (const key of ['in', 'needs', 'access', 'recovery']) {
-    spec[key] ??= [];
-    if (spec[key] === '?' && (key === 'access' || key === 'recovery')) spec[key] = [['?']];
-    if (!Array.isArray(spec[key])) throw fault(fieldAt(from, key), `${tid}: ${key} must be a list`);
-  }
-  for (const key of ['access', 'recovery']) {
-    if ((spec[key] as unknown[]).some((s) => !Array.isArray(s))) {
-      // Found in what was written, since `in: "?"` adds a set to `access`.
-      const i = Array.isArray(raw[key]) ? raw[key].findIndex((s) => !Array.isArray(s)) : -1;
-      const at = fieldAt(from, key);
-      throw fault(i < 0 ? at : [...at, i], `${tid}: each ${key} entry must be a list (an AND-set)`);
+  for (const key of CONDITIONS) {
+    const v = spec[key] ?? null;
+    const at = fieldAt(from, key);
+    if (v !== null && typeof v !== 'string') {
+      throw fault(at, `${tid}: ${key} must be a condition, such as: a and (b or c)`);
+    }
+    try {
+      spec[key] = v === null ? null : parseCond(v);
+    } catch (e) {
+      if (!(e instanceof CondError)) throw e;
+      throw fault(at, `${tid}: ${key}: ${e.message}`, [e.from, e.to]);
     }
   }
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- any falsy value means none
@@ -246,18 +267,11 @@ function normalize(tid: string, raw: Raw, from: Origin): Spec {
   return spec as Spec;
 }
 
-export function* refs(expr: Expr | AndSet[]): Generator<string> {
-  if (Array.isArray(expr)) for (const e of expr) yield* refs(e);
-  else if (expr !== '?') yield expr;
-}
-
-/** Every id and "?" in an expression. A list inside an any-of needs all of these. */
-export const leaves = (e: Expr): string[] => (Array.isArray(e) ? e.flatMap(leaves) : [e]);
-
-/** The ids in a field as written, with where each is: what `refs` gives once the field is normalized. */
-function* located(v: unknown, at: Path): Generator<[string, Path]> {
-  if (Array.isArray(v)) for (const [i, e] of v.entries()) yield* located(e, [...at, i]);
-  else if (v !== '?') yield [v as string, at];
+/** The ids in a list or condition as written, with where each is: a list's index, or a condition's span. */
+function located(v: unknown, at: Path): { id: string; path: Path; span?: [number, number] }[] {
+  if (Array.isArray(v)) return v.map((id, i) => ({ id: String(id), path: [...at, i] }));
+  if (typeof v === 'string') return words(v).map((w) => ({ id: w.text, path: at, span: [w.from, w.to] }));
+  return [];
 }
 
 function validate(
@@ -267,13 +281,22 @@ function validate(
   me: string[],
   from: From,
 ) {
-  const bad: { line: string; path: Path; message: string }[] = [];
-  const unknown = (owner: string, r: string, path: Path) =>
-    bad.push({ line: `${owner}: ${r}`, path, message: `unknown reference: ${r}` });
+  const bad: { line: string; path: Path; message: string; span?: [number, number] }[] = [];
+  const unknown = (owner: string, r: string, path: Path, span?: [number, number]) =>
+    bad.push({ line: `${owner}: ${r}`, path, message: `unknown reference: ${r}`, ...(span && { span }) });
+  // `unknown` is a place in `in`, and an assumption in access and recovery; elsewhere it means nothing.
+  const misplaced = (owner: string, key: string, r: string, path: Path, span?: [number, number]) => {
+    const message = r === '?' ? 'write unknown, not ?' : `${r} can't be in ${key}`;
+    bad.push({ line: `${owner}: ${r} (${message})`, path, message, ...(span && { span }) });
+  };
+  const allows = (key: string) => key === 'in' || key === 'access' || key === 'recovery';
   for (const [tid, spec] of things) {
     const o = from.things.get(tid)!;
-    for (const key of ['in', 'needs', 'access', 'recovery'] as const) {
-      for (const [r, at] of located(raw.get(tid)![key] ?? [], fieldAt(o, key))) if (!things.has(r)) unknown(tid, r, at);
+    for (const key of ['in', ...CONDITIONS]) {
+      for (const { id, path, span } of located(raw.get(tid)![key], fieldAt(o, key))) {
+        if (id === '?' || (id === UNKNOWN && !allows(key))) misplaced(tid, key, id, path, span);
+        else if (id !== UNKNOWN && !things.has(id)) unknown(tid, id, path, span);
+      }
     }
     if (spec.mirrors) {
       const at = fieldAt(o, 'mirrors');
@@ -284,8 +307,10 @@ function validate(
   for (const [name, sc] of scenarios) {
     const o = from.scenarios.get(name)!;
     for (const key of ['lost', 'attacker'] as const) {
-      for (const [i, r] of [...(sc[key] ?? [])].entries())
-        if (!things.has(r)) unknown(name, r, [...fieldAt(o, key), i]);
+      for (const [i, r] of [...(sc[key] ?? [])].entries()) {
+        if (r === UNKNOWN || r === '?') misplaced(name, key, r, [...fieldAt(o, key), i]);
+        else if (!things.has(r)) unknown(name, r, [...fieldAt(o, key), i]);
+      }
     }
     for (const key of ['assume', 'deny'] as const) {
       for (const [i, r] of [...(sc[key] ?? [])].entries()) {
@@ -299,11 +324,14 @@ function validate(
       }
     }
   }
-  for (const [i, r] of me.entries()) if (!things.has(r)) unknown('me', r, [...from.me, i]);
+  for (const [i, r] of me.entries()) {
+    if (r === UNKNOWN || r === '?') misplaced('me', 'me', r, [...from.me, i]);
+    else if (!things.has(r)) unknown('me', r, [...from.me, i]);
+  }
   if (bad.length) {
     throw new ReachError(
       'unknown references:\n' + bad.map((b) => `  ${b.line}`).join('\n'),
-      bad.map(({ path, message }) => ({ path, message })),
+      bad.map(({ path, message, span }) => ({ path, message, ...(span && { span }) })),
     );
   }
 }
@@ -317,10 +345,11 @@ export function availability(things: Map<string, Spec>, lost: Set<string>): Map<
     if (stack.includes(tid)) return true;
     const spec = things.get(tid)!;
     const st = [...stack, tid];
+    // A place you don't know is never lost.
     let ok =
       !lost.has(tid) &&
-      spec.needs.every((n) => avail(n, st)) &&
-      (spec.in.length === 0 || spec.in.some((c) => avail(c, st)));
+      (spec.needs === null || holds(spec.needs, (n) => avail(n, st))) &&
+      (spec.in.length === 0 || spec.in.some((c) => c === UNKNOWN || avail(c, st)));
     // A mirror follows its source: once the source is gone, the next sync
     // empties it, as long as whatever runs the sync is still running.
     const mir = spec.mirrors;
@@ -340,23 +369,26 @@ interface Use {
   uses: string[];
 }
 
-/** What one element of an access set relies on and uses, or null if it can't
- *  be reached. An any-of takes the option with the fewest assumptions, the
- *  first listed on a tie. */
-function element(e: Expr, best: Best, owner: string): Use | null {
-  const all = (ids: string[]): Use | null => {
-    const as: Assumptions[] = [];
-    for (const id of ids) {
-      const a = id === '?' ? [owner] : best.get(id)?.a;
-      if (!a) return null;
-      as.push(a);
+/** What a condition relies on and uses, or null if it can't be reached. An
+ *  `or` takes the option with the fewest assumptions, the first listed on a
+ *  tie; `unknown` is an assumption about its owner. */
+function use(c: Cond, best: Best, owner: string): Use | null {
+  if (typeof c === 'string') {
+    const a = c === UNKNOWN ? [owner] : best.get(c)?.a;
+    return a ? { a, uses: [c] } : null;
+  }
+  if (c.op === 'and') {
+    const parts: Use[] = [];
+    for (const x of c.of) {
+      const u = use(x, best, owner);
+      if (!u) return null;
+      parts.push(u);
     }
-    return { a: union(...as), uses: ids };
-  };
-  if (!Array.isArray(e)) return all([e]);
+    return { a: union(...parts.map((p) => p.a)), uses: [...new Set(parts.flatMap((p) => p.uses))] };
+  }
   let min: Use | null = null;
-  for (const option of e) {
-    const u = all(leaves(option));
+  for (const x of c.of) {
+    const u = use(x, best, owner);
     if (u && (!min || u.a.length < min.a.length)) min = u;
   }
   return min;
@@ -393,16 +425,16 @@ const STATE: Why = { kind: 'state' };
 function candidates(tid: string, spec: Spec, best: Best): Entry[] {
   const cands: Entry[] = [];
   for (const c of spec.in) {
-    const e = best.get(c);
-    if (e) cands.push({ a: e.a, why: { kind: 'in', via: c } });
+    const a = c === UNKNOWN ? [tid] : best.get(c)?.a;
+    if (a) cands.push({ a, why: { kind: 'in', via: c } });
   }
   for (const kind of ['access', 'recovery'] as const) {
     const owner = kind === 'access' ? tid : `${tid}.recovery`;
-    for (const s of spec[kind]) {
-      const parts = s.map((e) => element(e, best, owner));
-      if (!parts.every((p) => p !== null)) continue;
-      const uses = [...new Set(parts.flatMap((p) => p.uses))];
-      cands.push({ a: union(...parts.map((p) => p.a)), why: { kind, via: s, uses } });
+    // Each top-level option is a way in of its own.
+    const cond = spec[kind];
+    for (const via of cond === null ? [] : split(cond, 'or')) {
+      const u = use(via, best, owner);
+      if (u) cands.push({ a: u.a, why: { kind, via, uses: u.uses } });
     }
   }
   return cands;
@@ -419,7 +451,7 @@ function candidates(tid: string, spec: Spec, best: Best): Entry[] {
 function ground(things: Map<string, Spec>, best: Best, seed: Best): Best {
   const out: Best = new Map(seed);
   const deps = (w: Why) => (w.kind === 'in' ? [w.via] : w.kind === 'start' || w.kind === 'state' ? [] : w.uses);
-  const placed = (e: Entry) => deps(e.why).every((d) => d === '?' || out.has(d));
+  const placed = (e: Entry) => deps(e.why).every((d) => d === UNKNOWN || out.has(d));
   for (;;) {
     const ready = [...best].filter(([tid, e]) => !out.has(tid) && placed(e));
     for (const [tid, e] of ready) out.set(tid, e);
@@ -433,7 +465,7 @@ function ground(things: Map<string, Spec>, best: Best, seed: Best): Best {
     });
     if (!freed) break;
   }
-  // If the greedy any-of choices ever leave something unplaced, it keeps the
+  // If the greedy `or` choices ever leave something unplaced, it keeps the
   // fixpoint's path; display code guards against loops.
   for (const [tid, e] of best) if (!out.has(tid)) out.set(tid, e);
   return out;
@@ -467,7 +499,7 @@ export function reach(
       if (e) nxt.set(tid, e);
     }
     const done = nxt.size === best.size && [...nxt].every(([k, e]) => best.has(k) && sameEntry(e, best.get(k)!));
-    best = nxt; // on the last pass, its any-of choices come from the final assumptions
+    best = nxt; // on the last pass, its `or` choices come from the final assumptions
     if (done) break;
   }
   return ground(things, best, seed);
@@ -495,8 +527,7 @@ export class Model {
     this.scenarios = scenarios;
     this.me = me;
     this.states = new Set([...things].filter(([, s]) => s.kind === 'state').map(([t]) => t));
-    if (!scenarios.has('baseline')) throw fault(['scenarios'], 'no baseline scenario');
-    this.baseMe = this.run('baseline').best;
+    this.baseMe = this.run(BASELINE).best;
     this.baseNobody = reach(things, [], new Set());
   }
 
@@ -543,7 +574,7 @@ export class Model {
       'if ' +
       [...a]
         .sort()
-        .map((x) => (this.states.has(x) ? `${x} (state)` : `${x} (?)`))
+        .map((x) => (this.states.has(x) ? `${x} (state)` : `${x} (${UNKNOWN})`))
         .join(', ')
     );
   }
@@ -569,10 +600,10 @@ export class Model {
     let cache: Map<string, Best> | undefined;
     const solo = () => (cache ??= this.solo(name));
     const lockout = sc.kind === 'lockout';
-    const base = lockout ? (name === 'baseline' ? null : this.baseMe) : this.baseNobody;
+    const base = lockout ? (name === BASELINE ? null : this.baseMe) : this.baseNobody;
     const out = new Map<string, Row>();
     for (const [t, spec] of this.things) {
-      if (!spec.tags.includes(lockout ? 'critical' : 'sensitive')) continue;
+      if (!spec.check.includes(sc.kind)) continue;
       const r = rank(t, best);
       if (lockout) {
         if (r === 0 || (base !== null && r <= rank(t, base))) continue;
@@ -595,13 +626,8 @@ export class Model {
   }
 }
 
-export function fmtSet(s: AndSet): string {
-  const option = (o: Expr) => (Array.isArray(o) ? '(' + leaves(o).join(' + ') + ')' : o);
-  return s.map((e) => (Array.isArray(e) ? '(' + e.map(option).join(' | ') + ')' : e)).join(' + ');
-}
-
 export function fmtWhy(why: Why): string {
   if (why.kind === 'start' || why.kind === 'state') return why.kind;
   if (why.kind === 'in') return `in ${why.via}`;
-  return `${why.kind} ${fmtSet(why.via)}`;
+  return `${why.kind} ${fmtCond(why.via)}`;
 }

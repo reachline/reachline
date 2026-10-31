@@ -59,6 +59,7 @@ test('text has a contrast of at least 4.5:1 (WCAG 1.4.3)', () => {
     ...['bg', 'surface', 'good-fill', 'bad-fill', 'maybe-fill'].map((bg): [string, string] => ['text', bg]),
     ['muted', 'bg'],
     ['muted', 'surface'],
+    ['muted', 'selected'],
     ['accent', 'bg'],
     ['accent', 'surface'],
     ['accent', 'selected'],

@@ -2,7 +2,7 @@
   // The panel's Details tab: the scenario, and the thing selected in the graph.
   // In edit mode, forms for both.
   import { Check, Pencil, X } from '@lucide/svelte';
-  import { fmtWhy } from '../../engine/model.ts';
+  import { BASELINE, fmtWhy } from '../../engine/model.ts';
   import { what } from '../../engine/report.ts';
   import { isJunction, type VNode } from './build';
   import type { Model, Outcome } from './data';
@@ -45,7 +45,10 @@
   }: Props = $props();
 
   const states = $derived([...(editing?.ids ?? [])].filter(([, k]) => k === 'state').map(([id]) => id));
-  const scenarioSpec = $derived(editing?.written.scenarios[scenarioName]);
+  // The normal day isn't written: its form edits only `me`.
+  const scenarioSpec = $derived(
+    scenarioName === BASELINE ? { kind: 'lockout' } : editing?.written.scenarios[scenarioName],
+  );
   const thingSpec = $derived(selected ? editing?.written.things[selected] : undefined);
 
   const thing = $derived(selected ? model?.things.get(selected) : undefined);
@@ -116,7 +119,7 @@
   {#snippet scenarioPart()}
     {#if edit && editing && scenarioSpec}
       <section aria-label="Scenario">
-        {@render fromPlan('scenarios', scenarioName)}
+        {#if scenarioName !== BASELINE}{@render fromPlan('scenarios', scenarioName)}{/if}
         {#key scenarioName}
           <ScenarioForm
             name={scenarioName}
@@ -161,7 +164,7 @@
       {/key}
     {:else if thing && selected}
       <h2>{selected} <span class="muted">{thing.kind}</span></h2>
-      {#if thing.tags.length}<p class="muted">{thing.tags.join(', ')}</p>{/if}
+      {#if thing.check.length}<p class="muted">Checked for {thing.check.map((c) => `${c}s`).join(' and ')}</p>{/if}
       {#if thing.note}<p>{thing.note}</p>{/if}
       {#if thing.todo}<p class="todo">To do: {thing.todo}</p>{/if}
       {#if scenario}

@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { check, definitionOf } from '../app/src/check.ts';
 
 const EXAMPLE = readFileSync(new URL('../examples/model.yml', import.meta.url), 'utf8');
-const BASE = 'scenarios:\n  baseline: {kind: lockout}\n';
+const BASE = 'scenarios:\n  fire: {kind: lockout}\n';
 
 /** The text of each problem's range. */
 const marked = (text: string, plans: string[] = []) => check(text, plans).problems.map((p) => text.slice(p.from, p.to));
@@ -68,4 +68,10 @@ test('comments are warned about, since guided edits drop them', () => {
     warned.map((p) => text.slice(p.from, p.to)),
     ['# top', '# why'],
   );
+});
+
+test('a problem in a condition is marked on its word, plain or quoted', () => {
+  assert.deepEqual(marked(`things:\n  a: {kind: device, access: a and nope}\n`), ['nope']);
+  assert.deepEqual(marked(`things:\n  a:\n    kind: device\n    needs: "a or (a and b"\n`), ['(']);
+  assert.deepEqual(marked(`things:\n  a: {kind: device, access: a and b or a}\n`), ['or']);
 });

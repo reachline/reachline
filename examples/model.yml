@@ -9,9 +9,9 @@ things:
   contacts: {kind: location, note: friends and family who would lend a device}
 
   laptop: {kind: device, in: [home]}
-  laptop_unlocked: {kind: device, access: [[laptop, [laptop_pw, finger]]]}
+  laptop_unlocked: {kind: device, access: laptop and (laptop_pw or finger)}
   phone: {kind: device, in: [carried]}
-  phone_unlocked: {kind: device, access: [[phone, [phone_pin, face]]]}
+  phone_unlocked: {kind: device, access: phone and (phone_pin or face)}
   hw_key: {kind: device, in: [carried], note: FIDO2 key on the keyring; the only one}
   id_card: {kind: device, in: [carried]}
   loaner:
@@ -22,7 +22,7 @@ things:
   pi: {kind: device, in: [home], note: small always-on server that runs the cloud sync}
   old_drive:
     kind: device
-    in: "?"
+    in: [unknown]
     note: an old backup disk with the tax archive on it
     todo: find it; either in the attic or at my parents'
 
@@ -52,17 +52,12 @@ things:
   vault:
     kind: service
     note: the password manager, decrypted
-    tags: [sensitive]
-    access:
-      - [laptop_unlocked, [pm_master, pm_open_laptop]]
-      - [phone_unlocked, [pm_master, pm_open_phone]]
-      - [loaner, pm_master, hw_key]
+    check: [breach]
+    access: (laptop_unlocked and (pm_master or pm_open_laptop)) or (phone_unlocked and (pm_master or pm_open_phone)) or (loaner and pm_master and hw_key)
   phone_number:
     kind: service
     note: SMS to my number. The SIM has no PIN, so it works in any phone.
-    access:
-      - [phone]
-      - [carrier]
+    access: phone or carrier
     todo: set a SIM PIN
   domain: {kind: service, note: the custom domain my mail address is on, in: [registrar]}
   sync_job:
@@ -70,44 +65,39 @@ things:
     note: one-way sync from the NAS to cloud storage; deletions sync too
     in: [pi]
 
-  documents: {kind: data, in: [docs_nas, docs_cloud], tags: [critical, sensitive]}
+  documents: {kind: data, in: [docs_nas, docs_cloud], check: [lockout, breach]}
   docs_nas: {kind: data, in: [nas]}
   docs_cloud: {kind: data, in: [storage], mirrors: {of: docs_nas, by: sync_job}}
-  tax_archive: {kind: data, in: [old_drive], tags: [critical, sensitive]}
+  tax_archive: {kind: data, in: [old_drive], check: [lockout, breach]}
 
   mail:
     kind: account
-    tags: [critical, sensitive]
-    needs: [domain]
-    access:
-      - [mail_pw, [mail_totp, hw_key]]
-      - [phone_unlocked, mail_session_phone]
-    recovery:
-      - [mail_codes]
-      - [phone_number]
+    check: [lockout, breach]
+    needs: domain
+    access: (mail_pw and (mail_totp or hw_key)) or (phone_unlocked and mail_session_phone)
+    recovery: mail_codes or phone_number
   code_host:
     kind: account
-    tags: [critical, sensitive]
-    access: [[code_pw, [code_totp, [hw_key, key_pin]]]]
-    recovery: "?"
+    check: [lockout, breach]
+    access: code_pw and (code_totp or (hw_key and key_pin))
+    recovery: unknown
     todo: what does support ask for once the 2FA is gone?
   bank:
     kind: account
-    tags: [critical, sensitive]
-    access: [[bank_pw, phone_number]]
-    recovery: [[id_card, body]]
+    check: [lockout, breach]
+    access: bank_pw and phone_number
+    recovery: id_card and body
     note: recovery is in person at a branch, with photo ID
   storage:
     kind: account
     note: cloud storage
-    access: [[storage_pw, hw_key]]
-    recovery: [[mail, "?"]]
+    access: storage_pw and hw_key
+    recovery: mail and unknown
     todo: does a reset by email get past the key?
-  carrier: {kind: account, access: [[carrier_pw]], recovery: [[mail], [id_card, body]]}
-  registrar: {kind: account, access: [[registrar_pw, hw_key]], recovery: [[mail]]}
+  carrier: {kind: account, access: carrier_pw, recovery: mail or (id_card and body)}
+  registrar: {kind: account, access: registrar_pw and hw_key, recovery: mail}
 
 scenarios:
-  baseline: {kind: lockout, lost: []}
   lose_carried: {kind: lockout, lost: [carried]}
   house_fire: {kind: lockout, lost: [home, carried], note: "at night, everything is home"}
   nas_dies:
@@ -140,9 +130,9 @@ plans:
       key_offsite: {kind: device, in: [offsite]}
       hw_key:
         in: []
-        access: [[[key_keyring, key_offsite]]]
+        access: key_keyring or key_offsite
         note: any one of my keys; every account enrolls both
-      mail: {recovery: [[mail_codes]]}
+      mail: {recovery: mail_codes}
     scenarios:
       keys_lost: {kind: lockout, lost: [key_keyring], note: keyring gone}
     me: [head, body, carried, home, contacts, offsite]

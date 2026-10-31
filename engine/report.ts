@@ -1,6 +1,7 @@
 // The text reports: one scenario, a plan's before/after, how one thing is
 // reached, and open questions. Each returns lines; the CLI prints them.
-import { fmtSet, fmtWhy, refs, type Best, type Model, type Row, type Scenario } from './model.ts';
+import { fmtCond, refs, split, UNKNOWN } from './cond.ts';
+import { fmtWhy, type Best, type Model, type Row, type Scenario } from './model.ts';
 
 export function what(sc: Scenario): string {
   return sc.kind === 'lockout'
@@ -85,10 +86,11 @@ export function explain(m: Model, name: string, target: string): string[] {
   if (!best.has(target)) {
     out.push(`${target} not reachable in ${name}. Its ways in:`);
     const spec = m.things.get(target)!;
-    for (const c of spec.in) out.push(`  in ${c}: ${statusOf(m, c, best)}`);
+    for (const c of spec.in) out.push(c === UNKNOWN ? `  in ${c}` : `  in ${c}: ${statusOf(m, c, best)}`);
     for (const kind of ['access', 'recovery'] as const) {
-      for (const s of spec[kind]) {
-        out.push(`  ${kind} ${fmtSet(s)}`);
+      const cond = spec[kind];
+      for (const s of cond === null ? [] : split(cond, 'or')) {
+        out.push(`  ${kind} ${fmtCond(s)}`);
         for (const r of [...new Set(refs(s))].sort()) out.push(`      ${r}: ${statusOf(m, r, best)}`);
       }
     }
@@ -101,12 +103,8 @@ export function explain(m: Model, name: string, target: string): string[] {
     out.push('  '.repeat(depth) + `${tid}  [${fmtWhy(why)}]${note}` + (seen.has(tid) ? '  (above)' : ''));
     if (seen.has(tid) || why.kind === 'start' || why.kind === 'state') return;
     seen.add(tid);
-    if (why.kind === 'in') {
-      walk(why.via, depth + 1);
-      return;
-    }
-    for (const x of why.uses) {
-      if (x === '?') out.push('  '.repeat(depth + 1) + '?');
+    for (const x of why.kind === 'in' ? [why.via] : why.uses) {
+      if (x === UNKNOWN) out.push('  '.repeat(depth + 1) + UNKNOWN);
       else walk(x, depth + 1);
     }
   };

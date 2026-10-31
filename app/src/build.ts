@@ -1,7 +1,8 @@
 // Views of the model as plain nodes and edges, ported from engine/mermaid.ts's
 // builders. Junction ids come from their position in the model (not a
 // counter), so a junction keeps its id as the view expands.
-import { leaves, refs, type AndSet, type Expr, type Kind, type Model } from '../../engine/model.ts';
+import { refs, split, UNKNOWN, type Cond, type Op } from '../../engine/cond.ts';
+import type { Kind, Model } from '../../engine/model.ts';
 import type { Outcome } from './data.ts';
 
 export type NodeKind = Kind | 'and' | 'or' | 'unknown';
@@ -17,7 +18,7 @@ export interface VNode {
   more?: boolean; // has ways in that aren't shown yet
   expanded?: boolean;
   root?: boolean;
-  flag?: boolean; // critical (lockout) or sensitive (breach)
+  flag?: boolean; // checked for the scenario's kind
 }
 
 export interface VEdge {
@@ -63,13 +64,13 @@ export function verdict(n: VNode, scenarioKind: string): { mark?: string; words:
   }
 }
 
-const JUNCTIONS = { and: 'all of these', or: 'any one of these', unknown: 'unknown ways in' };
+const JUNCTIONS = { and: 'all of these (and)', or: 'any one of these (or)', unknown: 'something not known (unknown)' };
 
 /** A node's name for screen readers: what it is, and what the scenario says about it. */
 export function describe(n: VNode, scenarioKind: string): string {
-  if (n.kind === 'and' || n.kind === 'or' || n.kind === 'unknown') return `${JUNCTIONS[n.kind]} (${n.label})`;
+  if (n.kind === 'and' || n.kind === 'or' || n.kind === 'unknown') return JUNCTIONS[n.kind];
   const parts = [n.label, n.kind];
-  if (n.flag) parts.push(scenarioKind === 'breach' ? 'sensitive' : 'critical');
+  if (n.flag) parts.push(`checked for ${scenarioKind}s`);
   const v = verdict(n, scenarioKind);
   if (v) parts.push(v.words);
   if (n.row) parts.push(`flagged: ${n.row.toLowerCase()}`);
@@ -81,7 +82,8 @@ export function describe(n: VNode, scenarioKind: string): string {
 export function incoming(m: Model, tid: string): string[] {
   const t = m.things.get(tid)!;
   const mir = t.mirrors ? [t.mirrors.of] : [];
-  return [...new Set([...t.in, ...t.needs, ...mir, ...refs(t.access), ...refs(t.recovery)])];
+  const places = t.in.filter((c) => c !== UNKNOWN);
+  return [...new Set([...places, ...refs(t.needs), ...mir, ...refs(t.access), ...refs(t.recovery)])];
 }
 
 class Builder {
@@ -105,7 +107,7 @@ class Builder {
   }
 
   junction(id: string, kind: 'and' | 'or' | 'unknown'): string {
-    if (!this.nodes.has(id)) this.nodes.set(id, { id, label: kind === 'unknown' ? '?' : kind.toUpperCase(), kind });
+    if (!this.nodes.has(id)) this.nodes.set(id, { id, label: kind === 'unknown' ? UNKNOWN : kind.toUpperCase(), kind });
     return id;
   }
 
@@ -116,49 +118,26 @@ class Builder {
     else this.edges.set(id, { id, source, target, kind, live });
   }
 
-  /** A junction over items; it holds if any (or) or every (and) item does. */
-  join(
-    path: string,
-    kind: 'and' | 'or',
-    items: Expr[],
-    part: (x: Expr, path: string) => [string, boolean],
-  ): [string, boolean] {
-    const j = this.junction(path, kind);
-    const oks = items.map((x, i) => {
-      const [nid, ok] = part(x, `${path}.${i}`);
-      this.edge(nid, j, 'part', ok);
-      return ok;
+  /** The node standing for a condition at path, and whether it holds by `ok` (an unknown might, so it counts). */
+  cond(c: Cond, path: string, ok: (id: string) => boolean): [string, boolean] {
+    if (c === UNKNOWN) return [this.junction(`${path}?`, 'unknown'), true];
+    if (typeof c === 'string') return [this.node(c), ok(c)];
+    const j = this.junction(path, c.op);
+    const oks = c.of.map((x, i) => {
+      const [nid, live] = this.cond(x, `${path}.${i}`, ok);
+      this.edge(nid, j, 'part', live);
+      return live;
     });
-    return [j, kind === 'or' ? oks.some(Boolean) : oks.every(Boolean)];
+    return [j, c.op === 'or' ? oks.some(Boolean) : oks.every(Boolean)];
   }
 
-  /** The node standing for one element of an access set, and whether it holds. */
-  element(e: Expr, path: string): [string, boolean] {
-    if (e === '?') return [this.junction(`${path}?`, 'unknown'), true];
-    if (typeof e === 'string') return [this.node(e), this.ok(e)];
-    return this.join(path, 'or', e, (x, p) => this.option(x, p));
-  }
-
-  /** One option of an any-of: a list needs every one of its leaves. */
-  option(x: Expr, path: string): [string, boolean] {
-    return Array.isArray(x) ? this.join(path, 'and', leaves(x), (l, p) => this.element(l, p)) : this.element(x, path);
-  }
-
-  accessSet(s: AndSet, target: string, kind: 'access' | 'recovery', i: number) {
-    const path = `${target}/${kind}${i}`;
-    // A lone any-of set is just more alternatives into the target.
-    if (s.length === 1 && Array.isArray(s[0])) {
-      s[0].forEach((x, k) => {
-        const [nid, ok] = this.option(x, `${path}.0.${k}`);
-        this.edge(nid, target, kind, ok);
-      });
-    } else if (s.length === 1) {
-      const [nid, ok] = this.element(s[0], `${path}.0`);
-      this.edge(nid, target, kind, ok);
-    } else {
-      const [j, ok] = this.join(path, 'and', s, (e, p) => this.element(e, p));
-      this.edge(j, target, kind, ok);
-    }
+  /** Edges into target, one for each part of c joined by op at its top: the
+   *  options of access and recovery, the places of in, the requirements of needs. */
+  into(c: Cond | null, op: Op, target: string, kind: EdgeKind, ok: (id: string) => boolean = this.ok) {
+    (c === null ? [] : split(c, op)).forEach((part, i) => {
+      const [nid, live] = this.cond(part, `${target}/${kind}${i}`, ok);
+      this.edge(nid, this.node(target), kind, live);
+    });
   }
 
   color() {
@@ -170,12 +149,12 @@ class Builder {
       if (isJunction(n.kind)) continue;
       const t = this.m.things.get(n.id)!;
       const r = sc.best.get(n.id);
-      n.flag = t.tags.includes(lockout ? 'critical' : 'sensitive');
+      n.flag = t.check.includes(sc.sc.kind);
       n.row = sc.rows.get(n.id)?.[0];
       if (!this.avail(n.id)) n.status = 'gone';
       else if (!lockout && start.has(n.id)) n.status = 'start';
       else if (r) n.status = r.a.length ? 'maybe' : 'has';
-      else if (lockout && t.tags.includes('critical')) n.status = 'lost';
+      else if (lockout && t.check.includes('lockout')) n.status = 'lost';
       else n.status = 'none';
     }
   }
@@ -186,12 +165,15 @@ class Builder {
   }
 }
 
+/** A thing's places as one condition: any one of them. */
+const places = (ins: string[]): Cond | null => (ins.length ? { op: 'or', of: ins } : null);
+
 /** Containment (in), dependencies (needs) and mirrors, for everything that has them. */
 export function whereView(m: Model, sc?: Outcome): View {
   const b = new Builder(m, sc);
   for (const [tid, t] of m.things) {
-    for (const c of t.in) b.edge(b.node(c), b.node(tid), 'in');
-    for (const n of t.needs) b.edge(b.node(n), b.node(tid), 'needs');
+    b.into(places(t.in), 'or', tid, 'in');
+    b.into(t.needs, 'and', tid, 'needs', b.avail);
     if (t.mirrors) b.edge(b.node(t.mirrors.of), b.node(tid), 'mirror');
   }
   return b.view();
@@ -218,11 +200,11 @@ export function waysInView(m: Model, roots: string[], expanded: Set<string> | 'a
     }
     node.expanded = ins.length > 0;
     const t = m.things.get(tid)!;
-    for (const c of t.in) b.edge(b.node(c), tid, 'in', b.ok(c));
-    for (const n of t.needs) b.edge(b.node(n), tid, 'needs', b.avail(n));
+    b.into(places(t.in), 'or', tid, 'in');
+    b.into(t.needs, 'and', tid, 'needs', b.avail);
     if (t.mirrors) b.edge(b.node(t.mirrors.of), tid, 'mirror');
-    t.access.forEach((s, i) => b.accessSet(s, tid, 'access', i));
-    t.recovery.forEach((s, i) => b.accessSet(s, tid, 'recovery', i));
+    b.into(t.access, 'or', tid, 'access');
+    b.into(t.recovery, 'or', tid, 'recovery');
     frontier.push(...ins);
   }
   for (const r of roots) b.nodes.get(r)!.root = true;

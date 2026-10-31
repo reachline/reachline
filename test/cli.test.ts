@@ -69,6 +69,7 @@ test('a broken model exits 1 and says where', () => {
   fails(['--model', write('list.yml', '- a\n')], /list\.yml: expected a mapping/);
   fails(['--model', write('version.yml', 'version: 2\n')], /version 2/);
   fails(['--model', write('refs.yml', 'things: {a: {kind: device, in: [nowhere]}}\n')], /nowhere/);
-  fails(['--model', write('baseline.yml', 'things: {a: {kind: device}}\n')], /baseline/);
+  fails(['--model', write('baseline.yml', 'scenarios: {baseline: {kind: lockout}}\n')], /baseline.*built in/);
+  fails(['--model', write('cond.yml', 'things: {a: {kind: device, access: a and b or c}}\n')], /bracket/);
   fails(['--model', write('sections.yml', 'devices: {a: {}}\n')], /devices/);
 });

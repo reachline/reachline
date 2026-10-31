@@ -39,10 +39,7 @@ things:
 
   cloudflare:
     kind: account
-    tags: [critical, sensitive]
-    access:
-      # The password, or a reset by email; then any second factor.
-      - [[cloudflare_pw, mail], [cloudflare_totp, cloudflare_key, cloudflare_mail_code]]
-    recovery:
-      - [[cloudflare_pw, mail], cloudflare_codes]
-      - [mail, laptop_unlocked]
+    check: [lockout, breach]
+    # The password, or a reset by email; then any second factor.
+    access: (cloudflare_pw or mail) and (cloudflare_totp or cloudflare_key or cloudflare_mail_code)
+    recovery: ((cloudflare_pw or mail) and cloudflare_codes) or (mail and laptop_unlocked)

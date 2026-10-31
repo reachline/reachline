@@ -11,9 +11,11 @@
     values: string[];
     ids: Map<string, string>;
     states?: boolean;
+    /** Takes `unknown` too, as a place you don't know. */
+    unknown?: boolean;
     onchange: (values: string[], created: Created[]) => void;
   }
-  let { label, hint, values, ids, states = false, onchange }: Props = $props();
+  let { label, hint, values, ids, states = false, unknown = false, onchange }: Props = $props();
 
   const uid = $props.id();
 </script>
@@ -45,7 +47,7 @@
     label={`Add to ${label.toLowerCase()}`}
     {ids}
     {states}
-    onadd={(options: string[][], created: Created[]) =>
-      onchange([...values, ...options.flat().filter((id) => !values.includes(id))], created)}
+    {unknown}
+    onadd={(id: string, created: Created[]) => onchange(values.includes(id) ? values : [...values, id], created)}
   />
 </fieldset>
