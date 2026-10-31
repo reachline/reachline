@@ -15,8 +15,10 @@
     overlaps: { at: string; plans: string[] }[];
     /** Verdicts with the plans that are on, against without them; null with none on. */
     comparison: ScenarioChange[] | null;
-    /** Whether the text loads, so plans can be changed. */
+    /** Whether the text loads, so plans can be changed. Turning them on and off never needs it. */
     editable: boolean;
+    /** Why the plans that are on don't load with the model, if they don't. */
+    error: string;
     onturn: (name: string, on: boolean) => void;
     /** Makes it where edits go (null: the model), and shows the forms. */
     onedit: (name: Layer) => void;
@@ -33,6 +35,7 @@
     overlaps,
     comparison,
     editable,
+    error,
     onturn,
     onedit,
     onapply,
@@ -67,9 +70,13 @@
       What-ifs over the model. The ones that are on show in the graph, in the order they're listed; applying one makes
       it part of the model.
     </p>
-    {#if !editable}<p class="notice" role="status">
-        The text has errors, so plans can't be changed until they're fixed.
-      </p>{/if}
+    {#if error}
+      <p class="notice" role="alert">
+        The plans that are on don’t load with the model: {error}. Turn one off, or fix it in the text.
+      </p>
+    {:else if !editable}
+      <p class="notice" role="status">The text has errors, so plans can't be changed until they're fixed.</p>
+    {/if}
     {#if plans.length}
       <ul class="list">
         {#each plans as p (p.name)}
@@ -78,7 +85,6 @@
               ><input
                 type="checkbox"
                 checked={on.includes(p.name)}
-                disabled={!editable}
                 onchange={(e) => onturn(p.name, e.currentTarget.checked)}
               /><span class="mono">{p.name}</span></label
             >

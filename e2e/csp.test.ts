@@ -216,6 +216,24 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await undo.click();
   await page.getByText('Saved', { exact: true }).waitFor();
 
+  // A plan that doesn't load with the model (this one builds on spare_key) says why, and can be turned off.
+  await page.getByRole('button', { name: 'Text' }).click();
+  await page.locator('.cm-content').click();
+  await page.keyboard.press('ControlOrMeta+End');
+  await page.keyboard.insertText('  after_key:\n    things:\n      key_offsite: {in: [home]}\n');
+  await page.getByRole('button', { name: 'Plans' }).click();
+  const afterKey = page.getByRole('checkbox', { name: 'after_key' });
+  await afterKey.check();
+  await page
+    .getByRole('alert')
+    .filter({ hasText: /don’t load with the model: .*key_offsite/ })
+    .waitFor();
+  await page.getByText('Out of date: the plans that are on don’t load').waitFor();
+  await afterKey.uncheck();
+  await page.getByText('Out of date').waitFor({ state: 'detached' });
+  await undo.click();
+  await page.getByText('Saved', { exact: true }).waitFor();
+
   // Templates: its slots take your things of the same name; it goes in as a plan, or into the model.
   const fromTemplate = page.getByRole('dialog', { name: 'Add from a template' });
   const github = page.getByRole('dialog', { name: 'GitHub' });
@@ -236,6 +254,34 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await github.getByRole('button', { name: 'Add to model' }).click();
   await page.getByText('Added by plan').waitFor({ state: 'detached' });
   await page.locator('#thing-ids option[value="github_pw"]').waitFor({ state: 'attached' });
+  await undo.click();
+  await page.getByText('Saved', { exact: true }).waitFor();
+
+  // Scenarios: choosing one sets the graph's; its checked verdicts, then everything else it leaves worse off.
+  const picker = page.getByRole('combobox', { name: 'Scenario', exact: true });
+  await page.getByRole('button', { name: 'Scenarios', exact: true }).click();
+  await page.getByRole('button', { name: /^burglary/ }).click();
+  assert.equal(await picker.inputValue(), 'burglary');
+  await picker.selectOption('house_fire');
+  await page.getByRole('button', { name: /^house_fire/, pressed: true }).waitFor();
+  const verdicts = page.getByRole('region', { name: 'Worse off than on a normal day' });
+  await verdicts
+    .getByRole('listitem')
+    .filter({ hasText: /^documents\s+LOST/ })
+    .waitFor();
+  await verdicts.getByText(/^Also affected \(/).click();
+  await verdicts
+    .getByRole('listitem')
+    .filter({ hasText: /^laptop\s+LOST/ })
+    .waitFor();
+  // Editing there: a rename follows into the picker; the normal day edits what you have.
+  const scenarioName = page.getByRole('textbox', { name: 'Scenario', exact: true });
+  await scenarioName.fill('fire');
+  await scenarioName.blur();
+  await page.getByRole('button', { name: /^fire/, pressed: true }).waitFor();
+  assert.equal(await picker.inputValue(), 'fire');
+  await page.getByRole('button', { name: /^baseline/ }).click();
+  await page.getByRole('group', { name: 'On a normal day you have' }).waitFor();
   await undo.click();
   await page.getByText('Saved', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Done' }).click();
@@ -307,6 +353,9 @@ test('the pages pass axe', async () => {
     await page.getByRole('checkbox', { name: 'spare_key' }).check();
     await page.locator('.verdicts li').first().waitFor();
     await check('plans');
+    await page.getByRole('button', { name: 'Scenarios', exact: true }).click();
+    await page.getByText(/^Also affected \(/).click();
+    await check('scenarios');
     await page.getByRole('button', { name: 'Add', exact: true }).click();
     await page.getByRole('button', { name: 'From a template…' }).click();
     await page.getByRole('dialog', { name: 'Add from a template' }).waitFor();

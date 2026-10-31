@@ -341,3 +341,22 @@ test('the normal day is built in, first, and can not be written', () => {
   assert.equal(marked(doc({ scenarios: { baseline: { kind: 'lockout' } } }))[0].path, 'scenarios.baseline');
   assert.throws(() => exampleWith({ p: { scenarios: { baseline: { kind: 'lockout' } } } }, ['p']), /built in/);
 });
+
+test('also affected is what checking everything would add, less what the scenario names', () => {
+  const d = parse(EXAMPLE.text) as { things: Record<string, { check?: string[] }> };
+  for (const spec of Object.values(d.things)) spec.check = ['lockout', 'breach'];
+  const m = example();
+  const all = new Model(doc(d));
+  for (const [name, sc] of m.scenarios) {
+    const rows = m.rows(name);
+    const named = [sc.lost, sc.attacker, sc.assume, sc.deny].flat();
+    for (const [t, row] of m.affected(name)) {
+      assert.ok(!rows.has(t) && !named.includes(t), `${name}: ${t}`);
+      assert.deepEqual(all.rows(name).get(t), row, `${name}: ${t}`);
+    }
+  }
+  const fire = m.affected('house_fire');
+  assert.ok(fire.has('laptop') && !fire.has('home') && !fire.has('mail'));
+  // A free state holds only as an assumption on any day, which isn't being worse off.
+  assert.ok(![...m.affected('baseline').keys()].some((t) => m.states.has(t)));
+});

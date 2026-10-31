@@ -1,13 +1,12 @@
 <script lang="ts">
-  // The panel's Details tab: the scenario, and the thing selected in the graph.
-  // In edit mode, forms for both.
-  import { Check, Pencil, X } from '@lucide/svelte';
-  import { BASELINE, fmtWhy } from '../../engine/model.ts';
-  import { what } from '../../engine/report.ts';
+  // The panel's Details tab: the thing selected in the graph, and its status
+  // in the scenario. In edit mode, its form.
+  import { fmtWhy } from '../../engine/model.ts';
   import { isJunction, type VNode } from './build';
   import type { Model, Outcome } from './data';
   import type { Created, Editing } from './edit';
-  import ScenarioForm from './ScenarioForm.svelte';
+  import EditBar from './EditBar.svelte';
+  import FromPlan from './FromPlan.svelte';
   import ThingForm from './ThingForm.svelte';
 
   interface Props {
@@ -26,8 +25,8 @@
     /** Null while the text doesn't load. */
     editing: Editing | null;
     onedit: (on: boolean) => void;
-    /** Shows the text, to fix what keeps the forms off. */
-    ontext: () => void;
+    /** Why the forms are off while editing is null, and what fixes it. */
+    off: { why: string; fix: string; onfix: () => void };
   }
   let {
     model,
@@ -41,14 +40,9 @@
     edit,
     editing,
     onedit,
-    ontext,
+    off,
   }: Props = $props();
 
-  const states = $derived([...(editing?.ids ?? [])].filter(([, k]) => k === 'state').map(([id]) => id));
-  // The normal day isn't written: its form edits only `me`.
-  const scenarioSpec = $derived(
-    scenarioName === BASELINE ? { kind: 'lockout' } : editing?.written.scenarios[scenarioName],
-  );
   const thingSpec = $derived(selected ? editing?.written.things[selected] : undefined);
 
   const thing = $derived(selected ? model?.things.get(selected) : undefined);
@@ -57,100 +51,20 @@
 
 <div class="details">
   <div class="mode" class:beside={!edit}>
-    {#if edit && editing?.plans.length}
-      <label class="field inline"
-        >Edits go into
-        <select
-          value={editing.layer ?? ''}
-          onchange={(e) => editing.setLayer(e.currentTarget.value || null)}
-          class:plan={editing.layer !== null}
-        >
-          <option value="">the model</option>
-          {#each editing.plans as p (p)}<option value={p}>plan {p}</option>{/each}
-        </select>
-      </label>
-    {/if}
-    <!-- Done keeps the edits, like every edit along the way; it isn't a cancel. -->
-    <button class:quiet={!edit} onclick={() => onedit(!edit)}>
-      {#if edit}<Check />Done{:else}<Pencil />Edit{/if}
-    </button>
+    <EditBar {edit} {editing} {onedit} />
   </div>
   {#if edit && !editing}
     <p class="notice" role="status">
-      The text has errors, so the forms are off until they're fixed. <button onclick={ontext}>Show the text</button>
+      {off.why}, so the forms are off until that's fixed. <button onclick={off.onfix}>{off.fix}</button>
     </p>
   {/if}
-  {#if edit && editing}
-    <datalist id="thing-ids">
-      {#each [...editing.ids.keys()] as id (id)}<option value={id}></option>{/each}
-    </datalist>
-    <datalist id="state-ids">
-      {#each states as id (id)}<option value={id}></option>{/each}
-    </datalist>
-  {/if}
-
-  <!-- In a plan: what it adds, or the fields it sets, each of which can go back to the model's. -->
-  {#snippet fromPlan(section: 'things' | 'scenarios', id: string)}
-    {#if editing?.layer}
-      {@const sets = editing.sets(section, id)}
-      {#if !editing.inModel(section, id)}
-        <p class="muted">Added by plan {editing.layer}.</p>
-      {:else if sets.length}
-        <div class="sets">
-          <span class="muted">Plan {editing.layer} sets</span>
-          <ul class="chips">
-            {#each sets as f (f)}
-              <li class="chip">
-                {f}<button
-                  class="quiet icon"
-                  aria-label={`Use the model's ${f}`}
-                  title="Use the model's"
-                  onclick={() => editing.revert(section, id, f)}><X /></button
-                >
-              </li>
-            {/each}
-          </ul>
-        </div>
-      {/if}
-    {/if}
-  {/snippet}
-
-  <!-- What the scenario is. While editing it follows the thing, which is what's being worked on. -->
-  {#snippet scenarioPart()}
-    {#if edit && editing && scenarioSpec}
-      <section aria-label="Scenario">
-        {#if scenarioName !== BASELINE}{@render fromPlan('scenarios', scenarioName)}{/if}
-        {#key scenarioName}
-          <ScenarioForm
-            name={scenarioName}
-            spec={scenarioSpec}
-            me={editing.written.me}
-            ids={editing.ids}
-            onset={(field: string, value: unknown, created?: Created[]) =>
-              editing.setScenario(scenarioName, field, value, created)}
-            onme={editing.setMe}
-            onrename={(to: string) => editing.renameScenario(scenarioName, to)}
-            ondelete={() => editing.deleteScenario(scenarioName)}
-          />
-        {/key}
-      </section>
-    {:else if scenario}
-      <section>
-        <h2>{scenarioName} <span class="muted">{scenario.sc.kind}</span></h2>
-        <p class="muted">{what(scenario.sc)}</p>
-        {#if scenario.sc.note}<p>{scenario.sc.note}</p>{/if}
-      </section>
-    {/if}
-  {/snippet}
-
-  {#if !edit}{@render scenarioPart()}{/if}
 
   <section>
     {#if node && isJunction(node.kind)}
       <h2>{node.label} junction</h2>
       <p class="muted mono">{node.id}</p>
     {:else if edit && editing && selected && thingSpec}
-      {@render fromPlan('things', selected)}
+      <FromPlan {editing} section="things" id={selected} />
       {#key selected}
         <ThingForm
           id={selected}
@@ -169,12 +83,12 @@
       {#if thing.todo}<p class="todo">To do: {thing.todo}</p>{/if}
       {#if scenario}
         {#if !scenario.avail.get(selected)}
-          <p><b>Gone</b> in this scenario.</p>
+          <p><b>Gone</b> in {scenarioName}.</p>
         {:else if reach}
-          <p><b>Reached</b>{reach.a.length ? ` if ${reach.a.join(', ')}` : ' outright'}</p>
+          <p><b>Reached</b> in {scenarioName}{reach.a.length ? ` if ${reach.a.join(', ')}` : ' outright'}</p>
           <p class="mono">via {fmtWhy(reach.why)}</p>
         {:else}
-          <p><b>Not reached.</b></p>
+          <p><b>Not reached</b> in {scenarioName}.</p>
         {/if}
         {#if scenario.rows.has(selected)}<p class="row">{scenario.rows.get(selected)![0]}</p>{/if}
       {/if}
@@ -196,8 +110,6 @@
       </p>
     {/if}
   </section>
-
-  {#if edit}{@render scenarioPart()}{/if}
 </div>
 
 <style>
@@ -229,26 +141,9 @@
   .mode.beside + * {
     grid-area: 1 / 1;
   }
-  select.plan {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
-  .sets {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-  }
-  datalist {
-    display: none;
-  }
   section {
     display: grid;
     gap: var(--space-2);
-  }
-  section + section {
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--border);
   }
   h2 {
     font-size: var(--text-md);

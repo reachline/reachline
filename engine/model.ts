@@ -596,6 +596,25 @@ export class Model {
 
   /** Problems in a scenario: id -> (status, how). */
   rows(name: string): Map<string, Row> {
+    const kind = this.scenario(name).kind;
+    return this.judge(name, (spec) => spec.check.includes(kind));
+  }
+
+  /**
+   * Everything else that's worse off: what isn't checked for the scenario's
+   * kind, leaving out what the scenario names itself, and states that hold
+   * only as an assumption (any free state does, on any day).
+   */
+  affected(name: string): Map<string, Row> {
+    const sc = this.scenario(name);
+    const named = new Set([sc.lost, sc.attacker, sc.assume, sc.deny].flatMap((ids) => ids ?? []));
+    return this.judge(
+      name,
+      (spec, t, e) => !spec.check.includes(sc.kind) && !named.has(t) && !(e?.why.kind === 'state' && e.a.length),
+    );
+  }
+
+  private judge(name: string, include: (spec: Spec, t: string, e: Entry | undefined) => boolean): Map<string, Row> {
     const { sc, best } = this.run(name);
     let cache: Map<string, Best> | undefined;
     const solo = () => (cache ??= this.solo(name));
@@ -603,7 +622,7 @@ export class Model {
     const base = lockout ? (name === BASELINE ? null : this.baseMe) : this.baseNobody;
     const out = new Map<string, Row>();
     for (const [t, spec] of this.things) {
-      if (!spec.check.includes(sc.kind)) continue;
+      if (!include(spec, t, best.get(t))) continue;
       const r = rank(t, best);
       if (lockout) {
         if (r === 0 || (base !== null && r <= rank(t, base))) continue;

@@ -8,6 +8,7 @@
     Plus,
     Redo2,
     RotateCcw,
+    ShieldAlert,
     SlidersHorizontal,
     TextAlignStart,
     Undo2,
@@ -53,6 +54,7 @@
   import { KINDS, SCENARIO_KINDS } from '../../engine/model.ts';
   import { compare, type ScenarioChange } from '../../engine/report.ts';
   import Plans from './Plans.svelte';
+  import Scenarios from './Scenarios.svelte';
   import TemplateDialog from './TemplateDialog.svelte';
   import type { Template } from './template';
   import Verdicts from './Verdicts.svelte';
@@ -99,9 +101,10 @@
   // The panel beside the graph: which tab is open (none when it's closed), and
   // how wide it is, as this device last had them. Phones start with it closed,
   // since there it covers the graph.
-  type Tab = 'details' | 'text' | 'history' | 'plans';
+  type Tab = 'details' | 'scenarios' | 'text' | 'history' | 'plans';
   const TABS = [
     ['details', 'Details', Info],
+    ['scenarios', 'Scenarios', ShieldAlert],
     ['text', 'Text', FileCode],
     ['history', 'History', FileClock],
     ['plans', 'Plans', Layers],
@@ -132,6 +135,8 @@
   let formatError = $state('');
   // The latest text doesn't load, so the graph shows the last text that did.
   let invalid = $state(false);
+  // Why the plans that are on don't load with the model, when the model loads without them.
+  let planError = $state('');
   // The text last checked. Checking waits for typing to pause, so the text can be ahead of it.
   let checked = $state<string | null>(null);
   // Where the thing last selected in the graph is defined, for the editor to show.
@@ -298,7 +303,31 @@
     } catch (e) {
       if (!(e instanceof ReachError)) throw e;
       error = e.message;
-      showTab('text');
+      planError = whyPlans(t);
+      showTab(planError ? 'plans' : 'text');
+    }
+  }
+
+  /** What's wrong with the plans that are on, if the model loads without them. */
+  function whyPlans(t: string): string {
+    const on = inOrder(t);
+    if (!on.length || !loads(t, [])) return '';
+    try {
+      loadModel(t, on);
+      return '';
+    } catch (e) {
+      if (!(e instanceof ReachError)) throw e;
+      return e.message;
+    }
+  }
+
+  function loads(t: string, plans: string[]) {
+    try {
+      loadModel(t, plans);
+      return true;
+    } catch (e) {
+      if (!(e instanceof ReachError)) throw e;
+      return false;
     }
   }
 
@@ -317,6 +346,7 @@
   function lint(t: string) {
     const { model: m, problems } = check(t, inOrder(t));
     invalid = !m;
+    planError = m ? '' : whyPlans(t);
     checked = t;
     if (m) show(m);
     return problems;
@@ -573,7 +603,7 @@
     if (!apply(addScenario(layer, name, kind === 'breach' ? { kind, attacker: [] } : { kind, lost: [] }))) return;
     scenarioName = name;
     setEditMode(true);
-    showTab('details');
+    showTab('scenarios');
   }
 
   type Things = Record<string, Record<string, unknown>>;
@@ -700,6 +730,15 @@
   }
 
   const selNode = $derived(selected ? shown?.view.nodes.find((n) => n.id === selected) : undefined);
+
+  // Why the forms are off, and where to fix it.
+  const off = $derived(
+    planError
+      ? { why: 'The plans that are on don’t load', fix: 'Show the plans', onfix: () => showTab('plans') }
+      : { why: 'The text has errors', fix: 'Show the text', onfix: () => showTab('text') },
+  );
+
+  const stateIds = $derived([...(editing?.ids ?? [])].filter(([, k]) => k === 'state').map(([id]) => id));
 
   const thingsByKind = $derived.by(() => {
     const things = [...(model?.things ?? [])];
@@ -856,7 +895,11 @@
   <main class="canvas" class:outdated={shown && (invalid || lost)}>
     {#if shown && (invalid || lost)}
       <p class="notice badge" role="status">
-        Out of date: {invalid ? 'the text has errors' : `${target} is no longer in the model`}
+        Out of date: {invalid
+          ? planError
+            ? 'the plans that are on don’t load'
+            : 'the text has errors'
+          : `${target} is no longer in the model`}
       </p>
     {/if}
     {#if shown}
@@ -926,8 +969,30 @@
         edit={editMode}
         {editing}
         onedit={setEditMode}
-        ontext={() => showTab('text')}
+        {off}
       />
+    {/if}
+    {#if tab === 'scenarios'}
+      <Scenarios
+        {model}
+        {scenario}
+        {scenarioName}
+        onchoose={(name: string) => (scenarioName = name)}
+        edit={editMode}
+        {editing}
+        onedit={setEditMode}
+        onadd={() => addScenarioDialog?.showModal()}
+        {off}
+      />
+    {/if}
+    {#if editMode && editing}
+      <!-- What the forms' id fields offer. -->
+      <datalist id="thing-ids">
+        {#each [...editing.ids.keys()] as id (id)}<option value={id}></option>{/each}
+      </datalist>
+      <datalist id="state-ids">
+        {#each stateIds as id (id)}<option value={id}></option>{/each}
+      </datalist>
     {/if}
     {#if editorOpened && editorModule && text !== null}
       <section class="tab text" class:hidden={tab !== 'text'} aria-label="Model text">
@@ -964,6 +1029,7 @@
         overlaps={text === null ? [] : overlaps(text, plans)}
         {comparison}
         editable={!!editing}
+        error={planError}
         onturn={turn}
         onedit={editPlan}
         onapply={applyPlanNamed}

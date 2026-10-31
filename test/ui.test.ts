@@ -66,6 +66,7 @@ test('text has a contrast of at least 4.5:1 (WCAG 1.4.3)', () => {
     ['on-accent', 'accent'],
     ['danger', 'surface'],
     ['danger', 'danger-bg'],
+    ['warning', 'surface'],
     ['warning', 'warning-bg'],
     ['warning', 'maybe-fill'],
     ['gone-text', 'gone-fill'],

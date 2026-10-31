@@ -243,6 +243,9 @@ button.quiet:disabled {
   button.danger:not(:disabled):hover {
     background: var(--danger-bg);
   }
+  summary:hover {
+    background: var(--hover);
+  }
 }
 
 /* Icons (Lucide) take the size and colour of the text around them. */
@@ -416,6 +419,18 @@ legend {
 }
 .floating {
   box-shadow: var(--shadow);
+}
+
+/* A disclosure: <details>, opened by its <summary> as a quiet button would be. */
+summary {
+  width: fit-content;
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius);
+  font-weight: 500;
+  cursor: pointer;
+}
+details[open] > summary {
+  margin-bottom: var(--space-2);
 }
 
 /* Surfaces. */
