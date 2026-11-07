@@ -1,8 +1,8 @@
 <script lang="ts">
-  import { Waypoints } from '@lucide/svelte';
+  import Logo from './Logo.svelte';
 </script>
 
-<span class="brand"><Waypoints />ReachLine</span>
+<span class="brand"><Logo />ReachLine</span>
 
 <style>
   .brand {
@@ -12,8 +12,5 @@
     font-size: var(--text-lg);
     font-weight: 650;
     letter-spacing: -0.01em;
-  }
-  .brand :global(.lucide) {
-    color: var(--accent);
   }
 </style>

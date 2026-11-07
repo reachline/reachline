@@ -48,6 +48,7 @@
   --border: light-dark(#e2e2e6, #2e2e34); /* dividers, cards, buttons */
   --control-border: light-dark(#8c8c96, #6b6b75); /* fields: 3:1, so they can be found (WCAG 1.4.11) */
   --hover: light-dark(rgb(0 0 0 / 5%), rgb(255 255 255 / 7%));
+  --brand: light-dark(#a87f00, #bf9000); /* the logo; darker than the favicon's in light, for 3:1 */
   --accent: light-dark(#2457d6, #7aa7ff);
   --accent-hover: light-dark(#1d47b3, #9dbfff);
   --on-accent: light-dark(#ffffff, #0d1526);

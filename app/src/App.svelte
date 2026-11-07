@@ -14,12 +14,12 @@
     Undo2,
     UnfoldVertical,
     WandSparkles,
-    Waypoints,
   } from '@lucide/svelte';
   import { untrack } from 'svelte';
   import { expandToDepth, waysInView, whereView, type View } from './build';
   import AddDialog from './AddDialog.svelte';
   import Details from './Details.svelte';
+  import Logo from './Logo.svelte';
   import {
     addPlan,
     addScenario,
@@ -756,7 +756,7 @@
 
 <div class="app" class:open={tab !== null} style:--panel-w="{Math.min(width, maxWidth)}px">
   <header class="head">
-    <a class="home" href="/" onclick={follow} aria-label="Your models" title="Your models"><Waypoints /></a>
+    <a class="home" href="/" onclick={follow} aria-label="Your models" title="Your models"><Logo /></a>
     <ModelSwitcher {id} {name} />
     <span class="state muted wide-only" role="status">{saving ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved'}</span>
     {#if dirty}
@@ -1141,7 +1141,6 @@
   .home {
     display: inline-flex;
     padding: var(--space-1);
-    color: var(--accent);
   }
   .state {
     font-size: var(--text-sm);
