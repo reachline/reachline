@@ -2,7 +2,7 @@
   import { Background, MarkerType, Panel, SvelteFlow, type Edge, type Node } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import { describe, isJunction, type View } from './build';
-  import type { Snippet } from 'svelte';
+  import { untrack, type Snippet } from 'svelte';
   import JunctionNode from './flow/JunctionNode.svelte';
   import RoutedEdge from './flow/RoutedEdge.svelte';
   import ThingNode from './flow/ThingNode.svelte';
@@ -50,14 +50,14 @@
   let nodes = $state.raw<Node[]>([]);
   let edges = $state.raw<Edge[]>([]);
 
-  $effect(() => {
+  const laidOut = $derived.by((): Node[] => {
     // In reading order, so Tab follows the graph's flow: by column, or by row when it runs down.
     const at = (id: string) => placed.nodes.get(id)!;
     const order = (a: string, b: string) => {
       const [p, q] = [at(a), at(b)];
       return vertical ? p.y - q.y || p.x - q.x : p.x - q.x || p.y - q.y;
     };
-    nodes = [...view.nodes]
+    return [...view.nodes]
       .sort((a, b) => order(a.id, b.id))
       .map((n) => {
         const b = at(n.id);
@@ -69,9 +69,23 @@
           height: b.h,
           draggable: false,
           ariaLabel: describe(n, kind),
-          data: { node: n, vertical, selected: n.id === selected, kind },
+          data: { node: n, vertical, selected: false, kind },
         };
       });
+  });
+
+  // A new selection replaces only the nodes it changes, so Svelte Flow redraws only those.
+  let lastLaidOut: Node[] = [];
+  $effect(() => {
+    const from = laidOut === lastLaidOut ? untrack(() => nodes) : laidOut;
+    lastLaidOut = laidOut;
+    nodes = from.map((n) => {
+      const sel = n.id === selected;
+      return n.data.selected === sel ? n : { ...n, data: { ...n.data, selected: sel } };
+    });
+  });
+
+  $effect(() => {
     edges = view.edges.map((e) => ({
       id: e.id,
       source: e.source,
@@ -125,6 +139,10 @@
   }
   .pane :global(.svelte-flow) {
     --xy-background-color: var(--bg);
+    --xy-attribution-background-color: var(--surface);
+  }
+  .pane :global(.svelte-flow__attribution a) {
+    color: var(--muted);
   }
   .pane :global(.svelte-flow__node) {
     font: var(--graph-font);

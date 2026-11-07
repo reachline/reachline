@@ -106,7 +106,7 @@ pnpm test       # engine, CLI and server tests
 pnpm test:csp   # the built app in Chromium, under the strict CSP (needs pnpm build)
 ```
 
-`pnpm install` sets up a pre-commit hook that runs `pnpm verify`, and CI runs it too, along with `pnpm test:csp`. For `test:csp` locally, first run `pnpm exec playwright install chromium-headless-shell`. After a deliberate change to what the engine computes, update the test snapshot with `node --test --test-update-snapshots "test/*.test.ts"`.
+`pnpm install` sets up a pre-commit hook that checks the formatting of staged files. CI runs `pnpm verify` and `pnpm test:csp`. For `test:csp` locally, first run `pnpm exec playwright install chromium-headless-shell`. After a deliberate change to what the engine computes, update the test snapshot with `node --test --test-update-snapshots "test/*.test.ts"`.
 
 ## Contributing
 
