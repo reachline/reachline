@@ -7,8 +7,8 @@ Everything in a model is a **thing**: the places you keep stuff, your devices, p
 ```yaml
 things:
   home: {kind: location}
-  laptop: {kind: device, in: [home]}
-  mail_pw: {kind: secret, in: [vault]}
+  laptop: {kind: device, in: home}
+  mail_pw: {kind: secret, in: vault}
   mail:
     kind: account
     access: mail_pw and (mail_totp or hw_key)
@@ -54,7 +54,7 @@ Everything has to be reached from somewhere. `me` lists where you start: what yo
 me: [head, body, carried, home, contacts]
 ```
 
-`head` holds what you remember, `body` your fingerprints and face (and turning up in person), `carried` what's on you when you're out, and `contacts` the people who'd lend you a device. A password is reached because it's `in: [head]`, and the laptop because it's `in: [home]`.
+`head` holds what you remember, `body` your fingerprints and face (and turning up in person), `carried` what's on you when you're out, and `contacts` the people who'd lend you a device. A password is reached because it's `in: head`, and the laptop because it's `in: home`.
 
 `me` with nothing lost is the **normal day**. It's built in as a scenario called `baseline`, and every lockout is measured against it.
 
@@ -63,7 +63,7 @@ me: [head, body, carried, home, contacts]
 A scenario is something going wrong.
 
 - A **lockout** takes things away from you: `house_fire: {kind: lockout, lost: [home, carried]}`. ReachLine starts from `me`, takes away what's lost and everything that existed only there, and works out what you can still reach.
-- A **breach** gives things to someone else: `thief_carried: {kind: breach, attacker: [carried]}`. ReachLine starts from what the attacker has, and nothing else (not your memory, not your face), and works out what they can reach.
+- A **breach** gives things to someone else: `thief_carried: {kind: breach, attacker: carried}`. ReachLine starts from what the attacker has, and nothing else (not your memory, not your face), and works out what they can reach.
 
 ## Checks
 

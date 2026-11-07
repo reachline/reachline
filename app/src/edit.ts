@@ -4,7 +4,7 @@
 // everywhere, since a plan can't express one.
 import { isMap, isScalar, parse, parseDocument, type Document, type YAMLMap } from 'yaml';
 import { CondError, fmtCond, parseCond, RESERVED, UNKNOWN, words, type Cond, type Op } from '../../engine/cond.ts';
-import { BASELINE, CONDITIONS, type Kind } from '../../engine/model.ts';
+import { bare, BASELINE, CONDITIONS, LISTS, type Kind } from '../../engine/model.ts';
 import { emit } from './format.ts';
 
 /** Where an edit goes: the base model (null), or a plan by name. */
@@ -42,10 +42,18 @@ const js = (doc: Document, path: Path): unknown => {
   const n = doc.getIn(path, true);
   return n && typeof n === 'object' && 'toJSON' in n ? (n as { toJSON(): unknown }).toJSON() : n;
 };
+/** Deletes what's at path, if it's there: a layer may lack the section altogether. */
+const remove = (doc: Document, path: Path) => doc.hasIn(path) && doc.deleteIn(path);
 /** Values go in as nodes: the format reads nodes, not plain values. */
 const put = (doc: Document, path: Path, v: unknown) => doc.setIn(path, doc.createNode(v));
 const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
 const empty = (v: unknown) => v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length);
+const isList = (field: string) => (LISTS as readonly string[]).includes(field);
+/** A value to compare, where a list of one is the same with or without its brackets. */
+const norm = (field: string, v: unknown) => (isList(field) && bare(v) ? [v] : v);
+
+/** A list field's ids, from a list or one id on its own. */
+export const asList = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : bare(v) ? [String(v)] : []);
 
 export function planNames(doc: Document): string[] {
   const plans = doc.get('plans');
@@ -77,7 +85,10 @@ function set(doc: Document, layer: Layer, section: 'things' | 'scenarios', id: s
     return;
   }
   const base = [section, id];
-  if (doc.hasIn(base) && same(js(doc, [...base, field]) ?? null, empty(value) ? null : value)) {
+  if (
+    doc.hasIn(base) &&
+    same(norm(field, js(doc, [...base, field]) ?? null), norm(field, empty(value) ? null : value))
+  ) {
     if (doc.hasIn(path)) doc.deleteIn(path);
     const left = doc.getIn(at(layer, section, id), true);
     if (isMap(left) && !left.items.length) doc.deleteIn(at(layer, section, id));
@@ -162,6 +173,7 @@ export function prune(field: string, value: unknown, id: string | string[], opti
     const m = value as { of?: unknown; by?: unknown } | null;
     return m && (gone(m.of) || gone(m.by)) ? null : value;
   }
+  if (isList(field) && bare(value)) return gone(value) ? [] : value;
   if (Array.isArray(value)) return value.filter((x) => !gone(x));
   if (!isCondition(field) || typeof value !== 'string') return value;
   let c: Cond;
@@ -185,7 +197,7 @@ export const removeThing =
   (doc) => {
     if (layer === null) {
       for (const l of [null, ...planNames(doc)]) {
-        doc.deleteIn(at(l, 'things', id));
+        remove(doc, at(l, 'things', id));
         pruneLayer(
           doc,
           l,
@@ -232,12 +244,8 @@ function pruneLayer(
     }
   }
   const m = js(doc, me);
-  if (Array.isArray(m) && m.includes(id))
-    put(
-      doc,
-      at(layer, 'me'),
-      m.filter((x) => x !== id),
-    );
+  const pruned = prune('me', m, id);
+  if (!same(pruned, m)) put(doc, at(layer, 'me'), pruned);
 }
 
 /** A field's value with one id swapped for another, wherever it refers to it. */
@@ -249,6 +257,7 @@ export function swap(field: string, v: unknown, from: string, to: string): unkno
       .reverse()
       .reduce((s, w) => s.slice(0, w.from) + to + s.slice(w.to), v);
   }
+  if (isList(field) && bare(v)) return v === from ? to : v;
   if (Array.isArray(v)) return v.map((x: unknown) => (x === from ? to : x));
   if (field === 'mirrors' && v && typeof v === 'object')
     return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x === from ? to : x]));
@@ -258,7 +267,7 @@ export function swap(field: string, v: unknown, from: string, to: string): unkno
 /** Every id a field's value refers to. */
 export function idsIn(field: string, v: unknown): string[] {
   if (typeof v === 'string' && isCondition(field)) return words(v).flatMap((w) => (w.text === UNKNOWN ? [] : [w.text]));
-  if (Array.isArray(v)) return v.filter((x) => x !== UNKNOWN).map(String);
+  if (isList(field)) return asList(v).filter((x) => x !== UNKNOWN);
   if (field === 'mirrors' && v && typeof v === 'object') return Object.values(v).map(String);
   return [];
 }
@@ -297,7 +306,8 @@ export const renameThing =
         }
       }
       const me = js(doc, at(l, 'me'));
-      if (Array.isArray(me) && me.includes(from)) put(doc, at(l, 'me'), swap('me', me, from, to));
+      const swapped = swap('me', me, from, to);
+      if (!same(swapped, me)) put(doc, at(l, 'me'), swapped);
     }
   };
 
@@ -316,7 +326,7 @@ export const removeScenario =
   (layer: Layer, name: string): Edit =>
   (doc) => {
     if (layer !== null && doc.hasIn(['scenarios', name])) put(doc, at(layer, 'scenarios', name), null);
-    else for (const l of layer === null ? [null, ...planNames(doc)] : [layer]) doc.deleteIn(at(l, 'scenarios', name));
+    else for (const l of layer === null ? [null, ...planNames(doc)] : [layer]) remove(doc, at(l, 'scenarios', name));
   };
 
 export const addPlan =
@@ -417,7 +427,7 @@ export function written(text: string, layer: Layer): Written {
         else out[section][id] = { ...out[section][id], ...obj(spec) };
       }
     }
-    if (Array.isArray(l.me)) out.me = l.me.map(String);
+    if (Array.isArray(l.me) || bare(l.me)) out.me = asList(l.me);
   }
   return out;
 }
@@ -450,7 +460,7 @@ export function changes(before: Written, after: Written): Change[] {
         continue;
       }
       for (const field of new Set([...Object.keys(b), ...Object.keys(a)])) {
-        if (!same(b[field], a[field]))
+        if (!same(norm(field, b[field]), norm(field, a[field])))
           out.push({ id, field, before: show(field, b[field]), after: show(field, a[field]) });
       }
     }

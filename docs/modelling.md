@@ -7,7 +7,7 @@ Start small. The starter model (one of the ways to start a new model in the app,
 `me` is where everything is reached from, so begin with the places you start from: `head`, `body`, `carried`, `home`, and `contacts` if friends would lend you a device. Places can sit inside other places: lose `home` and you lose the safe in it too.
 
 ```yaml
-safe: {kind: location, in: [home], note: fire-rated box in the hall closet}
+safe: {kind: location, in: home, note: fire-rated box in the hall closet}
 offsite: {kind: location, note: a friend's house across town}
 ```
 
@@ -23,8 +23,8 @@ This is the question that comes up most. Ask two things about the container:
 If the answer is yes, use `in`. Whoever opens the vault has every password in it, and the files on the NAS die with the NAS:
 
 ```yaml
-mail_pw: {kind: secret, in: [vault]}
-docs_nas: {kind: data, in: [nas]}
+mail_pw: {kind: secret, in: vault}
+docs_nas: {kind: data, in: nas}
 ```
 
 If the answer is no, use `access`. The password manager is a cloud service that outlives your laptop, and the laptop is only one way in to it:
@@ -54,9 +54,9 @@ When the domain lapses, the account goes with it, and no password or recovery co
 A thief who takes your phone has the phone, not what's behind its lock screen. Model a device as two things:
 
 ```yaml
-phone: {kind: device, in: [carried]}
+phone: {kind: device, in: carried}
 phone_unlocked: {kind: device, access: phone and (phone_pin or face)}
-mail_totp: {kind: secret, in: [phone_unlocked], note: authenticator app}
+mail_totp: {kind: secret, in: phone_unlocked, note: authenticator app}
 ```
 
 What lives behind the lock goes `in` the unlocked one. What anyone holding the device can use hangs off the device itself, such as the SIM for text messages: `phone_number: {kind: service, access: phone or carrier}`.
@@ -79,7 +79,7 @@ A scenario can settle a state: `assume` says it holds and `deny` says it doesn't
 ```yaml
 forgot_master_logged_out:
   kind: lockout
-  lost: [pm_master]
+  lost: pm_master
   deny: [pm_open_laptop, pm_open_phone]
 ```
 
@@ -105,7 +105,7 @@ storage:
   recovery: mail and unknown   # a reset by email, if it gets past the key
 old_drive:
   kind: device
-  in: [unknown]
+  in: unknown
   todo: find it; either in the attic or at my parents'
 ```
 
@@ -118,9 +118,9 @@ In `in`, `unknown` is a place you don't know. It's never lost, and it's reached 
 When a file is deleted at the source, a sync deletes the copy. `mirrors` says a copy works that way:
 
 ```yaml
-docs_nas: {kind: data, in: [nas]}
-docs_cloud: {kind: data, in: [storage], mirrors: {of: docs_nas, by: sync_job}}
-sync_job: {kind: service, in: [pi]}
+docs_nas: {kind: data, in: nas}
+docs_cloud: {kind: data, in: storage, mirrors: {of: docs_nas, by: sync_job}}
+sync_job: {kind: service, in: pi}
 ```
 
 The copy is gone once its source is, as long as `sync_job` is still running to carry the loss over. If the sync goes down too, the copy survives: lose both the NAS and the Pi, and the cloud copy is still there. A versioned backup that keeps old versions isn't a mirror, so leave `mirrors` out for one.
@@ -135,16 +135,16 @@ A handful covers most setups:
 
 | Scenario | As written |
 | --- | --- |
-| You lose what you carry | `{kind: lockout, lost: [carried]}` |
+| You lose what you carry | `{kind: lockout, lost: carried}` |
 | A house fire, at night | `{kind: lockout, lost: [home, carried]}` |
-| You forget the master password | `{kind: lockout, lost: [pm_master]}` |
-| A device dies | `{kind: lockout, lost: [nas]}` |
-| A thief takes what you carry | `{kind: breach, attacker: [carried]}` |
-| A burglary | `{kind: breach, attacker: [home]}` |
-| A laptop taken while unlocked | `{kind: breach, attacker: [laptop, laptop_unlocked], assume: [pm_open_laptop]}` |
-| A SIM swap | `{kind: breach, attacker: [carrier]}` |
+| You forget the master password | `{kind: lockout, lost: pm_master}` |
+| A device dies | `{kind: lockout, lost: nas}` |
+| A thief takes what you carry | `{kind: breach, attacker: carried}` |
+| A burglary | `{kind: breach, attacker: home}` |
+| A laptop taken while unlocked | `{kind: breach, attacker: [laptop, laptop_unlocked], assume: pm_open_laptop}` |
+| A SIM swap | `{kind: breach, attacker: carrier}` |
 
-`lost` takes the thing itself, wherever it is, so `lost: [pm_master]` loses the sheet in the safe as well. Losing a place takes only what's in that place alone.
+`lost` takes the thing itself, wherever it is, so `lost: pm_master` loses the sheet in the safe as well. Losing a place takes only what's in that place alone.
 
 ## Notes, not comments
 

@@ -5,24 +5,24 @@ things:
   body: {kind: location, note: biometrics}
   carried: {kind: location, note: on my person when out}
   home: {kind: location}
-  safe: {kind: location, in: [home], note: fire-rated box in the hall closet}
+  safe: {kind: location, in: home, note: fire-rated box in the hall closet}
   contacts: {kind: location, note: friends and family who would lend a device}
 
-  laptop: {kind: device, in: [home]}
+  laptop: {kind: device, in: home}
   laptop_unlocked: {kind: device, access: laptop and (laptop_pw or finger)}
-  phone: {kind: device, in: [carried]}
+  phone: {kind: device, in: carried}
   phone_unlocked: {kind: device, access: phone and (phone_pin or face)}
-  hw_key: {kind: device, in: [carried], note: FIDO2 key on the keyring; the only one}
-  id_card: {kind: device, in: [carried]}
+  hw_key: {kind: device, in: carried, note: FIDO2 key on the keyring; the only one}
+  id_card: {kind: device, in: carried}
   loaner:
     kind: device
-    in: [contacts]
+    in: contacts
     note: a borrowed or newly bought device, good enough to sign in from
-  nas: {kind: device, in: [home]}
-  pi: {kind: device, in: [home], note: small always-on server that runs the cloud sync}
+  nas: {kind: device, in: home}
+  pi: {kind: device, in: home, note: small always-on server that runs the cloud sync}
   old_drive:
     kind: device
-    in: [unknown]
+    in: unknown
     note: an old backup disk with the tax archive on it
     todo: find it; either in the attic or at my parents'
 
@@ -30,45 +30,45 @@ things:
   pm_open_phone: {kind: state, note: password manager unlocked on the phone}
   mail_session_phone: {kind: state, note: mail app signed in on the phone}
 
-  laptop_pw: {kind: secret, in: [head]}
-  phone_pin: {kind: secret, in: [head]}
-  finger: {kind: secret, in: [body]}
-  face: {kind: secret, in: [body]}
-  key_pin: {kind: secret, in: [head], note: FIDO2 PIN}
+  laptop_pw: {kind: secret, in: head}
+  phone_pin: {kind: secret, in: head}
+  finger: {kind: secret, in: body}
+  face: {kind: secret, in: body}
+  key_pin: {kind: secret, in: head, note: FIDO2 PIN}
   pm_master:
     kind: secret
     in: [head, safe]
     note: memorized, plus the emergency sheet in the safe
-  mail_pw: {kind: secret, in: [vault]}
-  mail_totp: {kind: secret, in: [phone_unlocked], note: authenticator app}
-  mail_codes: {kind: secret, in: [safe], note: printed recovery codes}
-  code_pw: {kind: secret, in: [vault]}
-  code_totp: {kind: secret, in: [phone_unlocked]}
-  bank_pw: {kind: secret, in: [vault]}
-  storage_pw: {kind: secret, in: [vault]}
-  carrier_pw: {kind: secret, in: [vault]}
-  registrar_pw: {kind: secret, in: [vault]}
+  mail_pw: {kind: secret, in: vault}
+  mail_totp: {kind: secret, in: phone_unlocked, note: authenticator app}
+  mail_codes: {kind: secret, in: safe, note: printed recovery codes}
+  code_pw: {kind: secret, in: vault}
+  code_totp: {kind: secret, in: phone_unlocked}
+  bank_pw: {kind: secret, in: vault}
+  storage_pw: {kind: secret, in: vault}
+  carrier_pw: {kind: secret, in: vault}
+  registrar_pw: {kind: secret, in: vault}
 
   vault:
     kind: service
     note: the password manager, decrypted
-    check: [breach]
+    check: breach
     access: (laptop_unlocked and (pm_master or pm_open_laptop)) or (phone_unlocked and (pm_master or pm_open_phone)) or (loaner and pm_master and hw_key)
   phone_number:
     kind: service
     note: SMS to my number. The SIM has no PIN, so it works in any phone.
     access: phone or carrier
     todo: set a SIM PIN
-  domain: {kind: service, note: the custom domain my mail address is on, in: [registrar]}
+  domain: {kind: service, note: the custom domain my mail address is on, in: registrar}
   sync_job:
     kind: service
     note: one-way sync from the NAS to cloud storage; deletions sync too
-    in: [pi]
+    in: pi
 
   documents: {kind: data, in: [docs_nas, docs_cloud], check: [lockout, breach]}
-  docs_nas: {kind: data, in: [nas]}
-  docs_cloud: {kind: data, in: [storage], mirrors: {of: docs_nas, by: sync_job}}
-  tax_archive: {kind: data, in: [old_drive], check: [lockout, breach]}
+  docs_nas: {kind: data, in: nas}
+  docs_cloud: {kind: data, in: storage, mirrors: {of: docs_nas, by: sync_job}}
+  tax_archive: {kind: data, in: old_drive, check: [lockout, breach]}
 
   mail:
     kind: account
@@ -98,26 +98,20 @@ things:
   registrar: {kind: account, access: registrar_pw and hw_key, recovery: mail}
 
 scenarios:
-  lose_carried: {kind: lockout, lost: [carried]}
+  lose_carried: {kind: lockout, lost: carried}
   house_fire: {kind: lockout, lost: [home, carried], note: "at night, everything is home"}
-  nas_dies:
-    kind: lockout
-    lost: [nas]
-    note: the pi keeps syncing, so the cloud copy empties too
-  domain_lapses: {kind: lockout, lost: [domain]}
-  forgot_master: {kind: lockout, lost: [pm_master], note: the sheet is gone too}
-  forgot_master_logged_out:
-    kind: lockout
-    lost: [pm_master]
-    deny: [pm_open_laptop, pm_open_phone]
-  thief_carried: {kind: breach, attacker: [carried], note: phone and keys taken while locked}
+  nas_dies: {kind: lockout, lost: nas, note: "the pi keeps syncing, so the cloud copy empties too"}
+  domain_lapses: {kind: lockout, lost: domain}
+  forgot_master: {kind: lockout, lost: pm_master, note: the sheet is gone too}
+  forgot_master_logged_out: {kind: lockout, lost: pm_master, deny: [pm_open_laptop, pm_open_phone]}
+  thief_carried: {kind: breach, attacker: carried, note: phone and keys taken while locked}
   laptop_open:
     kind: breach
     attacker: [laptop, laptop_unlocked]
-    assume: [pm_open_laptop]
+    assume: pm_open_laptop
     note: laptop taken open, password manager unlocked
-  burglary: {kind: breach, attacker: [home]}
-  sim_swap: {kind: breach, attacker: [carrier]}
+  burglary: {kind: breach, attacker: home}
+  sim_swap: {kind: breach, attacker: carrier}
 
 me: [head, body, carried, home, contacts]
 
@@ -126,15 +120,15 @@ plans:
     note: a second FIDO2 key kept off-site, and no more mail resets by SMS
     things:
       offsite: {kind: location, note: a friend's house across town}
-      key_keyring: {kind: device, in: [carried]}
-      key_offsite: {kind: device, in: [offsite]}
+      key_keyring: {kind: device, in: carried}
+      key_offsite: {kind: device, in: offsite}
       hw_key:
         in: []
         access: key_keyring or key_offsite
         note: any one of my keys; every account enrolls both
       mail: {recovery: mail_codes}
     scenarios:
-      keys_lost: {kind: lockout, lost: [key_keyring], note: keyring gone}
+      keys_lost: {kind: lockout, lost: key_keyring, note: keyring gone}
     me: [head, body, carried, home, contacts, offsite]
 
   backup:

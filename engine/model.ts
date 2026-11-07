@@ -17,6 +17,16 @@ export const VERSION = 1;
 /** The fields that hold a condition. */
 export const CONDITIONS = ['needs', 'access', 'recovery'] as const;
 
+/** The fields that hold a list: `check` and `in` on things, the rest on scenarios, and `me`. */
+export const LISTS = ['check', 'in', 'lost', 'attacker', 'assume', 'deny', 'me'] as const;
+
+/**
+ * Whether a value can be a list of one on its own, without brackets: one id,
+ * not `a, b` or `a or b`, which would read as a single id.
+ */
+export const bare = (v: unknown): v is string | number | boolean =>
+  (typeof v === 'string' || typeof v === 'number' || typeof v === 'boolean') && /^[^\s,]+$/.test(String(v));
+
 export interface Spec {
   kind: Kind;
   check: Check[];
@@ -214,9 +224,22 @@ export function load(
       );
     }
   }
-  const meList = Array.isArray(me) ? me.map(String) : [];
-  validate(things, raw, scenarios, meList, from);
-  return { things, scenarios: new Map([[BASELINE, NORMAL_DAY], ...scenarios]), me: meList };
+  validate(things, raw, scenarios, me, from);
+  const lists = (sc: Scenario): Scenario => {
+    const out = { ...sc };
+    for (const key of ['lost', 'attacker', 'assume', 'deny'] as const) {
+      if (key in sc) out[key] = listed(sc[key], [], '').map((x) => x.id);
+    }
+    return out;
+  };
+  return {
+    things,
+    scenarios: new Map([
+      [BASELINE, NORMAL_DAY],
+      ...[...scenarios].map(([n, sc]): [string, Scenario] => [n, lists(sc)]),
+    ]),
+    me: listed(me, [], '').map((x) => x.id),
+  };
 }
 
 /** Where everything that was merged came from. */
@@ -237,17 +260,11 @@ function normalize(tid: string, raw: Raw, from: Origin): Spec {
       `${tid}: unknown kind: ${JSON.stringify(spec.kind)} (expected one of ${KINDS.join(', ')})`,
     );
   }
-  for (const key of ['check', 'in']) {
-    spec[key] ??= [];
-    if (!Array.isArray(spec[key])) throw fault(fieldAt(from, key), `${tid}: ${key} must be a list`);
-  }
-  for (const [i, c] of (spec.check as unknown[]).entries()) {
-    if (!oneOf(c, CHECKS)) {
-      throw fault(
-        [...fieldAt(from, 'check'), i],
-        `${tid}: unknown check: ${JSON.stringify(c)} (expected ${CHECKS.join(' or ')})`,
-      );
-    }
+  for (const key of ['check', 'in'])
+    spec[key] = listed(spec[key], fieldAt(from, key), `${tid}: ${key}`).map((x) => x.id);
+  for (const { id, path } of listed(raw.check, fieldAt(from, 'check'), `${tid}: check`)) {
+    if (!oneOf(id, CHECKS))
+      throw fault(path, `${tid}: unknown check: ${JSON.stringify(id)} (expected ${CHECKS.join(' or ')})`);
   }
   for (const key of CONDITIONS) {
     const v = spec[key] ?? null;
@@ -267,9 +284,27 @@ function normalize(tid: string, raw: Raw, from: Origin): Spec {
   return spec as Spec;
 }
 
-/** The ids in a list or condition as written, with where each is: a list's index, or a condition's span. */
-function located(v: unknown, at: Path): { id: string; path: Path; span?: [number, number] }[] {
+/** An id as written, and where: a path into the document, and for a condition its span in the text. */
+interface Ref {
+  id: string;
+  path: Path;
+  span?: [number, number];
+}
+
+/**
+ * A list's items as written, with where each is: its index, or the field
+ * itself for one written without brackets. `where` names the field in the
+ * error for anything else.
+ */
+function listed(v: unknown, at: Path, where: string): Ref[] {
+  if (v === undefined || v === null) return [];
   if (Array.isArray(v)) return v.map((id, i) => ({ id: String(id), path: [...at, i] }));
+  if (!bare(v)) throw fault(at, `${where} must be one id, or a list such as [a, b]`);
+  return [{ id: String(v), path: at }];
+}
+
+/** The ids in a condition as written, with where each is: its span in the text. */
+function located(v: unknown, at: Path): Ref[] {
   if (typeof v === 'string') return words(v).map((w) => ({ id: w.text, path: at, span: [w.from, w.to] }));
   return [];
 }
@@ -278,7 +313,7 @@ function validate(
   things: Map<string, Spec>,
   raw: Map<string, Raw>,
   scenarios: Map<string, Scenario>,
-  me: string[],
+  me: unknown,
   from: From,
 ) {
   const bad: { line: string; path: Path; message: string; span?: [number, number] }[] = [];
@@ -293,7 +328,9 @@ function validate(
   for (const [tid, spec] of things) {
     const o = from.things.get(tid)!;
     for (const key of ['in', ...CONDITIONS]) {
-      for (const { id, path, span } of located(raw.get(tid)![key], fieldAt(o, key))) {
+      const v = raw.get(tid)![key];
+      const ids = key === 'in' ? listed(v, fieldAt(o, key), '') : located(v, fieldAt(o, key));
+      for (const { id, path, span } of ids) {
         if (id === '?' || (id === UNKNOWN && !allows(key))) misplaced(tid, key, id, path, span);
         else if (id !== UNKNOWN && !things.has(id)) unknown(tid, id, path, span);
       }
@@ -306,27 +343,28 @@ function validate(
   }
   for (const [name, sc] of scenarios) {
     const o = from.scenarios.get(name)!;
+    const items = (key: string) => listed(sc[key], fieldAt(o, key), `${name}: ${key}`);
     for (const key of ['lost', 'attacker'] as const) {
-      for (const [i, r] of [...(sc[key] ?? [])].entries()) {
-        if (r === UNKNOWN || r === '?') misplaced(name, key, r, [...fieldAt(o, key), i]);
-        else if (!things.has(r)) unknown(name, r, [...fieldAt(o, key), i]);
+      for (const { id: r, path } of items(key)) {
+        if (r === UNKNOWN || r === '?') misplaced(name, key, r, path);
+        else if (!things.has(r)) unknown(name, r, path);
       }
     }
     for (const key of ['assume', 'deny'] as const) {
-      for (const [i, r] of [...(sc[key] ?? [])].entries()) {
+      for (const { id: r, path } of items(key)) {
         if (things.get(r)?.kind !== 'state') {
           bad.push({
             line: `${name}: ${r} (not a state)`,
-            path: [...fieldAt(o, key), i],
+            path,
             message: `not a state: ${r}`,
           });
         }
       }
     }
   }
-  for (const [i, r] of me.entries()) {
-    if (r === UNKNOWN || r === '?') misplaced('me', 'me', r, [...from.me, i]);
-    else if (!things.has(r)) unknown('me', r, [...from.me, i]);
+  for (const { id: r, path } of listed(me, from.me, 'me')) {
+    if (r === UNKNOWN || r === '?') misplaced('me', 'me', r, path);
+    else if (!things.has(r)) unknown('me', r, path);
   }
   if (bad.length) {
     throw new ReachError(

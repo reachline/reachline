@@ -2,7 +2,7 @@
 // data, always laid out the same way, without comments or block scalars.
 import { isAlias, isMap, isScalar, isSeq, parse, parseDocument, type Document } from 'yaml';
 import { CondError, fmtCond, parseCond } from '../../engine/cond.ts';
-import { CONDITIONS } from '../../engine/model.ts';
+import { bare, CONDITIONS, LISTS } from '../../engine/model.ts';
 
 /** Things and scenarios go on one line when they fit in this many columns. */
 const WIDTH = 100;
@@ -22,6 +22,7 @@ export function format(text: string): string {
 export function emit(doc: Document): string {
   if (doc.contents === null) return '';
   tidyConditions(doc);
+  tidyLists(doc);
   const value = resolve(doc, doc.contents);
   return (isMap(value) ? layer(doc, value, 0).join('\n') : flow(doc, value)) + '\n';
 }
@@ -115,6 +116,28 @@ function tidyConditions(doc: Document) {
           if (!(e instanceof CondError)) throw e;
         }
       }
+    }
+  }
+}
+
+/** A list of one id, in the model and its plans, written as the id alone. */
+function tidyLists(doc: Document) {
+  const plans = doc.get('plans', true);
+  const maps = [doc.contents, ...(isMap(plans) ? plans.items.map((p) => p.value) : [])].flatMap((layer) => {
+    if (!isMap(layer)) return [];
+    const specs = (key: string) => {
+      const m = layer.get(key, true);
+      return isMap(m) ? m.items.map((p) => p.value) : [];
+    };
+    return [layer, ...specs('things'), ...specs('scenarios')];
+  });
+  for (const map of maps) {
+    if (!isMap(map)) continue;
+    for (const field of LISTS) {
+      const v = resolve(doc, map.get(field, true));
+      if (!isSeq(v) || v.items.length !== 1) continue;
+      const only = resolve(doc, v.items[0]);
+      if (isScalar(only) && bare(only.value)) map.set(field, only);
     }
   }
 }

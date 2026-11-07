@@ -4,7 +4,7 @@
   import { Trash } from '@lucide/svelte';
   import { CHECKS, KINDS } from '../../engine/model.ts';
   import CondField from './CondField.svelte';
-  import type { Created } from './edit';
+  import { asList as list, type Created } from './edit';
   import IdInput from './IdInput.svelte';
   import IdList from './IdList.svelte';
   import NameField from './NameField.svelte';
@@ -24,7 +24,6 @@
   const uid = $props.id();
 
   const str = (v: unknown) => (typeof v === 'string' ? v : '');
-  const list = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
   const checks = $derived(list(spec.check));
   const mirrors = $derived(spec.mirrors as { of?: string; by?: string } | null | undefined);
   // The source of a copy, kept here until what syncs it is given too.

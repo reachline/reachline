@@ -20,7 +20,7 @@ things:
 scenarios:
   sim_swap:
     kind: breach
-    attacker: [carrier]
+    attacker: carrier
 ```
 
 ReachLine follows every path, recovery included, and gives each checked thing a verdict: **LOST**, **REACHED**, **UNSURE** (the path relies on something marked `unknown` because you don't know it) or **DEPENDS** (it relies on a condition of the moment, such as an app being unlocked). It also shows the graph of why. **Plans** are overlays that answer "what changes if I do this?", such as adding a spare security key or replacing a sync with a backup, as a before/after for every scenario. They live in the same file, under `plans:`.

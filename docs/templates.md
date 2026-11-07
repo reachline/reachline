@@ -37,9 +37,9 @@ things:
   phone_unlocked: {kind: device}
   safe: {kind: location}
 
-  github_pw: {kind: secret, in: [vault]}
-  github_totp: {kind: secret, in: [phone_unlocked], note: an authenticator app}
-  github_codes: {kind: secret, in: [safe], note: recovery codes}
+  github_pw: {kind: secret, in: vault}
+  github_totp: {kind: secret, in: phone_unlocked, note: an authenticator app}
+  github_codes: {kind: secret, in: safe, note: recovery codes}
   github:
     kind: account
     check: [lockout, breach]

@@ -36,14 +36,14 @@ things:
   safe: {kind: location}
   laptop_unlocked: {kind: device}
 
-  github_pw: {kind: secret, in: [vault]}
-  github_totp: {kind: secret, in: [phone_unlocked], note: an authenticator app}
-  github_sms: {kind: secret, in: [phone_number], note: codes by text message}
-  github_key: {kind: secret, in: [hw_key], note: a security key}
-  github_mobile: {kind: secret, in: [phone_unlocked], note: 'GitHub Mobile, signed in'}
-  github_passkey: {kind: secret, in: [phone_unlocked], note: 'a passkey, which signs in without the password'}
-  github_codes: {kind: secret, in: [safe], note: recovery codes}
-  github_ssh: {kind: secret, in: [laptop_unlocked], note: 'an SSH key, which can back a recovery request'}
+  github_pw: {kind: secret, in: vault}
+  github_totp: {kind: secret, in: phone_unlocked, note: an authenticator app}
+  github_sms: {kind: secret, in: phone_number, note: codes by text message}
+  github_key: {kind: secret, in: hw_key, note: a security key}
+  github_mobile: {kind: secret, in: phone_unlocked, note: 'GitHub Mobile, signed in'}
+  github_passkey: {kind: secret, in: phone_unlocked, note: 'a passkey, which signs in without the password'}
+  github_codes: {kind: secret, in: safe, note: recovery codes}
+  github_ssh: {kind: secret, in: laptop_unlocked, note: 'an SSH key, which can back a recovery request'}
 
   github:
     kind: account

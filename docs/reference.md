@@ -20,6 +20,10 @@ Every thing has an id, and all things share one namespace. Scenarios and plans h
 
 `and`, `or` and `unknown` are the words of a condition, so no thing can have them as its id. `baseline` is the built-in normal day, so no scenario can have it as its name. A `?` anywhere is an error that says to write `unknown`.
 
+## Lists
+
+A list of one can go without brackets: `in: home` is `in: [home]`, and that's how the app writes it. More than one needs them, as in `in: [head, safe]`, since `in: head, safe` or `in: head or safe` would read as a single id. `[]` is an empty list.
+
 ## Things
 
 | Field | Shape | Meaning |

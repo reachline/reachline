@@ -8,15 +8,15 @@ plans:
     note: a second FIDO2 key kept off-site, and no more mail resets by SMS
     things:
       offsite: {kind: location, note: a friend's house across town}
-      key_keyring: {kind: device, in: [carried]}
-      key_offsite: {kind: device, in: [offsite]}
+      key_keyring: {kind: device, in: carried}
+      key_offsite: {kind: device, in: offsite}
       hw_key:
         in: []
         access: key_keyring or key_offsite
         note: any one of my keys; every account enrolls both
       mail: {recovery: mail_codes}
     scenarios:
-      keys_lost: {kind: lockout, lost: [key_keyring], note: keyring gone}
+      keys_lost: {kind: lockout, lost: key_keyring, note: keyring gone}
     me: [head, body, carried, home, contacts, offsite]
 ```
 

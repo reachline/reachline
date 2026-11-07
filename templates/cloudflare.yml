@@ -31,11 +31,11 @@ things:
   safe: {kind: location}
   laptop_unlocked: {kind: device}
 
-  cloudflare_pw: {kind: secret, in: [vault]}
-  cloudflare_totp: {kind: secret, in: [phone_unlocked], note: an authenticator app}
-  cloudflare_key: {kind: secret, in: [hw_key], note: a security key}
-  cloudflare_mail_code: {kind: secret, in: [mail], note: codes by email}
-  cloudflare_codes: {kind: secret, in: [safe], note: backup codes}
+  cloudflare_pw: {kind: secret, in: vault}
+  cloudflare_totp: {kind: secret, in: phone_unlocked, note: an authenticator app}
+  cloudflare_key: {kind: secret, in: hw_key, note: a security key}
+  cloudflare_mail_code: {kind: secret, in: mail, note: codes by email}
+  cloudflare_codes: {kind: secret, in: safe, note: backup codes}
 
   cloudflare:
     kind: account

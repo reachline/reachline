@@ -4,11 +4,12 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { parse } from 'yaml';
-import { Model } from '../engine/model.ts';
+import { load, Model } from '../engine/model.ts';
 import { EMPTY } from '../app/src/data.ts';
 import {
   addThing,
   applyPlan,
+  asList,
   changes,
   edit,
   overlaps,
@@ -51,9 +52,12 @@ test('the canonical format keeps the data, and formatting twice changes nothing'
     '    odd: {kind: data, note: "yes", todo: "- dash", in: [home]}',
     'scenarios:\r\n  fire: {kind: lockout}',
   ].join('\n');
+  // What the engine reads, with each plan on: a list of one is written without its brackets.
+  const read = (text: string) =>
+    [[], ...plansOf(text).map((p) => [p.name])].map((plans) => load({ path: 'model.yml', text }, plans));
   for (const text of [EXAMPLE, messy, EMPTY]) {
     const once = format(text);
-    assert.deepEqual(parse(once), parse(text));
+    assert.deepEqual(read(once), read(text));
     assert.equal(format(once), once);
     assert.ok(!once.includes('#'));
   }
@@ -67,6 +71,13 @@ test('the canonical format keeps the data, and formatting twice changes nothing'
   assert.equal(
     format('things:\n  a: {kind: device, access: x and}\n'),
     'things:\n  a: {kind: device, access: x and}\n',
+  );
+  // A list of one id is written bare; one that wouldn't read as an id alone keeps its brackets.
+  assert.equal(
+    format(
+      'things:\n  a: {kind: device, in: [x], check: [lockout, breach]}\n  b: {kind: device, in: ["x y"]}\nme: [x]\n',
+    ),
+    'things:\n  a: {kind: device, in: x, check: [lockout, breach]}\n  b: {kind: device, in: [x y]}\n\nme: x\n',
   );
 });
 
@@ -117,6 +128,27 @@ test('removing a thing never widens a way in', () => {
   assert.equal(access_(removed, 'registrar'), undefined);
 });
 
+test('a rename or removal reaches an id written without brackets', () => {
+  const text = [
+    'things:',
+    '  home: {kind: location}',
+    '  pw: {kind: secret, in: home}',
+    'scenarios:',
+    '  fire: {kind: lockout, lost: home}',
+    'me: home',
+    'plans:',
+    '  p:',
+    '    me: home',
+    '',
+  ].join('\n');
+  for (const changed of [edit(text, renameThing('home', 'house')), edit(text, removeThing(null, 'home'))]) {
+    assert.ok(!/\bhome\b/.test(changed), changed);
+    model(changed, ['p']);
+  }
+  // Restating the model's one id, with brackets, sets nothing in a plan.
+  assert.equal(edit(EXAMPLE, setField('backup', 'laptop', 'in', ['home'])), EXAMPLE);
+});
+
 test('a rename swaps whole words in a condition, and nothing else', () => {
   const renamed = edit(EXAMPLE, renameThing('phone', 'mobile'));
   const t = (parse(renamed) as { things: Record<string, { access?: string }> }).things;
@@ -149,7 +181,7 @@ test('a new thing goes after the last of its kind', () => {
 test('a layer reads as written, and its changes field by field', () => {
   const plan = written(EXAMPLE, 'spare_key');
   assert.deepEqual(plan.things.hw_key.in, []);
-  assert.deepEqual(written(EXAMPLE, null).things.old_drive.in, ['unknown']);
+  assert.deepEqual(asList(written(EXAMPLE, null).things.old_drive.in), ['unknown']);
   const after = written(edit(EXAMPLE, removeThing(null, 'hw_key')), null);
   const found = changes(written(EXAMPLE, null), after);
   assert.ok(found.some((c) => c.id === 'hw_key' && c.after === 'removed'));

@@ -35,15 +35,15 @@ things:
   safe: {kind: location}
   recovery_mail: {kind: account}
 
-  google_pw: {kind: secret, in: [vault]}
-  google_prompt: {kind: secret, in: [phone_unlocked], note: Google prompts on a signed-in phone}
-  google_totp: {kind: secret, in: [phone_unlocked], note: an authenticator app}
-  google_sms: {kind: secret, in: [phone_number], note: codes by text or voice call}
-  google_key: {kind: secret, in: [hw_key], note: a security key}
-  google_codes: {kind: secret, in: [safe], note: backup codes}
-  google_passkey: {kind: secret, in: [phone_unlocked], note: 'a passkey, which skips the second step'}
-  google_recovery_mail: {kind: secret, in: [recovery_mail], note: a recovery email}
-  google_recovery_phone: {kind: secret, in: [phone_number], note: a recovery phone}
+  google_pw: {kind: secret, in: vault}
+  google_prompt: {kind: secret, in: phone_unlocked, note: Google prompts on a signed-in phone}
+  google_totp: {kind: secret, in: phone_unlocked, note: an authenticator app}
+  google_sms: {kind: secret, in: phone_number, note: codes by text or voice call}
+  google_key: {kind: secret, in: hw_key, note: a security key}
+  google_codes: {kind: secret, in: safe, note: backup codes}
+  google_passkey: {kind: secret, in: phone_unlocked, note: 'a passkey, which skips the second step'}
+  google_recovery_mail: {kind: secret, in: recovery_mail, note: a recovery email}
+  google_recovery_phone: {kind: secret, in: phone_number, note: a recovery phone}
 
   google:
     kind: account

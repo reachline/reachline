@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { isNode, parse, parseDocument, stringify } from 'yaml';
 import { UNKNOWN } from '../engine/cond.ts';
-import { Model, rank, reach, ReachError, type Best, type Spec } from '../engine/model.ts';
+import { BASELINE, Model, rank, reach, ReachError, type Best, type Spec } from '../engine/model.ts';
 
 const EXAMPLE = { path: 'model.yml', text: readFileSync(new URL('../examples/model.yml', import.meta.url), 'utf8') };
 const example = (...plans: string[]) => new Model(EXAMPLE, plans);
@@ -242,6 +242,30 @@ test('kinds, checks and keys are closed sets, and kind is required', () => {
   // A plan adding a thing must give its kind; one changing a thing needn't.
   assert.throws(() => exampleWith({ p: { things: { new_key: { in: ['home'] } } } }, ['p']), /new_key/);
   assert.ok(example('spare_key').things.get('hw_key')!.kind === 'device');
+});
+
+test('a list of one needs no brackets, but a list of more does', () => {
+  const written = (one: (id: string) => unknown) =>
+    doc({
+      things: {
+        home: { kind: 'location' },
+        open: { kind: 'state' },
+        pw: { kind: 'secret', in: one('home'), check: one('lockout') },
+      },
+      scenarios: {
+        fire: { kind: 'lockout', lost: one('home'), deny: one('open') },
+        thief: { kind: 'breach', attacker: one('home'), assume: one('open') },
+      },
+      me: one('home'),
+    });
+  const bare = new Model(written((id) => id));
+  assert.equal(results(bare), results(new Model(written((id) => [id]))));
+  assert.ok(bare.run(BASELINE).best.has('pw'));
+  // More than one, or a reference that isn't a thing, is marked on the field.
+  const marks = (d: object) => marked(doc(d)).map((m) => `${m.path} ${m.text}`);
+  assert.deepEqual(marks({ things: { a: { kind: 'secret', in: 'home or safe' } } }), ['things.a.in home or safe']);
+  assert.deepEqual(marks({ scenarios: { s: { kind: 'lockout', lost: 'nope' } } }), ['scenarios.s.lost nope']);
+  assert.deepEqual(marks({ me: 'a, b' }), ['me a, b']);
 });
 
 test('errors mark where the problem is written, in the model or a plan', () => {

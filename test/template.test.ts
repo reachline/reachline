@@ -5,6 +5,7 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { parse, stringify } from 'yaml';
 import { Model } from '../engine/model.ts';
+import { asList } from '../app/src/edit.ts';
 import { instantiate, readTemplate, type Choices, type Template } from '../app/src/template.ts';
 
 const DIR = new URL('../templates/', import.meta.url);
@@ -57,7 +58,7 @@ test('a service with no second factor set up asks for the password alone', () =>
 test('slots bind to your things, and the prefix renames what is the template’s', () => {
   const things = instantiate(github, choices(github, { prefix: 'github_work', slots: { vault: 'my_vault' } }));
   assert.ok(!('vault' in things) && !('github' in things));
-  assert.deepEqual(things.github_work_pw.in, ['my_vault']);
+  assert.deepEqual(asList(things.github_work_pw.in), ['my_vault']);
   // By default only the authenticator app: an `or` of one is just it, and the passkey's way in goes.
   assert.equal(things.github_work.access, '(github_work_pw or mail) and github_work_totp');
 });

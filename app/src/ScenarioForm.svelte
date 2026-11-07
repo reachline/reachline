@@ -4,7 +4,7 @@
   // lockout starts from.
   import { Trash } from '@lucide/svelte';
   import { BASELINE, SCENARIO_KINDS } from '../../engine/model.ts';
-  import type { Created } from './edit';
+  import { asList as list, type Created } from './edit';
   import IdList from './IdList.svelte';
   import NameField from './NameField.svelte';
 
@@ -20,7 +20,6 @@
   }
   let { name, spec, me, ids, onset, onme, onrename, ondelete }: Props = $props();
 
-  const list = (v: unknown) => (Array.isArray(v) ? v.map(String) : []);
   const ME_HINT =
     'What you have without getting it through anything else, which everything is reached from: usually places, ' +
     'such as head (what you remember), body, carried, home, and contacts (people who’d lend you a device). ' +
