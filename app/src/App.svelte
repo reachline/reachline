@@ -996,12 +996,6 @@
     {/if}
     {#if editorOpened && editorModule && text !== null}
       <section class="tab text" class:hidden={tab !== 'text'} aria-label="Model text">
-        <div class="bar">
-          <button class="quiet" onclick={formatText} title="Lay the text out the way guided edits do, without comments"
-            ><TextAlignStart />Format</button
-          >
-          {#if formatError}<p class="error" role="alert">{formatError}</p>{/if}
-        </div>
         {#await editorModule then { default: Editor }}
           <Editor
             bind:this={editor}
@@ -1015,7 +1009,21 @@
             {reveal}
             onhistory={(undo: number, redo: number) => (steps = { undo, redo })}
             onready={() => mounted.resolve?.()}
-          />
+            definition={(id: string) => {
+              const at = definitionOf(text ?? '', id, plans);
+              return at && { from: at[0], to: at[1] };
+            }}
+          >
+            {#snippet tools()}
+              {#if formatError}<p class="error" role="alert">{formatError}</p>{/if}
+              <button
+                class="quiet"
+                onclick={formatText}
+                title="Lay the text out the way guided edits do, without comments"
+                ><TextAlignStart /><span class="wide-only">Format</span></button
+              >
+            {/snippet}
+          </Editor>
         {:catch e}
           <p class="status">The editor didn't load: {message(e)}</p>
         {/await}
@@ -1221,19 +1229,7 @@
   .tab {
     height: 100%;
   }
-  .text {
-    display: grid;
-    grid-template-rows: auto minmax(0, 1fr);
-  }
-  .bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-    padding: var(--space-1) var(--space-2);
-    border-bottom: 1px solid var(--border);
-  }
-  .bar .error {
+  .text .error {
     font-size: var(--text-sm);
   }
   .hidden {

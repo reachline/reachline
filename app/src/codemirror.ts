@@ -22,6 +22,14 @@ const theme = EditorView.theme({
     border: '1px solid var(--border)',
   },
   '&.cm-editor .cm-collapsedLines': { color: 'var(--muted)', background: 'var(--active-line)' },
+  '.cm-foldGutter .cm-gutterElement': { padding: '0 4px 0 1px' },
+  '&.cm-editor .cm-foldPlaceholder': {
+    color: 'var(--muted)',
+    backgroundColor: 'var(--hover)',
+    border: '1px solid var(--border)',
+  },
+  '&.cm-editor .cm-searchMatch': { backgroundColor: 'var(--match)', outline: '1px solid var(--warning-border)' },
+  '&.cm-editor .cm-searchMatch.cm-searchMatch-selected': { backgroundColor: 'var(--selection)' },
 });
 
 const highlight = HighlightStyle.define([

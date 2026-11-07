@@ -71,6 +71,7 @@ test('text has a contrast of at least 4.5:1 (WCAG 1.4.3)', () => {
     ['warning', 'maybe-fill'],
     ['gone-text', 'gone-fill'],
     ['start-text', 'start-fill'],
+    ...['text', 'syn-key', 'syn-string'].map((fg): [string, string] => [fg, 'match']),
   ];
   assert.deepEqual(below(4.5, text), []);
 });

@@ -100,6 +100,7 @@
   --syn-key: light-dark(#1d4ed8, #7ab3ff);
   --syn-string: light-dark(#a16207, #e0b341);
   --selection: light-dark(#c7dbff, #2b3d5e);
+  --match: light-dark(#fff6d0, #3d3214); /* what Find finds */
   /* translucent: the selection is drawn behind it */
   --active-line: light-dark(rgb(0 0 0 / 4%), rgb(255 255 255 / 5%));
 }

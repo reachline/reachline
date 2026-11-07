@@ -151,6 +151,23 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await undo.click();
   await page.getByText('Saved', { exact: true }).waitFor();
 
+  // Find shows every match and steps through them; F12 on an id goes to where it's defined.
+  await page.locator('.cm-content').click();
+  await page.keyboard.press('ControlOrMeta+f');
+  await page.keyboard.insertText('(mail_pw');
+  await page.getByText(/^1 of 1$/).waitFor();
+  await page.keyboard.press('Escape');
+  await page.keyboard.press('F12');
+  await page.locator('.cm-activeLine', { hasText: /^\s*mail_pw:/ }).waitFor();
+  await page.getByRole('searchbox', { name: 'Find' }).fill('hw_key');
+  await page.getByText(/^\d+ of \d+$/).waitFor();
+  assert.ok((await page.locator('.cm-searchMatch').count()) > 1);
+  // Folding hides all but the top level.
+  await page.getByRole('button', { name: 'Fold all', exact: true }).click();
+  await page.locator('.cm-content').getByText('laptop_unlocked').waitFor({ state: 'detached' });
+  await page.getByRole('button', { name: 'Unfold all' }).click();
+  await page.locator('.cm-content').getByText('laptop_unlocked').first().waitFor();
+
   // Guided edits: add a thing, fill it in, rename it, delete it, and undo that.
   await page.getByRole('button', { name: 'Details' }).click();
   await page.getByRole('button', { name: 'Edit', exact: true }).click();
@@ -364,6 +381,10 @@ test('the pages pass axe', async () => {
     await page.getByRole('dialog', { name: 'GitHub' }).getByText('Adds').waitFor();
     await check('a template');
     await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Text' }).click();
+    await page.getByRole('searchbox', { name: 'Find' }).fill('home');
+    await page.getByText(/^\d+ of \d+$/).waitFor();
+    await check('the text, finding');
     await page.goBack();
     await page.getByRole('link', { name: 'example' }).waitFor();
     await check('models');
