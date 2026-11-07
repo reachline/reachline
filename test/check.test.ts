@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
-import { check, definitionOf } from '../app/src/check.ts';
+import { check, definitionOf } from '../app/src/lib/check.ts';
 
 const EXAMPLE = readFileSync(new URL('../examples/model.yml', import.meta.url), 'utf8');
 const BASE = 'scenarios:\n  fire: {kind: lockout}\n';

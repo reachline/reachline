@@ -5,8 +5,8 @@ import { readdirSync, readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { parse, stringify } from 'yaml';
 import { Model } from '../engine/model.ts';
-import { asList } from '../app/src/edit.ts';
-import { instantiate, readTemplate, type Choices, type Template } from '../app/src/template.ts';
+import { asList } from '../app/src/lib/edit.ts';
+import { instantiate, readTemplate, type Choices, type Template } from '../app/src/dialogs/template.ts';
 
 const DIR = new URL('../templates/', import.meta.url);
 const templates = readdirSync(DIR)

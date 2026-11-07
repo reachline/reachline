@@ -20,13 +20,18 @@ plus `plan=a,b`, `mode=where|all`, `dir=DOWN`, `routing=SPLINES`,
 Expanding a node places the new nodes in free space upstream without moving
 anything; Tidy runs the full ELK layout from scratch.
 
-- `src/app.css`: the whole look, in light and dark; `src/theme.svelte.ts` keeps
-  the choice of theme. The conventions are in `../.claude/CLAUDE.md`.
-- `src/route.svelte.ts`, `src/Root.svelte`: the pages, and signing in.
-- `src/api.ts`: the server's API (types from `../server/api.ts`).
-- `src/data.ts`: runs a model's text, with any plans, through the engine into
-  the shape the views use.
-- `src/build.ts`: the views (where, ways into, everything) as nodes and edges,
-  ported from the Mermaid builders. Junction ids are stable.
-- `src/layout.ts`: the ELK layered layout, and in-place placement for expanding.
-- `src/FlowView.svelte`, `src/flow/*`: Svelte Flow, drawing ELK's edge routes.
+- `src/app.css`: the whole look, in light and dark. The conventions are in
+  `../.claude/CLAUDE.md`.
+- `src/Root.svelte`: routes to the `pages/`; `pages/App.svelte` is a model open.
+- `src/lib/`: no UI. `api.ts` is the server's API (types from
+  `../server/api.ts`); `data.ts` runs a model's text, with any plans, through
+  the engine; `edit.ts` makes guided edits to the text; `route.svelte.ts` and
+  `theme.svelte.ts` keep the page and the theme.
+- `src/graph/`: `build.ts` makes the views (where, ways into, everything) as
+  nodes and edges, ported from the Mermaid builders, with stable junction ids;
+  `layout.ts` is the ELK layered layout and in-place placement for expanding;
+  `FlowView.svelte` and `flow/` draw it with Svelte Flow, following ELK's
+  edge routes; `export.ts` writes it out.
+- `src/panel/`: the tabs beside the graph. `src/forms/`: the guided-edit
+  fields they use. `src/dialogs/`: Add, and adding from a template.
+- `src/shell/`: what's around every page: the header, menus, the resizer.

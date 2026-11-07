@@ -3,10 +3,10 @@ import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { CLASSES } from '../engine/mermaid.ts';
-import { expandToDepth, isJunction, waysInView, type View } from '../app/src/build.ts';
-import { loadModel, outcome } from '../app/src/data.ts';
-import { toMermaid, toSvg } from '../app/src/export.ts';
-import type { Placed } from '../app/src/shapes.ts';
+import { expandToDepth, isJunction, waysInView, type View } from '../app/src/graph/build.ts';
+import { loadModel, outcome } from '../app/src/lib/data.ts';
+import { toMermaid, toSvg } from '../app/src/graph/export.ts';
+import type { Placed } from '../app/src/graph/shapes.ts';
 
 const EXAMPLE = readFileSync(new URL('../examples/model.yml', import.meta.url), 'utf8');
 const CSS = readFileSync(new URL('../app/src/app.css', import.meta.url), 'utf8');

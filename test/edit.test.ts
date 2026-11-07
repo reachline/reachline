@@ -5,7 +5,7 @@ import { readFileSync } from 'node:fs';
 import { test } from 'node:test';
 import { parse } from 'yaml';
 import { load, Model } from '../engine/model.ts';
-import { EMPTY } from '../app/src/data.ts';
+import { EMPTY } from '../app/src/lib/data.ts';
 import {
   addThing,
   applyPlan,
@@ -20,8 +20,8 @@ import {
   setField,
   written,
   type Edit,
-} from '../app/src/edit.ts';
-import { format } from '../app/src/format.ts';
+} from '../app/src/lib/edit.ts';
+import { format } from '../app/src/lib/format.ts';
 
 const EXAMPLE = readFileSync(new URL('../examples/model.yml', import.meta.url), 'utf8');
 const model = (text: string, plans: string[] = []) => new Model({ path: 'model.yml', text }, plans);

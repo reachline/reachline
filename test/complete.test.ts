@@ -5,7 +5,7 @@ import { test } from 'node:test';
 import { CompletionContext } from '../app/node_modules/@codemirror/autocomplete/dist/index.js';
 import { yaml } from '../app/node_modules/@codemirror/lang-yaml/dist/index.js';
 import { EditorState } from '../app/node_modules/@codemirror/state/dist/index.js';
-import { completeIds, suggest, wordAt } from '../app/src/complete.ts';
+import { completeIds, suggest, wordAt } from '../app/src/panel/complete.ts';
 
 const THINGS: [string, string][] = [
   ['home', 'location'],

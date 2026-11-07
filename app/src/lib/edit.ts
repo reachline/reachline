@@ -1,0 +1,515 @@
+// Guided edits. Each changes the parsed document, which is then written back
+// whole in the canonical format (format.ts), so the text stays the one source
+// of truth. An edit goes to the base model or to one plan; a rename is always
+// everywhere, since a plan can't express one.
+import { isMap, isScalar, parse, parseDocument, type Document, type YAMLMap } from 'yaml';
+import { CondError, fmtCond, parseCond, RESERVED, UNKNOWN, words, type Cond, type Op } from '../../../engine/cond.ts';
+import { bare, BASELINE, CONDITIONS, LISTS, type Kind } from '../../../engine/model.ts';
+import { emit } from './format.ts';
+
+/** Where an edit goes: the base model (null), or a plan by name. */
+export type Layer = string | null;
+export type Edit = (doc: Document) => void;
+type Path = (string | number)[];
+
+/** The text after the edits, in canonical form. Throws on a YAML syntax error. */
+export function edit(text: string, ...edits: Edit[]): string {
+  const doc = parseDocument(text);
+  if (doc.errors.length) throw doc.errors[0];
+  for (const e of edits) e(doc);
+  return emit(doc);
+}
+
+/** Ids the forms give things, scenarios and plans: they never need quoting, in YAML 1.1 or 1.2, and aren't a word of a condition. */
+export const ID = /^[a-z][a-z0-9_]*$/;
+const TAKEN = new Set(['y', 'n', 'yes', 'no', 'on', 'off', 'true', 'false', 'null', ...RESERVED, BASELINE]);
+/** Why an id can't be used, or '' if it can. */
+export function idProblem(id: string): string {
+  if (!ID.test(id)) return 'Use lowercase letters, digits and _, starting with a letter.';
+  return TAKEN.has(id) ? `${id} is a word YAML or ReachLine reads as its own; choose another.` : '';
+}
+export const validId = (id: string) => !idProblem(id);
+
+/** Fields that hold ids. */
+export const REFS = {
+  things: ['in', 'needs', 'access', 'recovery', 'mirrors'],
+  scenarios: ['lost', 'attacker', 'assume', 'deny'],
+};
+
+const at = (layer: Layer, ...path: Path): Path => (layer === null ? path : ['plans', layer, ...path]);
+const keyOf = (k: unknown) => String(isScalar(k) ? k.value : k);
+const js = (doc: Document, path: Path): unknown => {
+  const n = doc.getIn(path, true);
+  return n && typeof n === 'object' && 'toJSON' in n ? (n as { toJSON(): unknown }).toJSON() : n;
+};
+/** Deletes what's at path, if it's there: a layer may lack the section altogether. */
+const remove = (doc: Document, path: Path) => doc.hasIn(path) && doc.deleteIn(path);
+/** Values go in as nodes: the format reads nodes, not plain values. */
+const put = (doc: Document, path: Path, v: unknown) => doc.setIn(path, doc.createNode(v));
+const same = (a: unknown, b: unknown) => JSON.stringify(a) === JSON.stringify(b);
+const empty = (v: unknown) => v === undefined || v === null || v === '' || (Array.isArray(v) && !v.length);
+const isList = (field: string) => (LISTS as readonly string[]).includes(field);
+/** A value to compare, where a list of one is the same with or without its brackets. */
+const norm = (field: string, v: unknown) => (isList(field) && bare(v) ? [v] : v);
+
+/** A list field's ids, from a list or one id on its own. */
+export const asList = (v: unknown): string[] => (Array.isArray(v) ? v.map(String) : bare(v) ? [String(v)] : []);
+
+export function planNames(doc: Document): string[] {
+  const plans = doc.get('plans');
+  return isMap(plans) ? plans.items.map((p) => keyOf(p.key)) : [];
+}
+
+/** The ids of a mapping in the document, in order; none if it isn't there. */
+const keys = (doc: Document, path: Path): string[] => {
+  const m = doc.getIn(path, true);
+  return isMap(m) ? m.items.map((p) => keyOf(p.key)) : [];
+};
+
+/** The mapping at path, made if it's missing (or isn't a mapping). */
+function mapAt(doc: Document, path: Path): YAMLMap {
+  if (!isMap(doc.getIn(path, true))) put(doc, path, {});
+  return doc.getIn(path, true) as YAMLMap;
+}
+
+/**
+ * Sets a field. In the model an empty value removes the field, which means
+ * the same; in a plan it's written, since there it replaces the model's.
+ * A plan's field that comes back to the model's is dropped from the plan.
+ */
+function set(doc: Document, layer: Layer, section: 'things' | 'scenarios', id: string, field: string, value: unknown) {
+  const path = at(layer, section, id, field);
+  if (layer === null) {
+    if (empty(value)) doc.deleteIn(path);
+    else put(doc, path, value);
+    return;
+  }
+  const base = [section, id];
+  if (
+    doc.hasIn(base) &&
+    same(norm(field, js(doc, [...base, field]) ?? null), norm(field, empty(value) ? null : value))
+  ) {
+    if (doc.hasIn(path)) doc.deleteIn(path);
+    const left = doc.getIn(at(layer, section, id), true);
+    if (isMap(left) && !left.items.length) doc.deleteIn(at(layer, section, id));
+  } else put(doc, path, value === undefined || value === '' ? null : value);
+}
+
+export const setField =
+  (layer: Layer, id: string, field: string, value: unknown): Edit =>
+  (doc) =>
+    set(doc, layer, 'things', id, field, value);
+
+export const setScenarioField =
+  (layer: Layer, name: string, field: string, value: unknown): Edit =>
+  (doc) =>
+    set(doc, layer, 'scenarios', name, field, value);
+
+export const setMe =
+  (layer: Layer, me: string[]): Edit =>
+  (doc) =>
+    put(doc, at(layer, 'me'), me);
+
+/** Adds a thing. In the model it goes after the last thing of its kind. */
+export const addThing =
+  (layer: Layer, id: string, spec: Record<string, unknown>): Edit =>
+  (doc) => {
+    const things = mapAt(doc, at(layer, 'things'));
+    if (keys(doc, at(layer, 'things')).includes(id)) throw new Error(`${id} is already a thing`);
+    const pair = doc.createPair(id, spec);
+    const kinds = things.items.map((p) =>
+      isMap(p.value) ? js(doc, [...at(layer, 'things'), keyOf(p.key), 'kind']) : null,
+    );
+    const i = layer === null ? kinds.lastIndexOf(spec.kind) : -1;
+    if (i < 0) things.items.push(pair);
+    else things.items.splice(i + 1, 0, pair);
+  };
+
+export const addScenario =
+  (layer: Layer, name: string, spec: Record<string, unknown>): Edit =>
+  (doc) => {
+    if (keys(doc, at(layer, 'scenarios')).includes(name)) throw new Error(`${name} is already a scenario`);
+    mapAt(doc, at(layer, 'scenarios')).items.push(doc.createPair(name, spec));
+  };
+
+const isCondition = (field: string) => (CONDITIONS as readonly string[]).includes(field);
+const group = (op: Op, of: Cond[]): Cond => (of.length === 1 ? of[0] : { op, of });
+
+/** Where a template's optional things were all left out: a step the service doesn't ask for. */
+const SKIP = Symbol('skip');
+
+/**
+ * Access or recovery without some ids, as if they were false: a part that's
+ * gone makes its `and` fail, and an option that's gone drops out of its `or`.
+ * With `optional`, an `or` left with no options drops out of its `and`
+ * instead, since those were methods never set up. Null if nothing's left.
+ */
+function deny(c: Cond, gone: (id: string) => boolean, optional: boolean): Cond | null | typeof SKIP {
+  if (typeof c === 'string') return gone(c) ? null : c;
+  const parts = c.of.map((x) => deny(x, gone, optional));
+  if (c.op === 'and' && parts.includes(null)) return null;
+  const kept = parts.filter((p): p is Cond => p !== null && p !== SKIP);
+  // An `and` emptied by leaving things out would need nothing at all, so it goes.
+  if (kept.length) return group(c.op, kept);
+  return c.op === 'or' && optional ? SKIP : null;
+}
+
+/** Needs without some ids: they're dropped from wherever they are, as from a list. */
+function drop(c: Cond, gone: (id: string) => boolean): Cond | null {
+  if (typeof c === 'string') return gone(c) ? null : c;
+  const kept = c.of.map((x) => drop(x, gone)).filter((p) => p !== null);
+  return kept.length ? group(c.op, kept) : null;
+}
+
+/**
+ * A field's value without an id, never widening access: lists drop it, and
+ * access and recovery treat it as false (see `deny`). A condition that
+ * doesn't parse is left alone.
+ */
+export function prune(field: string, value: unknown, id: string | string[], optional = false): unknown {
+  // Several at once, since an `or` left with one option reads as a plain part.
+  const gone = (x: unknown) => (Array.isArray(id) ? id.includes(x as string) : x === id);
+  if (field === 'mirrors') {
+    const m = value as { of?: unknown; by?: unknown } | null;
+    return m && (gone(m.of) || gone(m.by)) ? null : value;
+  }
+  if (isList(field) && bare(value)) return gone(value) ? [] : value;
+  if (Array.isArray(value)) return value.filter((x) => !gone(x));
+  if (!isCondition(field) || typeof value !== 'string') return value;
+  let c: Cond;
+  try {
+    c = parseCond(value);
+  } catch (e) {
+    if (e instanceof CondError) return value;
+    throw e;
+  }
+  const out = field === 'needs' ? drop(c, gone) : deny(c, gone, optional);
+  return out === null || out === SKIP ? null : fmtCond(out);
+}
+
+/**
+ * Removes a thing. From the model, it goes from every layer, and every
+ * reference to it is pruned. From a plan, the plan removes it (or stops adding
+ * it), and overrides whatever refers to it, as the model and that plan have it.
+ */
+export const removeThing =
+  (layer: Layer, id: string, optional = false): Edit =>
+  (doc) => {
+    if (layer === null) {
+      for (const l of [null, ...planNames(doc)]) {
+        remove(doc, at(l, 'things', id));
+        pruneLayer(
+          doc,
+          l,
+          id,
+          optional,
+          (section, name, field) => js(doc, at(l, section, name, field)),
+          (s) => keys(doc, at(l, s)),
+        );
+      }
+      return;
+    }
+    if (doc.hasIn(['things', id])) put(doc, at(layer, 'things', id), null);
+    else doc.deleteIn(at(layer, 'things', id));
+    // What the model and this plan give each field, with the plan's own removals left out.
+    const named = (s: 'things' | 'scenarios') =>
+      [...new Set([...keys(doc, [s]), ...keys(doc, at(layer, s))])].filter(
+        (n) => !(doc.hasIn(at(layer, s, n)) && doc.getIn(at(layer, s, n)) === null),
+      );
+    const effective = (section: string, name: string, field: string) =>
+      doc.hasIn(at(layer, section, name, field))
+        ? js(doc, at(layer, section, name, field))
+        : js(doc, [section, name, field]);
+    const me = doc.hasIn(at(layer, 'me')) ? at(layer, 'me') : ['me'];
+    pruneLayer(doc, layer, id, optional, effective, named, me);
+  };
+
+function pruneLayer(
+  doc: Document,
+  layer: Layer,
+  id: string,
+  optional: boolean,
+  value: (section: 'things' | 'scenarios', name: string, field: string) => unknown,
+  names: (section: 'things' | 'scenarios') => string[],
+  me: Path = at(layer, 'me'),
+) {
+  for (const section of ['things', 'scenarios'] as const) {
+    for (const name of names(section)) {
+      for (const field of REFS[section]) {
+        const v = value(section, name, field);
+        if (v === undefined) continue;
+        const pruned = prune(field, v, id, optional);
+        if (!same(pruned, v)) set(doc, layer, section, name, field, pruned);
+      }
+    }
+  }
+  const m = js(doc, me);
+  const pruned = prune('me', m, id);
+  if (!same(pruned, m)) put(doc, at(layer, 'me'), pruned);
+}
+
+/** A field's value with one id swapped for another, wherever it refers to it. */
+export function swap(field: string, v: unknown, from: string, to: string): unknown {
+  if (typeof v === 'string' && isCondition(field)) {
+    // Word by word, from the end, so the rest of the text stays as written.
+    return words(v)
+      .filter((w) => w.text === from)
+      .reverse()
+      .reduce((s, w) => s.slice(0, w.from) + to + s.slice(w.to), v);
+  }
+  if (isList(field) && bare(v)) return v === from ? to : v;
+  if (Array.isArray(v)) return v.map((x: unknown) => (x === from ? to : x));
+  if (field === 'mirrors' && v && typeof v === 'object')
+    return Object.fromEntries(Object.entries(v).map(([k, x]) => [k, x === from ? to : x]));
+  return v;
+}
+
+/** Every id a field's value refers to. */
+export function idsIn(field: string, v: unknown): string[] {
+  if (typeof v === 'string' && isCondition(field)) return words(v).flatMap((w) => (w.text === UNKNOWN ? [] : [w.text]));
+  if (isList(field)) return asList(v).filter((x) => x !== UNKNOWN);
+  if (field === 'mirrors' && v && typeof v === 'object') return Object.values(v).map(String);
+  return [];
+}
+
+/** Renames a key in place, in each mapping at these paths that has it. */
+function renameKey(doc: Document, paths: Path[], from: string, to: string) {
+  for (const path of paths) {
+    const m = doc.getIn(path, true);
+    if (!isMap(m)) continue;
+    if (m.items.some((p) => keyOf(p.key) === to)) throw new Error(`${to} is already taken`);
+    const pair = m.items.find((p) => keyOf(p.key) === from);
+    if (pair) pair.key = doc.createNode(to);
+  }
+}
+
+/** Renames a thing, and every reference to it, in the model and every plan. */
+export const renameThing =
+  (from: string, to: string): Edit =>
+  (doc) => {
+    const ls = [null, ...planNames(doc)];
+    renameKey(
+      doc,
+      ls.map((l) => at(l, 'things')),
+      from,
+      to,
+    );
+    for (const l of ls) {
+      for (const section of ['things', 'scenarios'] as const) {
+        for (const name of keys(doc, at(l, section))) {
+          for (const field of REFS[section]) {
+            const path = at(l, section, name, field);
+            const v = js(doc, path);
+            const swapped = swap(field, v, from, to);
+            if (v !== undefined && !same(swapped, v)) put(doc, path, swapped);
+          }
+        }
+      }
+      const me = js(doc, at(l, 'me'));
+      const swapped = swap('me', me, from, to);
+      if (!same(swapped, me)) put(doc, at(l, 'me'), swapped);
+    }
+  };
+
+export const renameScenario =
+  (from: string, to: string): Edit =>
+  (doc) =>
+    renameKey(
+      doc,
+      [null, ...planNames(doc)].map((l) => at(l, 'scenarios')),
+      from,
+      to,
+    );
+
+/** Removes a scenario: from the model, everywhere; from a plan, the plan removes it (or stops adding it). */
+export const removeScenario =
+  (layer: Layer, name: string): Edit =>
+  (doc) => {
+    if (layer !== null && doc.hasIn(['scenarios', name])) put(doc, at(layer, 'scenarios', name), null);
+    else for (const l of layer === null ? [null, ...planNames(doc)] : [layer]) remove(doc, at(l, 'scenarios', name));
+  };
+
+export const addPlan =
+  (name: string, note: string): Edit =>
+  (doc) => {
+    if (planNames(doc).includes(name)) throw new Error(`${name} is already a plan`);
+    mapAt(doc, ['plans']).items.push(doc.createPair(name, note ? { note } : {}));
+  };
+
+export const renamePlan =
+  (from: string, to: string): Edit =>
+  (doc) =>
+    renameKey(doc, [['plans']], from, to);
+
+export const removePlan =
+  (name: string): Edit =>
+  (doc) => {
+    doc.deleteIn(['plans', name]);
+    if (!planNames(doc).length) doc.delete('plans');
+  };
+
+/** Merges a plan into the model, as the engine applies it, and removes the plan. */
+export const applyPlan =
+  (name: string): Edit =>
+  (doc) => {
+    for (const section of ['things', 'scenarios'] as const) {
+      for (const id of keys(doc, ['plans', name, section])) {
+        const spec = js(doc, ['plans', name, section, id]);
+        if (spec === null) doc.deleteIn([section, id]);
+        else if (!doc.hasIn([section, id])) {
+          (section === 'things'
+            ? addThing(null, id, spec as Record<string, unknown>)
+            : addScenario(null, id, spec as Record<string, unknown>))(doc);
+        } else {
+          for (const [field, v] of Object.entries(spec as object)) set(doc, null, section, id, field, v);
+        }
+      }
+    }
+    if (doc.hasIn(['plans', name, 'me'])) put(doc, ['me'], js(doc, ['plans', name, 'me']));
+    removePlan(name)(doc);
+  };
+
+type Fields = Record<string, unknown>;
+
+/** A thing a form creates on the spot, as it's first referred to. */
+export interface Created {
+  id: string;
+  kind: Kind;
+}
+
+/** The layer being edited, and what can be done to it. */
+export interface Editing {
+  /** Where edits go: the model, or a plan. */
+  layer: Layer;
+  /** Every plan, in order. */
+  plans: string[];
+  setLayer: (layer: Layer) => void;
+  /** The fields this layer's plan sets on a thing or scenario; none when it's the model. */
+  sets: (section: 'things' | 'scenarios', id: string) => string[];
+  /** Whether the model has it, rather than only the plan. */
+  inModel: (section: 'things' | 'scenarios', id: string) => boolean;
+  /** Drops the plan's value for a field, so the model's shows through. */
+  revert: (section: 'things' | 'scenarios', id: string, field: string) => void;
+  written: Written;
+  /** Its things, id to kind. */
+  ids: Map<string, string>;
+  setThing: (id: string, field: string, value: unknown, created?: Created[]) => void;
+  setScenario: (name: string, field: string, value: unknown, created?: Created[]) => void;
+  setMe: (me: string[], created: Created[]) => void;
+  renameThing: (from: string, to: string) => string;
+  renameScenario: (from: string, to: string) => string;
+  deleteThing: (id: string) => void;
+  deleteScenario: (name: string) => void;
+}
+
+/** A layer's things, scenarios and `me` as written, with a plan merged in as the engine merges it. */
+export interface Written {
+  things: Record<string, Fields>;
+  scenarios: Record<string, Fields>;
+  me: string[];
+}
+
+const obj = (v: unknown): Record<string, unknown> =>
+  v && typeof v === 'object' && !Array.isArray(v) ? (v as Record<string, unknown>) : {};
+
+/**
+ * What a form editing this layer shows: the model as written, or the model
+ * with this plan over it. Not the engine's view, which parses conditions.
+ */
+export function written(text: string, layer: Layer): Written {
+  const doc = obj(parse(text));
+  const layers = [doc, ...(layer === null ? [] : [obj(obj(doc.plans)[layer])])];
+  const out: Written = { things: {}, scenarios: {}, me: [] };
+  for (const l of layers) {
+    for (const section of ['things', 'scenarios'] as const) {
+      for (const [id, spec] of Object.entries(obj(l[section]))) {
+        if (spec === null) out[section] = Object.fromEntries(Object.entries(out[section]).filter(([k]) => k !== id));
+        else out[section][id] = { ...out[section][id], ...obj(spec) };
+      }
+    }
+    if (Array.isArray(l.me) || bare(l.me)) out.me = asList(l.me);
+  }
+  return out;
+}
+
+export interface Change {
+  /** A thing or scenario, or `me`. */
+  id: string;
+  field: string | null;
+  before: string;
+  after: string;
+}
+
+/** How a field reads: a condition as written, lists comma-separated. */
+export function show(field: string, v: unknown): string {
+  if (v === undefined || v === null || (Array.isArray(v) && !v.length)) return 'none';
+  if (field === 'mirrors') return `copy of ${String(obj(v).of)}, synced by ${String(obj(v).by)}`;
+  if (Array.isArray(v)) return v.join(', ');
+  return typeof v === 'string' ? v : JSON.stringify(v);
+}
+
+/** What differs between two versions of a layer, field by field. */
+export function changes(before: Written, after: Written): Change[] {
+  const out: Change[] = [];
+  for (const section of ['things', 'scenarios'] as const) {
+    const ids = new Set([...Object.keys(before[section]), ...Object.keys(after[section])]);
+    for (const id of ids) {
+      const [b, a] = [before[section][id], after[section][id]] as (Fields | undefined)[];
+      if (!a || !b) {
+        out.push({ id, field: null, before: b ? 'there' : 'none', after: a ? 'added' : 'removed' });
+        continue;
+      }
+      for (const field of new Set([...Object.keys(b), ...Object.keys(a)])) {
+        if (!same(norm(field, b[field]), norm(field, a[field])))
+          out.push({ id, field, before: show(field, b[field]), after: show(field, a[field]) });
+      }
+    }
+  }
+  if (!same(before.me, after.me))
+    out.push({ id: 'me', field: null, before: show('me', before.me), after: show('me', after.me) });
+  return out;
+}
+
+/** The model's plans in order, with their notes; none if the text isn't YAML. */
+export function plansOf(text: string): { name: string; note: string }[] {
+  try {
+    return Object.entries(obj(obj(parse(text)).plans)).map(([name, p]) => ({
+      name,
+      note: typeof obj(p).note === 'string' ? (obj(p).note as string) : '',
+    }));
+  } catch {
+    return [];
+  }
+}
+
+export const setPlanNote =
+  (name: string, note: string): Edit =>
+  (doc) => {
+    if (note) put(doc, ['plans', name, 'note'], note);
+    else doc.deleteIn(['plans', name, 'note']);
+  };
+
+/** The fields a plan sets on a thing or scenario: whole things (added or removed) count as every field. */
+export function planFields(text: string, plan: string, section: 'things' | 'scenarios', id: string): string[] {
+  const spec = obj(obj(obj(obj(obj(parse(text)).plans)[plan])[section])[id]);
+  return Object.keys(spec);
+}
+
+/** Fields that more than one of these plans sets; the last plan's wins. */
+export function overlaps(text: string, plans: string[]): { at: string; plans: string[] }[] {
+  const doc = obj(parse(text));
+  const by = new Map<string, string[]>();
+  for (const plan of plans) {
+    const p = obj(obj(doc.plans)[plan]);
+    const fields = [
+      ...(['things', 'scenarios'] as const).flatMap((s) =>
+        Object.entries(obj(p[s])).flatMap(([id, spec]) =>
+          spec === null ? [id] : Object.keys(obj(spec)).map((f) => `${id}.${f}`),
+        ),
+      ),
+      ...('me' in p ? ['me'] : []),
+    ];
+    for (const at of fields) by.set(at, [...(by.get(at) ?? []), plan]);
+  }
+  return [...by].filter(([, ps]) => ps.length > 1).map(([at, ps]) => ({ at, plans: ps }));
+}

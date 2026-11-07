@@ -1,10 +1,10 @@
 <script lang="ts">
-  import Account from './Account.svelte';
-  import { api, ApiFailure, message } from './api';
-  import App from './App.svelte';
-  import Login from './Login.svelte';
-  import Models from './Models.svelte';
-  import { afterLogin, follow, go, route, toLogin } from './route.svelte.ts';
+  import Account from './pages/Account.svelte';
+  import { api, ApiFailure, message } from './lib/api';
+  import App from './pages/App.svelte';
+  import Login from './pages/Login.svelte';
+  import Models from './pages/Models.svelte';
+  import { afterLogin, follow, go, route, toLogin } from './lib/route.svelte.ts';
 
   // undefined while asking the server; null when signed out.
   let user = $state<string | null | undefined>(undefined);
