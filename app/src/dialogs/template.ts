@@ -2,7 +2,8 @@
 // things you probably have already and options for what you've set up. Read
 // from templates/; turned into things to add with your choices.
 import { parse } from 'yaml';
-import { idsIn, prune, REFS, swap, validId } from '../lib/edit.ts';
+import { REFS } from '../../../engine/model.ts';
+import { idsIn, prune, swap, validId } from '../lib/edit.ts';
 
 type Fields = Record<string, unknown>;
 
@@ -73,10 +74,11 @@ export interface Choices {
   include: Set<string>;
 }
 
+const isRef = (field: string) => (REFS.things as readonly string[]).includes(field);
 const refsIn = (spec: Fields) => REFS.things.flatMap((f) => idsIn(f, spec[f]));
 /** A thing's fields with one id swapped for another. */
 const swapAll = (spec: Fields, from: string, to: string): Fields =>
-  Object.fromEntries(Object.entries(spec).map(([f, v]) => [f, REFS.things.includes(f) ? swap(f, v, from, to) : v]));
+  Object.fromEntries(Object.entries(spec).map(([f, v]) => [f, isRef(f) ? swap(f, v, from, to) : v]));
 
 /**
  * The things a template adds, with your choices. An optional thing left out
@@ -94,7 +96,7 @@ export function instantiate(t: Template, c: Choices): Record<string, Fields> {
   map((_, spec) =>
     Object.fromEntries(
       Object.entries(spec).flatMap(([f, v]) => {
-        if (!REFS.things.includes(f)) return [[f, v]];
+        if (!isRef(f)) return [[f, v]];
         const pruned = prune(f, v, out, true);
         return pruned === null || (Array.isArray(pruned) && !pruned.length) ? [] : [[f, pruned]];
       }),

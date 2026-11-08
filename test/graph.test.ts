@@ -1,7 +1,8 @@
 // The graph's views: what expanding shows in each direction, and what selecting lights.
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
-import { edgesOf, isJunction, waysInView, type View } from '../app/src/graph/build.ts';
+import { isJunction, waysInView, type View } from '../engine/view.ts';
+import { edgesOf } from '../app/src/graph/nodes.ts';
 import { loadModel } from '../app/src/lib/data.ts';
 
 const model = loadModel(`version: 1

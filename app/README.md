@@ -29,11 +29,12 @@ anything; Tidy runs the full ELK layout from scratch.
   `../server/api.ts`); `data.ts` runs a model's text, with any plans, through
   the engine; `edit.ts` makes guided edits to the text; `route.svelte.ts` and
   `theme.svelte.ts` keep the page and the theme.
-- `src/graph/`: `build.ts` makes the views (where, ways into, everything) as
-  nodes and edges, ported from the Mermaid builders, with stable junction ids;
-  `layout.ts` is the ELK layered layout and in-place placement for expanding;
+- `src/graph/`: draws the engine's views (`../engine/view.ts`: where, ways
+  into, everything, as nodes and edges with stable junction ids). `nodes.ts`
+  says how a node reads; `layout.ts` is the ELK layered layout and in-place
+  placement for expanding;
   `FlowView.svelte` and `flow/` draw it with Svelte Flow, following ELK's
   edge routes; `export.ts` writes it out.
 - `src/panel/`: the tabs beside the graph. `src/forms/`: the guided-edit
-  fields they use. `src/dialogs/`: Add, and adding from a template.
+  fields they use. `src/dialogs/`: Add, adding from a template, and Confirm.
 - `src/shell/`: what's around every page: the header, menus, the resizer.

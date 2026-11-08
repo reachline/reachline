@@ -487,6 +487,8 @@ test('the pages pass axe', async () => {
     await page.locator('.verdicts li').first().waitFor();
     await check('plans');
     await page.getByRole('button', { name: 'Scenario', exact: true }).click();
+    await page.getByRole('button', { name: /^Scenario / }).click();
+    await page.getByRole('button', { name: /^house_fire / }).click();
     await page.getByText(/^Also affected \(/).click();
     await check('scenarios');
     await page.getByRole('button', { name: 'Add', exact: true }).click();

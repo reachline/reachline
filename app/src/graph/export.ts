@@ -1,7 +1,8 @@
 // Exporting the graph on screen: SVG drawn from its layout and shapes.ts (and
-// PNG from that), and Mermaid from its view.
-import { CLASSES, COMMON_CLASSES, SHAPES, type ScenarioKind } from '../../../engine/mermaid.ts';
-import { isJunction, verdict, type EdgeKind, type View, type VNode } from './build.ts';
+// PNG from that), and Mermaid from its view, as the CLI writes it.
+import { toMermaid } from '../../../engine/mermaid.ts';
+import { isJunction, type EdgeKind, type View, type VNode } from '../../../engine/view.ts';
+import { verdict } from './nodes.ts';
 import {
   END,
   FLAG,
@@ -130,46 +131,30 @@ export function toSvg(view: View, placed: Placed, kind: string, vertical: boolea
   return { svg, width, height };
 }
 
-const ARROWS: Record<EdgeKind, string> = {
-  in: '-->',
-  access: '-->',
-  part: '-->',
-  needs: '-.->|needs|',
-  mirror: '-.->|mirror|',
-  recovery: '-.->|recovery|',
-};
-
-/** The graph as a Mermaid flowchart, styled like the engine's charts; Mermaid lays it out itself. */
-export function toMermaid(view: View, vertical: boolean, kind: string): string {
-  // Junction ids are internal, and not all are valid in Mermaid.
-  const ids = new Map(view.nodes.map((n, i) => [n.id, isJunction(n.kind) ? `j${i}` : n.id]));
-  const styles = { ...(kind in CLASSES ? CLASSES[kind as ScenarioKind] : {}), ...COMMON_CLASSES };
-  const members = new Map<string, string[]>();
-  const out = [`flowchart ${vertical ? 'TB' : 'LR'}`];
-  for (const n of view.nodes) {
-    const id = ids.get(n.id)!;
-    const [a, b] = isJunction(n.kind) ? ['(("', '"))'] : SHAPES[n.kind];
-    out.push(`  ${id}${a}${n.label}${b}`);
-    const cls =
-      n.kind === 'unknown'
-        ? 'unknown'
-        : isJunction(n.kind)
-          ? 'junction'
-          : [n.status, n.more && 'more'].find((s) => s && s in styles);
-    if (cls) members.set(cls, [...(members.get(cls) ?? []), id]);
+/** The graph on screen as a file, in the colours the page shows now (its theme's side of each pair in app.css). */
+export async function exportGraph(
+  format: 'mermaid' | 'svg' | 'png',
+  view: View,
+  placed: Placed,
+  kind: string,
+  vertical: boolean,
+): Promise<Blob> {
+  if (format === 'mermaid') return new Blob([toMermaid(view, vertical, kind) + '\n'], { type: 'text/plain' });
+  const probe = document.body.appendChild(document.createElement('i'));
+  const color = (v: string) => {
+    probe.style.color = `var(--${v})`;
+    return getComputedStyle(probe).color;
+  };
+  try {
+    const { svg, width, height } = toSvg(view, placed, kind, vertical, color);
+    return format === 'svg' ? new Blob([svg], { type: 'image/svg+xml' }) : await toPng(svg, width, height);
+  } finally {
+    probe.remove();
   }
-  for (const e of view.edges) out.push(`  ${ids.get(e.source)} ${ARROWS[e.kind]} ${ids.get(e.target)}`);
-  const dead = view.edges.flatMap((e, i) => (e.live ? [] : [i]));
-  if (dead.length) out.push(`  linkStyle ${dead.join(',')} stroke:#d6d6d6`);
-  for (const [name, style] of Object.entries(styles)) {
-    const ms = members.get(name);
-    if (ms) out.push(`  classDef ${name} ${style}`, `  class ${ms.join(',')} ${name}`);
-  }
-  return out.join('\n') + '\n';
 }
 
 /** PNG of an SVG, at twice its size where the browser's canvas allows. */
-export async function toPng(svg: string, width: number, height: number): Promise<Blob> {
+async function toPng(svg: string, width: number, height: number): Promise<Blob> {
   const scale = Math.min(2, Math.sqrt(16e6 / (width * height)));
   const url = URL.createObjectURL(new Blob([svg], { type: 'image/svg+xml' }));
   try {

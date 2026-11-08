@@ -12,14 +12,15 @@
     Redo2,
     RotateCcw,
     ShieldAlert,
-    SlidersHorizontal,
     TextAlignStart,
     Undo2,
     WandSparkles,
   } from '@lucide/svelte';
   import { untrack } from 'svelte';
-  import { expandToDepth, waysInView, whereView, type Side, type View } from '../graph/build';
+  import { expandToDepth, outcome, waysInView, whereView, type View } from '../../../engine/view.ts';
+  import type { Side } from '../graph/nodes';
   import AddDialog from '../dialogs/AddDialog.svelte';
+  import ConfirmEdit from '../dialogs/ConfirmEdit.svelte';
   import Details from '../panel/Details.svelte';
   import Logo from '../shell/Logo.svelte';
   import {
@@ -42,7 +43,7 @@
     setField,
     setMe,
     setScenarioField,
-    idProblem,
+    nameProblem,
     written,
     type Change,
     type Created,
@@ -51,21 +52,21 @@
     type Layer,
   } from '../lib/edit';
   import FlowView from '../graph/FlowView.svelte';
+  import LayoutMenu from '../graph/LayoutMenu.svelte';
   import Legend from '../graph/Legend.svelte';
   import { layout, placeLocally, type Direction, type Placed, type Placement, type Routing } from '../graph/layout';
   import { BASELINE, KINDS, SCENARIO_KINDS } from '../../../engine/model.ts';
-  import { compare, type ScenarioChange } from '../../../engine/report.ts';
+  import type { ScenarioChange } from '../../../engine/report.ts';
   import Plans from '../panel/Plans.svelte';
   import Scenarios from '../panel/Scenarios.svelte';
   import TemplateDialog from '../dialogs/TemplateDialog.svelte';
   import type { Template } from '../dialogs/template';
-  import Verdicts from '../panel/Verdicts.svelte';
   import type { Conflict } from '../../../server/api.ts';
   import { api, ApiFailure, message } from '../lib/api';
   import { check, definitionOf } from '../lib/check';
-  import { download, toMermaid, toPng, toSvg } from '../graph/export';
+  import { download, exportGraph } from '../graph/export';
   import { format } from '../lib/format';
-  import { loadModel, outcome, ReachError, summary, type Model } from '../lib/data';
+  import { compareTexts, ReachError, summary, tryLoad, type Model } from '../lib/data';
   import ModelSwitcher from '../shell/ModelSwitcher.svelte';
   import Picker, { type PickerGroup } from '../shell/Picker.svelte';
   import { keep, load } from '../lib/prefs';
@@ -154,7 +155,7 @@
   let reveal = $state.raw<{ from: number; to: number } | null>(null);
   let mode = $state(oneOf<Mode>(q.get('mode'), ['ways', 'where', 'all'], 'ways'));
   let target = $state(q.get('target') ?? '');
-  let scenarioName = $state(q.get('scenario') ?? 'house_fire');
+  let scenarioName = $state(q.get('scenario') ?? '');
   // A layout from a link becomes this device's.
   const ROUTINGS = ['ORTHOGONAL', 'SPLINES', 'POLYLINE'] as const;
   let routing = $state(oneOf<Routing>(q.get('routing') ?? load('layout.routing'), ROUTINGS, 'ORTHOGONAL'));
@@ -172,7 +173,7 @@
     const view: Record<string, string> = {};
     if (mode !== 'ways') view.mode = mode;
     if (target) view.target = target;
-    if (scenarioName !== 'house_fire') view.scenario = scenarioName;
+    if (scenarioName) view.scenario = scenarioName;
     if (on.length) view.plan = on.join(',');
     if (chosenLayer) view.into = chosenLayer;
     if (selected) view.select = selected;
@@ -287,20 +288,7 @@
   async function exported(format: 'yaml' | 'mermaid' | 'svg' | 'png'): Promise<Blob> {
     if (format === 'yaml') return new Blob([text ?? ''], { type: 'text/yaml' });
     if (!shown) throw new Error('there is no graph on screen');
-    const kind = scenario?.sc.kind ?? '';
-    if (format === 'mermaid') return new Blob([toMermaid(shown.view, vertical, kind)], { type: 'text/plain' });
-    // Resolved by the browser, which picks the current theme's side of each pair in app.css.
-    const probe = document.body.appendChild(document.createElement('i'));
-    const color = (v: string) => {
-      probe.style.color = `var(--${v})`;
-      return getComputedStyle(probe).color;
-    };
-    try {
-      const { svg, width, height } = toSvg(shown.view, shown.placed, kind, vertical, color);
-      return format === 'svg' ? new Blob([svg], { type: 'image/svg+xml' }) : await toPng(svg, width, height);
-    } finally {
-      probe.remove();
-    }
+    return exportGraph(format, shown.view, shown.placed, scenario?.sc.kind ?? '', vertical);
   }
 
   function onkeydown(e: KeyboardEvent) {
@@ -326,38 +314,23 @@
   }
 
   function open(t: string) {
-    try {
-      show(loadModel(t, inOrder(t)));
-      checked = t;
-    } catch (e) {
-      if (!(e instanceof ReachError)) throw e;
-      error = e.message;
+    const m = tryLoad(t, inOrder(t));
+    if (m instanceof ReachError) {
+      error = m.message;
       planError = whyPlans(t);
       showTab(planError ? 'plans' : 'text');
+    } else {
+      show(m);
+      checked = t;
     }
   }
 
   /** What's wrong with the plans that are on, if the model loads without them. */
   function whyPlans(t: string): string {
     const on = inOrder(t);
-    if (!on.length || !loads(t, [])) return '';
-    try {
-      loadModel(t, on);
-      return '';
-    } catch (e) {
-      if (!(e instanceof ReachError)) throw e;
-      return e.message;
-    }
-  }
-
-  function loads(t: string, plans: string[]) {
-    try {
-      loadModel(t, plans);
-      return true;
-    } catch (e) {
-      if (!(e instanceof ReachError)) throw e;
-      return false;
-    }
+    if (!on.length || tryLoad(t) instanceof ReachError) return '';
+    const m = tryLoad(t, on);
+    return m instanceof ReachError ? m.message : '';
   }
 
   /** Show a model that loaded. The first one picks the starting view; later ones keep it. */
@@ -453,7 +426,7 @@
         apply(...creating(created), setScenarioField(layer, name, field, value)),
       setMe: (me, created) => apply(...creating(created), setMe(layer, me)),
       renameThing: (from, to) => {
-        const problem = nameProblem(to, Object.keys(w.things));
+        const problem = nameProblem(to, (n) => Object.hasOwn(w.things, n));
         if (problem || !apply(renameThing(from, to))) return problem || editError;
         if (selected === from) selected = to;
         if (target === from) target = to;
@@ -462,7 +435,7 @@
         return '';
       },
       renameScenario: (from, to) => {
-        const problem = nameProblem(to, Object.keys(w.scenarios));
+        const problem = nameProblem(to, (n) => Object.hasOwn(w.scenarios, n));
         if (problem || !apply(renameScenario(from, to))) return problem || editError;
         if (scenarioName === from) scenarioName = to;
         return '';
@@ -484,24 +457,18 @@
           'The scenario goes, and nothing else changes.',
           removeScenario(layer, name),
           () => {
-            scenarioName = 'baseline';
+            scenarioName = '';
           },
         ),
     };
   });
 
-  function nameProblem(name: string, taken: string[]): string {
-    if (idProblem(name)) return idProblem(name);
-    if (taken.includes(name)) return `${name} is already taken.`;
-    return '';
-  }
-
   // An edit waiting for confirmation, with what it would change.
-  let confirmDialog = $state<HTMLDialogElement>();
   interface Asking {
     title: string;
     text: string;
     action: string;
+    danger: boolean;
     changes: Change[];
     verdicts: ScenarioChange[] | null;
     warnings: string[];
@@ -525,45 +492,29 @@
       const warnings = planList
         .filter((p) => p.name !== of && plansOf(after).some((q) => q.name === p.name))
         .flatMap((p) => {
-          try {
-            loadModel(after, [p.name]);
-            return [];
-          } catch (err) {
-            return [`${p.name} would no longer load: ${(err as Error).message}`];
-          }
+          const m = tryLoad(after, [p.name]);
+          return m instanceof ReachError ? [`${p.name} would no longer load: ${m.message}`] : [];
         });
       asking = {
         title,
         text: body,
         action,
+        danger: action === 'Delete',
         changes: changes(written(text, of), written(after, of)),
         verdicts: verdicts ? verdictsAfter(after) : null,
         warnings,
         edit: e,
         then,
       };
-      confirmDialog?.showModal();
     } catch (err) {
       editError = (err as Error).message;
-    }
-  }
-
-  /** How verdicts compare, with the plans that are on, between two texts; null if either doesn't load. */
-  function compareTexts(before: string, after: string, beforePlans: string[], afterPlans: string[]) {
-    try {
-      const [b, a] = [loadModel(before, beforePlans), loadModel(after, afterPlans)];
-      return compare(b, a, [...new Set([...a.scenarios.keys(), ...b.scenarios.keys()])]);
-    } catch {
-      return null;
     }
   }
 
   const verdictsAfter = (after: string) => (text === null ? null : compareTexts(text, after, plans, inOrder(after)));
 
   function confirmed() {
-    confirmDialog?.close();
     if (asking && apply(asking.edit)) asking.then();
-    asking = null;
   }
 
   function turn(name: string, isOn: boolean) {
@@ -579,10 +530,7 @@
   }
 
   function renamePlanTo(from: string, to: string): string {
-    const problem = nameProblem(
-      to,
-      planList.map((p) => p.name),
-    );
+    const problem = nameProblem(to, (n) => planList.some((p) => p.name === n));
     if (problem || !apply(renamePlan(from, to))) return problem || editError;
     on = on.map((n) => (n === from ? to : n));
     setOn(on);
@@ -1005,37 +953,16 @@
             >
           {/if}
           <button class="quiet" onclick={tidy} title="Lay the whole graph out again"><WandSparkles />Tidy</button>
-          <button class="quiet" popovertarget="layout"><SlidersHorizontal />Layout</button>
-          <div id="layout" class="popup" popover>
-            <h2>Layout</h2>
-            <label class="field"
-              >Direction
-              <select bind:value={direction} onchange={restart}>
-                <option value="RIGHT">Left to right</option>
-                <option value="DOWN">Top to bottom</option>
-              </select>
-            </label>
-            <label class="field"
-              >Edges
-              <select bind:value={routing} onchange={tidy}>
-                <option value="ORTHOGONAL">Right angles</option>
-                <option value="SPLINES">Curves</option>
-                <option value="POLYLINE">Straight segments</option>
-              </select>
-            </label>
-            <label class="field"
-              >Placement
-              <select bind:value={placement} onchange={tidy}>
-                <option value="BRANDES_KOEPF">Brandes–Köpf (fast)</option>
-                <option value="NETWORK_SIMPLEX">Network simplex</option>
-              </select>
-            </label>
-            {#if shown}
-              <p class="muted stats">
-                {shown.view.nodes.length} nodes, {shown.view.edges.length} edges, laid out in {shown.placed.ms} ms
-              </p>
-            {/if}
-          </div>
+          <LayoutMenu
+            bind:direction
+            bind:routing
+            bind:placement
+            onrestart={restart}
+            ontidy={tidy}
+            stats={shown
+              ? { nodes: shown.view.nodes.length, edges: shown.view.edges.length, ms: shown.placed.ms }
+              : undefined}
+          />
           <Legend />
         {/snippet}
       </FlowView>
@@ -1142,7 +1069,7 @@
   title="Add a scenario"
   example="house_fire"
   kinds={SCENARIO_KINDS}
-  taken={(n: string) => !!editing?.written.scenarios[n]}
+  taken={(n: string) => !!editing && Object.hasOwn(editing.written.scenarios, n)}
   onadd={(n: string, k: string) => addedScenario(n, k)}
 />
 <AddDialog
@@ -1158,38 +1085,7 @@
   preview={previewTemplate}
   onadd={(t: Template, prefix: string, things: Things, asPlan: boolean) => addedTemplate(t, prefix, things, asPlan)}
 />
-<dialog
-  bind:this={confirmDialog}
-  aria-labelledby="confirm-title"
-  aria-describedby="confirm-text"
-  onclose={() => (asking = null)}
->
-  {#if asking}
-    <div class="confirm">
-      <h2 id="confirm-title">{asking.title}</h2>
-      <p id="confirm-text">{asking.text}</p>
-      {#each asking.warnings as w (w)}<p class="notice">{w}</p>{/each}
-      {#if asking.changes.length}
-        <ul class="changes">
-          {#each asking.changes as c, i (i)}
-            <li>
-              <b class="mono">{c.id}</b>{#if c.field}&nbsp;{c.field}{/if}:
-              {#if c.field}<span class="mono">{c.before}</span>&nbsp;→&nbsp;{/if}<span class="mono">{c.after}</span>
-            </li>
-          {/each}
-        </ul>
-      {/if}
-      {#if asking.verdicts}
-        <h3>Verdicts</h3>
-        <div class="scroll"><Verdicts changes={asking.verdicts} /></div>
-      {/if}
-      <div class="buttons">
-        <button class="quiet" onclick={() => confirmDialog?.close()}>Cancel</button>
-        <button class={asking.action === 'Delete' ? 'danger' : 'primary'} onclick={confirmed}>{asking.action}</button>
-      </div>
-    </div>
-  {/if}
-</dialog>
+<ConfirmEdit {asking} onconfirm={confirmed} onclose={() => (asking = null)} />
 
 <style>
   /*
@@ -1337,44 +1233,6 @@
   }
   .hidden {
     display: none;
-  }
-  .confirm {
-    display: grid;
-    gap: var(--space-4);
-    padding: var(--space-5);
-  }
-  .confirm h2 {
-    font-size: var(--text-lg);
-  }
-  .confirm h3 {
-    font-size: var(--text-md);
-  }
-  .scroll {
-    max-height: 30vh;
-    overflow-y: auto;
-  }
-  .changes {
-    display: grid;
-    gap: var(--space-2);
-    max-height: 40vh;
-    margin: 0;
-    padding-left: var(--space-4);
-    overflow-y: auto;
-    font-size: var(--text-sm);
-  }
-  .buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
-  }
-  .stats {
-    font-size: var(--text-sm);
-  }
-  #layout {
-    min-width: 14rem;
-  }
-  #layout h2 {
-    font-size: var(--text-md);
   }
 
   /* Phones: the panel, open, covers the graph, and where edits go has a row of its own. */

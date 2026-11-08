@@ -500,6 +500,22 @@ dialog {
 dialog::backdrop {
   background: var(--backdrop);
 }
+/* A dialog's content, in the one element inside it: its heading first, its .buttons last. */
+dialog > * {
+  display: grid;
+  gap: var(--space-4);
+  padding: var(--space-5);
+}
+/* A row of buttons; at the end of a dialog, its actions. */
+.buttons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+}
+dialog .buttons {
+  justify-content: flex-end;
+}
 /*
  * Popovers that open beside the button with their popovertarget: a .menu of
  * .quiet buttons and links, or a .popup of anything else. Without anchor

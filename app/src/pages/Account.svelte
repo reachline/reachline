@@ -3,6 +3,7 @@
   import type { AuthOptions, Me } from '../../../server/api.ts';
   import { api, message, needsReauth, takeSsoProblem } from '../lib/api';
   import { follow, go } from '../lib/route.svelte.ts';
+  import Confirm from '../dialogs/Confirm.svelte';
   import TopBar from '../shell/TopBar.svelte';
 
   let { user, onsignout }: { user: string; onsignout: () => void } = $props();
@@ -23,8 +24,7 @@
   const ssoProblem = takeSsoProblem();
   if (ssoProblem) outcome = { section: 'sso', text: ssoProblem, failed: true };
 
-  let dialog = $state<HTMLDialogElement>();
-  let asking = $state<{ section: Section; title: string; text: string; confirm: string; run: () => Promise<void> }>();
+  let asking = $state<{ section: Section; title: string; text: string; action: string; run: () => Promise<void> }>();
 
   async function load() {
     [me, options] = await Promise.all([api.me(), api.options()]);
@@ -69,12 +69,10 @@
 
   function ask(question: NonNullable<typeof asking>) {
     asking = question;
-    dialog?.showModal();
   }
 
   function confirmed() {
     const { section, run } = asking!;
-    dialog?.close();
     void act(section, run);
   }
 
@@ -161,7 +159,7 @@
                   section: 'password',
                   title: 'Remove your password?',
                   text: `You'll be able to sign in only with your identity provider, as ${me!.linked}.`,
-                  confirm: 'Remove password',
+                  action: 'Remove password',
                   run: async () => {
                     await api.removePassword();
                     await load();
@@ -194,7 +192,7 @@
                   section: 'sso',
                   title: 'Unlink your identity provider?',
                   text: "You'll be able to sign in only with your password.",
-                  confirm: 'Unlink',
+                  action: 'Unlink',
                   run: async () => {
                     await api.unlink();
                     await load();
@@ -219,7 +217,7 @@
               section: 'delete',
               title: 'Delete your account?',
               text: `This deletes ${user} and all of your models from this server, with their history. It can't be undone.`,
-              confirm: 'Delete account',
+              action: 'Delete account',
               run: async () => {
                 await api.deleteAccount();
                 go('/', true);
@@ -232,18 +230,7 @@
   {/if}
 </main>
 
-<dialog bind:this={dialog} aria-labelledby="confirm-title" aria-describedby="confirm-text">
-  {#if asking}
-    <div class="confirm">
-      <h2 id="confirm-title">{asking.title}</h2>
-      <p id="confirm-text">{asking.text}</p>
-      <div class="buttons end">
-        <button class="quiet" onclick={() => dialog?.close()}>Cancel</button>
-        <button class="danger" onclick={confirmed}>{asking.confirm}</button>
-      </div>
-    </div>
-  {/if}
-</dialog>
+<Confirm question={asking} onconfirm={confirmed} onclose={() => (asking = undefined)} />
 
 <style>
   .page {
@@ -263,8 +250,7 @@
     display: grid;
     gap: var(--space-1);
   }
-  .section,
-  .confirm {
+  .section {
     display: grid;
     gap: var(--space-4);
     padding: var(--space-5);
@@ -278,15 +264,11 @@
     align-items: start;
     gap: var(--space-4);
   }
-  .buttons,
   .problem {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: var(--space-2) var(--space-3);
-  }
-  .end {
-    justify-content: flex-end;
   }
   .hidden {
     display: none;

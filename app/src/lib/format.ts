@@ -100,9 +100,7 @@ function pairs(doc: Document, map: unknown): [string, unknown][] {
 
 /** Each condition, in the model and its plans, spaced and bracketed one way; one that doesn't parse is left as it is. */
 function tidyConditions(doc: Document) {
-  const plans = doc.get('plans', true);
-  const layers = [doc.contents, ...(isMap(plans) ? plans.items.map((p) => p.value) : [])];
-  for (const layer of layers) {
+  for (const layer of layers(doc)) {
     const things = isMap(layer) ? layer.get('things', true) : null;
     if (!isMap(things)) continue;
     for (const { value: spec } of things.items) {
@@ -122,8 +120,7 @@ function tidyConditions(doc: Document) {
 
 /** A list of one id, in the model and its plans, written as the id alone. */
 function tidyLists(doc: Document) {
-  const plans = doc.get('plans', true);
-  const maps = [doc.contents, ...(isMap(plans) ? plans.items.map((p) => p.value) : [])].flatMap((layer) => {
+  const maps = layers(doc).flatMap((layer) => {
     if (!isMap(layer)) return [];
     const specs = (key: string) => {
       const m = layer.get(key, true);
@@ -143,6 +140,12 @@ function tidyLists(doc: Document) {
 }
 
 const resolve = (doc: Document, n: unknown): unknown => (isAlias(n) ? n.resolve(doc) : n);
+
+/** The model's mapping and each plan's. */
+function layers(doc: Document): unknown[] {
+  const plans = doc.get('plans', true);
+  return [doc.contents, ...(isMap(plans) ? plans.items.map((p) => p.value) : [])];
+}
 
 /** Where a scalar goes: a block mapping's key, the value ending a block line, or inside a flow collection. */
 type Context = 'key' | 'block' | 'flow' | 'flowkey';

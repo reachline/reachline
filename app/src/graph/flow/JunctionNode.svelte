@@ -1,6 +1,6 @@
 <script lang="ts">
   import { Handle, Position, type NodeProps } from '@xyflow/svelte';
-  import type { VNode } from '../build';
+  import type { VNode } from '../../../../engine/view.ts';
 
   interface Data {
     node: VNode;

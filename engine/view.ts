@@ -1,9 +1,22 @@
-// Views of the model as plain nodes and edges, ported from engine/mermaid.ts's
-// builders. Junction ids come from their position in the model (not a
-// counter), so a junction keeps its id as the view expands.
-import { refs, split, UNKNOWN, type Cond, type Op } from '../../../engine/cond.ts';
-import type { Kind, Model, Spec } from '../../../engine/model.ts';
-import type { Outcome } from '../lib/data.ts';
+// Views of the model as plain nodes and edges, for the app to draw and the
+// CLI to write as Mermaid. Junction ids come from their position in the model
+// (not a counter), so a junction keeps its id as the view expands.
+import { refs, split, UNKNOWN, type Cond, type Op } from './cond.ts';
+import { availability, REFS, type Best, type Kind, type Model, type Row, type Scenario, type Spec } from './model.ts';
+
+/** One scenario's results, as the views colour them. */
+export interface Outcome {
+  sc: Scenario;
+  start: string[];
+  best: Best;
+  avail: Map<string, boolean>;
+  rows: Map<string, Row>;
+}
+
+export function outcome(m: Model, name: string): Outcome {
+  const { sc, best } = m.run(name);
+  return { sc, start: m.start(sc), best, avail: availability(m.things, new Set(sc.lost)), rows: m.rows(name) };
+}
 
 export type NodeKind = Kind | 'and' | 'or' | 'unknown';
 export type EdgeKind = 'in' | 'needs' | 'mirror' | 'access' | 'recovery' | 'part';
@@ -36,56 +49,9 @@ export interface View {
   edges: VEdge[];
 }
 
-/** A node's ways in, or what it's a way into. */
-export type Side = 'in' | 'out';
-
 export const isJunction = (k: NodeKind) => k === 'and' || k === 'or' || k === 'unknown';
 
-/**
- * A node's status in words, and the glyph that shows it beside the name so
- * it isn't told by colour alone. The glyph follows the colour: ✓ where the
- * fill is good, ✗ where it's bad, ? where it rests on assumptions.
- */
-export function verdict(n: VNode, scenarioKind: string): { mark?: string; words: string } | undefined {
-  const breach = scenarioKind === 'breach';
-  switch (n.status) {
-    case 'has':
-      return breach ? { mark: '✗', words: 'reached by the attacker' } : { mark: '✓', words: 'reached' };
-    case 'maybe':
-      return {
-        mark: '?',
-        words: breach ? 'reached by the attacker if assumptions hold' : 'reached if assumptions hold',
-      };
-    case 'lost':
-      return { mark: '✗', words: 'lost' };
-    case 'gone':
-      return { words: 'gone in this scenario' };
-    case 'start':
-      return { words: 'where the attacker starts' };
-    case 'none':
-      return { words: 'not reached' };
-    default:
-      return undefined;
-  }
-}
-
-const JUNCTIONS = { and: 'all of these (and)', or: 'any one of these (or)', unknown: 'something not known (unknown)' };
-
-/** A node's name for screen readers: what it is, and what the scenario says about it. */
-export function describe(n: VNode, scenarioKind: string): string {
-  if (n.kind === 'and' || n.kind === 'or' || n.kind === 'unknown') return JUNCTIONS[n.kind];
-  const parts = [n.label, n.kind];
-  if (n.flag) parts.push(`checked for ${scenarioKind}s`);
-  const v = verdict(n, scenarioKind);
-  if (v) parts.push(v.words);
-  if (n.row) parts.push(`flagged: ${n.row.toLowerCase()}`);
-  if (n.more) parts.push('has more ways in');
-  if (n.moreOut) parts.push('is a way into more');
-  return parts.join(', ');
-}
-
-/** A thing's fields that name its ways in, in the order they're drawn. */
-const FIELDS = ['in', 'needs', 'mirrors', 'access', 'recovery'] as const;
+const FIELDS = REFS.things;
 type Field = (typeof FIELDS)[number];
 
 /** The things a field of t names. */
@@ -96,7 +62,7 @@ function named(t: Spec, f: Field): string[] {
 }
 
 /** Every thing with a direct way into tid. */
-export function incoming(m: Model, tid: string): string[] {
+function incoming(m: Model, tid: string): string[] {
   const t = m.things.get(tid)!;
   return [...new Set(FIELDS.flatMap((f) => named(t, f)))];
 }
@@ -264,21 +230,41 @@ export function waysInView(
   return b.view();
 }
 
-/** The ids of a node's edges, followed through junctions so each condition it's part of is whole. */
-export function edgesOf(view: View, id: string): Set<string> {
-  const ids = new Set<string>();
-  const junctions = new Set(view.nodes.filter((n) => isJunction(n.kind)).map((n) => n.id));
-  const walk = (from: string, down: boolean) => {
-    for (const e of view.edges) {
-      if ((down ? e.source : e.target) !== from || ids.has(e.id)) continue;
-      ids.add(e.id);
-      const next = down ? e.target : e.source;
-      if (junctions.has(next)) walk(next, down);
+/**
+ * The path a scenario takes to each thing it checks (for a breach, those it
+ * reports): one way into each, through an AND where it takes several things.
+ */
+export function pathView(m: Model, sc: Outcome): View {
+  const b = new Builder(m, sc);
+  const done = new Set<string>();
+  const walk = (tid: string): void => {
+    if (done.has(tid)) return;
+    done.add(tid);
+    b.node(tid);
+    const { why } = sc.best.get(tid)!;
+    if (why.kind === 'start' || why.kind === 'state') return;
+    const kind: EdgeKind = why.kind;
+    const picks = (why.kind === 'in' ? [why.via] : why.uses).map((x, i) => {
+      if (x === UNKNOWN) return b.junction(`${tid}/${kind}?${i}`, 'unknown');
+      walk(x);
+      return x;
+    });
+    if (picks.length === 1) b.edge(picks[0], tid, kind);
+    else {
+      const j = b.junction(`${tid}/${kind}`, 'and');
+      for (const p of picks) b.edge(p, j, 'part');
+      b.edge(j, tid, kind);
     }
   };
-  walk(id, true);
-  walk(id, false);
-  return ids;
+  const kind = sc.sc.kind;
+  const targets = [...m.things]
+    .filter(([t, s]) => s.check.includes(kind) && (kind === 'lockout' || sc.rows.has(t)))
+    .map(([t]) => t);
+  for (const t of targets) {
+    if (sc.best.has(t)) walk(t);
+    else b.node(t);
+  }
+  return b.view();
 }
 
 /** The ids within `depth` steps of the roots whose ways in should show. */

@@ -1,6 +1,6 @@
 <script lang="ts">
   // Asks for a name, and a kind if it has one: a new thing, scenario or plan.
-  import { idProblem } from '../lib/edit';
+  import { nameProblem } from '../lib/edit';
   import KindSelect from '../forms/KindSelect.svelte';
 
   interface Props {
@@ -33,10 +33,9 @@
   function submit(e: SubmitEvent) {
     e.preventDefault();
     const n = name.trim();
-    problem = idProblem(n);
+    problem = nameProblem(n, taken);
     if (problem) return;
-    if (taken(n)) problem = `${n} is already taken.`;
-    else if (kinds && !kind) kindProblem = 'Choose a kind.';
+    if (kinds && !kind) kindProblem = 'Choose a kind.';
     else {
       dialog?.close();
       onadd(n, kind);
@@ -45,7 +44,7 @@
 </script>
 
 <dialog bind:this={dialog} aria-labelledby="{uid}-title" onclose={reset}>
-  <form class="body" onsubmit={submit}>
+  <form onsubmit={submit}>
     <h2 id="{uid}-title">{title}</h2>
     <div class="field">
       <label for="{uid}-name">Name</label>
@@ -91,20 +90,7 @@
 </dialog>
 
 <style>
-  .body {
-    display: grid;
-    gap: var(--space-4);
-    padding: var(--space-5);
-  }
-  h2 {
-    font-size: var(--text-lg);
-  }
   input {
     font-family: var(--code-font);
-  }
-  .buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
   }
 </style>

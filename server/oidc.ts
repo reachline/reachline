@@ -131,7 +131,7 @@ export class Oidc {
 }
 
 /** The first candidate that has something left in the username alphabet, or `user`. */
-export function usernameFrom(...candidates: (string | undefined)[]): string {
+function usernameFrom(...candidates: (string | undefined)[]): string {
   for (const c of candidates) {
     const name = c
       ?.normalize('NFKD')

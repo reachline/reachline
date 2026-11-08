@@ -1,7 +1,8 @@
 <script lang="ts">
   import { Background, MarkerType, Panel, SvelteFlow, type Edge, type Node } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
-  import { describe, edgesOf, isJunction, type Side, type View } from './build';
+  import { isJunction, type View } from '../../../engine/view.ts';
+  import { describe, edgesOf, type Side } from './nodes';
   import { untrack, type Snippet } from 'svelte';
   import JunctionNode from './flow/JunctionNode.svelte';
   import RoutedEdge from './flow/RoutedEdge.svelte';

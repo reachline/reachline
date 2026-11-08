@@ -3,6 +3,7 @@
 import { isMap, isNode, isScalar, isSeq, parseDocument, Parser, type Document } from 'yaml';
 import { load, ReachError, type Model, type Path } from '../../../engine/model.ts';
 import { loadModel } from './data.ts';
+import { keyOf, planNames } from './edit.ts';
 
 export interface Problem {
   from: number;
@@ -75,8 +76,6 @@ export function definitionOf(text: string, id: string, plans: string[]): [number
   return path ? rangeOf(doc, text, path) : null;
 }
 
-const keyOf = (k: unknown) => String(isScalar(k) ? k.value : k);
-
 /**
  * Where a span of a string's value is in the text: a condition's word. Only
  * where the text is the value as it is, plain or between quotes; otherwise
@@ -90,17 +89,12 @@ function within(doc: Document, text: string, path: Path, [from, to]: [number, nu
   return start < 0 ? null : [node.range[0] + start + from, node.range[0] + start + to];
 }
 
-function planNames(doc: Document): string[] {
-  const plans = doc.get('plans');
-  return isMap(plans) ? plans.items.map((p) => keyOf(p.key)) : [];
-}
-
 /**
  * The text to mark for a path: a list item, or a mapping's key along with its
  * value if that's a scalar. A path that isn't all there marks the nearest part
  * that is; one that isn't there at all marks the first line.
  */
-export function rangeOf(doc: Document, text: string, path: Path): [number, number] {
+function rangeOf(doc: Document, text: string, path: Path): [number, number] {
   for (let n = path.length; n > 0; n--) {
     const parent = n === 1 ? doc.contents : doc.getIn(path.slice(0, n - 1), true);
     const key = path[n - 1];

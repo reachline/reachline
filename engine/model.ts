@@ -12,13 +12,25 @@ export const CHECKS = ['lockout', 'breach'] as const;
 export type Check = (typeof CHECKS)[number];
 
 /** The format version a file may declare with a top-level `version:` (optional). */
-export const VERSION = 1;
+const VERSION = 1;
 
 /** The fields that hold a condition. */
 export const CONDITIONS = ['needs', 'access', 'recovery'] as const;
 
 /** The fields that hold a list: `check` and `in` on things, the rest on scenarios, and `me`. */
 export const LISTS = ['check', 'in', 'lost', 'attacker', 'assume', 'deny', 'me'] as const;
+
+/** The fields that refer to things, besides `me`: a thing's in the order the graph draws them. */
+export const REFS = {
+  things: ['in', 'needs', 'mirrors', 'access', 'recovery'],
+  scenarios: ['lost', 'attacker', 'assume', 'deny'],
+} as const;
+
+/** The fields that refer to states only. */
+export const STATE_REFS = ['assume', 'deny'] as const;
+
+/** The fields where `unknown` means something: a place you don't know, or an assumption. */
+export const UNKNOWN_IN = ['in', 'access', 'recovery'] as const;
 
 /**
  * Whether a value can be a list of one on its own, without brackets: one id,
@@ -227,7 +239,7 @@ export function load(
   validate(things, raw, scenarios, me, from);
   const lists = (sc: Scenario): Scenario => {
     const out = { ...sc };
-    for (const key of ['lost', 'attacker', 'assume', 'deny'] as const) {
+    for (const key of REFS.scenarios) {
       if (key in sc) out[key] = listed(sc[key], [], '').map((x) => x.id);
     }
     return out;
@@ -319,12 +331,11 @@ function validate(
   const bad: { line: string; path: Path; message: string; span?: [number, number] }[] = [];
   const unknown = (owner: string, r: string, path: Path, span?: [number, number]) =>
     bad.push({ line: `${owner}: ${r}`, path, message: `unknown reference: ${r}`, ...(span && { span }) });
-  // `unknown` is a place in `in`, and an assumption in access and recovery; elsewhere it means nothing.
   const misplaced = (owner: string, key: string, r: string, path: Path, span?: [number, number]) => {
     const message = r === '?' ? 'write unknown, not ?' : `${r} can't be in ${key}`;
     bad.push({ line: `${owner}: ${r} (${message})`, path, message, ...(span && { span }) });
   };
-  const allows = (key: string) => key === 'in' || key === 'access' || key === 'recovery';
+  const allows = (key: string) => (UNKNOWN_IN as readonly string[]).includes(key);
   for (const [tid, spec] of things) {
     const o = from.things.get(tid)!;
     for (const key of ['in', ...CONDITIONS]) {
@@ -350,7 +361,7 @@ function validate(
         else if (!things.has(r)) unknown(name, r, path);
       }
     }
-    for (const key of ['assume', 'deny'] as const) {
+    for (const key of STATE_REFS) {
       for (const { id: r, path } of items(key)) {
         if (things.get(r)?.kind !== 'state') {
           bad.push({

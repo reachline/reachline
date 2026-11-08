@@ -6,6 +6,7 @@
   import { api, message } from '../lib/api';
   import { EMPTY } from '../lib/data';
   import { follow, go } from '../lib/route.svelte.ts';
+  import Confirm from '../dialogs/Confirm.svelte';
   import TopBar from '../shell/TopBar.svelte';
 
   let { user, onsignout }: { user: string; onsignout: () => void } = $props();
@@ -18,6 +19,8 @@
   let start = $state<'empty' | 'starter' | 'example' | 'import'>('example');
   let imported = $state('');
   let createError = $state('');
+
+  let deleting = $state<ModelSummary | null>(null);
 
   let renaming = $state<number | null>(null);
   let renameTo = $state('');
@@ -65,7 +68,6 @@
   }
 
   function remove(m: ModelSummary) {
-    if (!confirm(`Delete ${m.name} and all of its history? This can't be undone.`)) return;
     void attempt(async () => {
       await api.remove(m.id);
       await refresh();
@@ -136,7 +138,7 @@
                 aria-label="Rename {m.name}"
                 onclick={() => ((renaming = m.id), (renameTo = m.name))}><Pencil />Rename</button
               >
-              <button class="quiet danger" aria-label="Delete {m.name}" onclick={() => remove(m)}
+              <button class="quiet danger" aria-label="Delete {m.name}" onclick={() => (deleting = m)}
                 ><Trash />Delete</button
               >
             </span>
@@ -147,8 +149,18 @@
   {/if}
 </main>
 
+<Confirm
+  question={deleting && {
+    title: `Delete ${deleting.name}?`,
+    text: "It goes with all of its history. This can't be undone.",
+    action: 'Delete',
+  }}
+  onconfirm={() => deleting && remove(deleting)}
+  onclose={() => (deleting = null)}
+/>
+
 <dialog bind:this={creating} aria-labelledby="new-model">
-  <form class="new" onsubmit={create}>
+  <form onsubmit={create}>
     <h2 id="new-model">New model</h2>
     <label class="field">Name <input bind:value={newName} required maxlength="100" /></label>
     <fieldset>
@@ -237,17 +249,7 @@
     flex: 1 1 8rem;
     min-width: 0;
   }
-  .new {
-    display: grid;
-    gap: var(--space-4);
-    padding: var(--space-5);
-  }
   textarea {
     resize: vertical;
-  }
-  .buttons {
-    display: flex;
-    justify-content: flex-end;
-    gap: var(--space-2);
   }
 </style>

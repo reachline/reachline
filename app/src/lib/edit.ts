@@ -4,7 +4,7 @@
 // everywhere, since a plan can't express one.
 import { isMap, isScalar, parse, parseDocument, type Document, type YAMLMap } from 'yaml';
 import { CondError, fmtCond, parseCond, RESERVED, UNKNOWN, words, type Cond, type Op } from '../../../engine/cond.ts';
-import { bare, BASELINE, CONDITIONS, LISTS, type Kind } from '../../../engine/model.ts';
+import { bare, BASELINE, CONDITIONS, LISTS, REFS, type Kind } from '../../../engine/model.ts';
 import { emit } from './format.ts';
 
 /** Where an edit goes: the base model (null), or a plan by name. */
@@ -21,7 +21,7 @@ export function edit(text: string, ...edits: Edit[]): string {
 }
 
 /** Ids the forms give things, scenarios and plans: they never need quoting, in YAML 1.1 or 1.2, and aren't a word of a condition. */
-export const ID = /^[a-z][a-z0-9_]*$/;
+const ID = /^[a-z][a-z0-9_]*$/;
 const TAKEN = new Set(['y', 'n', 'yes', 'no', 'on', 'off', 'true', 'false', 'null', ...RESERVED, BASELINE]);
 /** Why an id can't be used, or '' if it can. */
 export function idProblem(id: string): string {
@@ -29,15 +29,13 @@ export function idProblem(id: string): string {
   return TAKEN.has(id) ? `${id} is a word YAML or ReachLine reads as its own; choose another.` : '';
 }
 export const validId = (id: string) => !idProblem(id);
-
-/** Fields that hold ids. */
-export const REFS = {
-  things: ['in', 'needs', 'access', 'recovery', 'mirrors'],
-  scenarios: ['lost', 'attacker', 'assume', 'deny'],
-};
+/** Why a new name can't be used, or '' if it can. */
+export function nameProblem(name: string, taken: (name: string) => boolean): string {
+  return idProblem(name) || (taken(name) ? `${name} is already taken.` : '');
+}
 
 const at = (layer: Layer, ...path: Path): Path => (layer === null ? path : ['plans', layer, ...path]);
-const keyOf = (k: unknown) => String(isScalar(k) ? k.value : k);
+export const keyOf = (k: unknown) => String(isScalar(k) ? k.value : k);
 const js = (doc: Document, path: Path): unknown => {
   const n = doc.getIn(path, true);
   return n && typeof n === 'object' && 'toJSON' in n ? (n as { toJSON(): unknown }).toJSON() : n;
@@ -59,6 +57,9 @@ export function planNames(doc: Document): string[] {
   const plans = doc.get('plans');
   return isMap(plans) ? plans.items.map((p) => keyOf(p.key)) : [];
 }
+
+/** The model and each of its plans. */
+const everyLayer = (doc: Document): Layer[] => [null, ...planNames(doc)];
 
 /** The ids of a mapping in the document, in order; none if it isn't there. */
 const keys = (doc: Document, path: Path): string[] => {
@@ -196,7 +197,7 @@ export const removeThing =
   (layer: Layer, id: string, optional = false): Edit =>
   (doc) => {
     if (layer === null) {
-      for (const l of [null, ...planNames(doc)]) {
+      for (const l of everyLayer(doc)) {
         remove(doc, at(l, 'things', id));
         pruneLayer(
           doc,
@@ -287,7 +288,7 @@ function renameKey(doc: Document, paths: Path[], from: string, to: string) {
 export const renameThing =
   (from: string, to: string): Edit =>
   (doc) => {
-    const ls = [null, ...planNames(doc)];
+    const ls = everyLayer(doc);
     renameKey(
       doc,
       ls.map((l) => at(l, 'things')),
@@ -316,7 +317,7 @@ export const renameScenario =
   (doc) =>
     renameKey(
       doc,
-      [null, ...planNames(doc)].map((l) => at(l, 'scenarios')),
+      everyLayer(doc).map((l) => at(l, 'scenarios')),
       from,
       to,
     );
@@ -326,7 +327,7 @@ export const removeScenario =
   (layer: Layer, name: string): Edit =>
   (doc) => {
     if (layer !== null && doc.hasIn(['scenarios', name])) put(doc, at(layer, 'scenarios', name), null);
-    else for (const l of layer === null ? [null, ...planNames(doc)] : [layer]) remove(doc, at(l, 'scenarios', name));
+    else for (const l of layer === null ? everyLayer(doc) : [layer]) remove(doc, at(l, 'scenarios', name));
   };
 
 export const addPlan =
@@ -377,7 +378,6 @@ export interface Created {
   kind: Kind;
 }
 
-/** The layer being edited, and what can be done to it. */
 /** Why the forms are off, while the text doesn't load, and what fixes it. */
 export interface Off {
   why: string;
@@ -385,6 +385,7 @@ export interface Off {
   onfix: () => void;
 }
 
+/** The layer being edited, and what can be done to it. */
 export interface Editing {
   /** Where edits go: the model, or a plan. */
   layer: Layer;

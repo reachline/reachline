@@ -4,12 +4,12 @@ import type { CompletionContext, CompletionResult } from '@codemirror/autocomple
 import { ensureSyntaxTree, syntaxTree } from '@codemirror/language';
 import type { EditorState } from '@codemirror/state';
 import { UNKNOWN } from '../../../engine/cond.ts';
+import { REFS as FIELDS, STATE_REFS, UNKNOWN_IN } from '../../../engine/model.ts';
 
-/** Fields whose values are thing ids; `assume` and `deny` take states only. */
-const REFS = new Set(['in', 'needs', 'access', 'recovery', 'of', 'by', 'lost', 'attacker', 'me']);
-const STATES = new Set(['assume', 'deny']);
-/** Fields where `unknown` means something: a place, or an assumption. */
-const UNKNOWNS = new Set(['in', 'access', 'recovery']);
+/** Keys whose values are thing ids: a mirror's are its `of` and `by`. */
+const REFS = new Set<string>([...FIELDS.things.filter((f) => f !== 'mirrors'), 'of', 'by', ...FIELDS.scenarios, 'me']);
+const STATES = new Set<string>(STATE_REFS);
+const UNKNOWNS = new Set<string>(UNKNOWN_IN);
 
 /** The field whose value `pos` is in, or null in a key. */
 export function fieldAt(state: EditorState, pos: number): string | null {

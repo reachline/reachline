@@ -2,11 +2,11 @@
 //   node bench.ts
 import { readFileSync } from 'node:fs';
 import { createServer } from 'vite';
-import type { View } from './src/graph/build.ts';
+import * as build from '../engine/view.ts';
+import type { View } from '../engine/view.ts';
 import type { LayoutOpts, Placement } from './src/graph/layout.ts';
 
 const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
-const build = (await server.ssrLoadModule('/src/graph/build.ts')) as typeof import('./src/graph/build.ts');
 const { layout } = (await server.ssrLoadModule('/src/graph/layout.ts')) as typeof import('./src/graph/layout.ts');
 const { loadModel } = (await server.ssrLoadModule('/src/lib/data.ts')) as typeof import('./src/lib/data.ts');
 const model = loadModel(readFileSync(new URL('../examples/model.yml', import.meta.url), 'utf8'));

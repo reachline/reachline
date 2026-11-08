@@ -1,7 +1,8 @@
 <script lang="ts">
   import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from '@lucide/svelte';
   import { Handle, Position, type NodeProps } from '@xyflow/svelte';
-  import { verdict, type Side, type VNode } from '../build';
+  import type { VNode } from '../../../../engine/view.ts';
+  import { verdict, type Side } from '../nodes';
   import { END, FLAG, GLYPH, ICON, ICON_SIZE, KIND_ICONS, outline } from '../shapes';
   import type { Kind } from '../../../../engine/model.ts';
 

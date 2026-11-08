@@ -120,9 +120,4 @@
     gap: var(--space-4);
     margin-bottom: var(--space-2);
   }
-  .buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
 </style>

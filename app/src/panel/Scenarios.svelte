@@ -3,7 +3,8 @@
   // mode, its form), and its verdicts as the CLI reports them, then what else
   // it leaves worse off.
   import { BASELINE, type Row } from '../../../engine/model.ts';
-  import { summary, type Model, type Outcome } from '../lib/data';
+  import type { Outcome } from '../../../engine/view.ts';
+  import { summary, type Model } from '../lib/data';
   import type { Created, Editing, Off } from '../lib/edit';
   import FromPlan from '../forms/FromPlan.svelte';
   import ScenarioForm from '../forms/ScenarioForm.svelte';

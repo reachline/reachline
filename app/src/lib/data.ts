@@ -1,14 +1,7 @@
 // The UI's model: the engine, run in the page on a model's text as the server
 // stores it.
-import {
-  availability,
-  BASELINE,
-  Model,
-  ReachError,
-  type Best,
-  type Row,
-  type Scenario,
-} from '../../../engine/model.ts';
+import { BASELINE, Model, ReachError, type Scenario } from '../../../engine/model.ts';
+import { compare } from '../../../engine/report.ts';
 
 export { Model, ReachError };
 
@@ -20,18 +13,21 @@ export function loadModel(text: string, plans: string[] = []): Model {
   return new Model({ path: 'model.yml', text }, plans);
 }
 
-/** One scenario's results, as the views colour them. */
-export interface Outcome {
-  sc: Scenario;
-  start: string[];
-  best: Best;
-  avail: Map<string, boolean>;
-  rows: Map<string, Row>;
+/** The model with the named plans, or why it doesn't load. */
+export function tryLoad(text: string, plans: string[] = []): Model | ReachError {
+  try {
+    return loadModel(text, plans);
+  } catch (e) {
+    if (e instanceof ReachError) return e;
+    throw e;
+  }
 }
 
-export function outcome(m: Model, name: string): Outcome {
-  const { sc, best } = m.run(name);
-  return { sc, start: m.start(sc), best, avail: availability(m.things, new Set(sc.lost)), rows: m.rows(name) };
+/** How verdicts compare between two texts, each with its plans; null if either doesn't load. */
+export function compareTexts(before: string, after: string, beforePlans: string[], afterPlans: string[]) {
+  const [b, a] = [tryLoad(before, beforePlans), tryLoad(after, afterPlans)];
+  if (b instanceof ReachError || a instanceof ReachError) return null;
+  return compare(b, a, [...new Set([...a.scenarios.keys(), ...b.scenarios.keys()])]);
 }
 
 /** A scenario in a line: what it takes away, or what the attacker starts with. */

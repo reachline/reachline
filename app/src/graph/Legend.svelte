@@ -13,7 +13,7 @@
     ['dead', 'can’t carry access in the scenario'],
   ] as const;
 
-  // How a scenario marks things. The glyphs match verdict() in build.ts.
+  // How a scenario marks things. The glyphs match verdict() in nodes.ts.
   const STATUSES = [
     ['good', '✓', 'reached'],
     ['bad', '✗', 'lost, or reached by the attacker'],

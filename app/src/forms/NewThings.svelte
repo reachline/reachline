@@ -57,9 +57,4 @@
     border: 1px solid var(--border);
     border-radius: var(--radius);
   }
-  .buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
-  }
 </style>

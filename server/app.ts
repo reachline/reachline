@@ -197,6 +197,28 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     throw new HTTPException(403, { res });
   }
 
+  /**
+   * The hash, if the password matches it; otherwise fails, throttling failures by name.
+   * With no hash it checks against a decoy, so the time taken doesn't say whether there is one.
+   */
+  async function checkPassword(
+    name: string,
+    password: string,
+    hash: string | null | undefined,
+    status: 401 | 403,
+    error: string,
+  ): Promise<string> {
+    const wait = throttle.wait(name);
+    if (wait) fail(429, 'Too many attempts; try again later', { 'Retry-After': String(Math.ceil(wait / 1000)) });
+    const ok = password.length <= PASSWORD.max && (await verifyPassword(password, hash ?? (await decoyHash())));
+    if (!hash || !ok) {
+      throttle.fail(name);
+      fail(status, error);
+    }
+    throttle.succeed(name);
+    return hash;
+  }
+
   const linkedAs = (userId: number) => (oidc && store.linkedAs(userId, oidc.issuer)) ?? null;
 
   function me(userId: number): Me {
@@ -267,20 +289,13 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     const b = await body(c);
     const name = str(b, 'username').trim().toLowerCase();
     const password = str(b, 'password');
-    const wait = throttle.wait(name);
-    if (wait) fail(429, 'Too many attempts; try again later', { 'Retry-After': String(Math.ceil(wait / 1000)) });
     const user = store.userByName(name);
-    const ok =
-      password.length <= PASSWORD.max && (await verifyPassword(password, user?.password ?? (await decoyHash())));
-    if (!user?.password || !ok) {
-      throttle.fail(name);
-      fail(401, 'Wrong username or password');
-    }
-    throttle.succeed(name);
-    if (needsRehash(user.password)) store.setPassword(user.id, await hashPassword(password));
+    const hash = await checkPassword(name, password, user?.password, 401, 'Wrong username or password');
+    const { id } = user!; // there's a hash, so there's a user
+    if (needsRehash(hash)) store.setPassword(id, await hashPassword(password));
     store.deleteExpiredSessions();
-    startSession(c, user.id, 'password');
-    return c.json<Me>(me(user.id));
+    startSession(c, id, 'password');
+    return c.json<Me>(me(id));
   });
 
   app.post('/api/auth/logout', (c) => {
@@ -311,14 +326,7 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
       store.setPassword(userId, await hashPassword(next));
       return c.body(null, 204);
     }
-    const current = str(b, 'current');
-    const wait = throttle.wait(name);
-    if (wait) fail(429, 'Too many attempts; try again later', { 'Retry-After': String(Math.ceil(wait / 1000)) });
-    if (current.length > PASSWORD.max || !(await verifyPassword(current, user.password))) {
-      throttle.fail(name);
-      fail(403, 'Wrong current password');
-    }
-    throttle.succeed(name);
+    await checkPassword(name, str(b, 'current'), user.password, 403, 'Wrong current password');
     store.setPassword(userId, await hashPassword(next));
     store.deleteSessions(userId, sessionId(getCookie(c, COOKIE)!));
     return c.body(null, 204);

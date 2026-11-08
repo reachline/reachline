@@ -3,7 +3,7 @@
   // tick what you've set up, and see what it would change before adding it.
   import { ArrowLeft } from '@lucide/svelte';
   import type { ScenarioChange } from '../../../engine/report.ts';
-  import { show, validId } from '../lib/edit';
+  import { idProblem, show } from '../lib/edit';
   import { instantiate, readTemplate, type Template } from './template';
   import Verdicts from '../panel/Verdicts.svelte';
 
@@ -56,7 +56,7 @@
   });
   const things = $derived(chosen ? instantiate(chosen, { prefix, slots, include: new Set(include) }) : {});
   const problem = $derived.by(() => {
-    if (!validId(prefix)) return 'The prefix must be lowercase letters, digits and _, starting with a letter.';
+    if (idProblem(prefix)) return idProblem(prefix);
     const taken = Object.keys(things).filter((id) => ids.has(id));
     if (taken.length) return `Already things: ${taken.join(', ')}. Pick yours for a slot, or change the prefix.`;
     return '';
@@ -71,7 +71,7 @@
 </script>
 
 <dialog bind:this={dialog} class="wide" aria-labelledby="{uid}-title" onclose={reset}>
-  <div class="body">
+  <div>
     {#if !chosen}
       <h2 id="{uid}-title">Add from a template</h2>
       <label class="field">Search <input type="search" bind:value={query} /></label>
@@ -179,17 +179,6 @@
   .wide {
     width: min(40rem, calc(100% - 2 * var(--space-4)));
   }
-  .body {
-    display: grid;
-    gap: var(--space-4);
-    padding: var(--space-5);
-  }
-  h2 {
-    font-size: var(--text-lg);
-  }
-  h3 {
-    font-size: var(--text-md);
-  }
   .list,
   .links,
   .adds {
@@ -223,11 +212,6 @@
   }
   .adds {
     font-size: var(--text-sm);
-  }
-  .buttons {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
   }
   .spacer {
     flex: 1;

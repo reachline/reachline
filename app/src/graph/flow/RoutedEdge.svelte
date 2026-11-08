@@ -1,6 +1,6 @@
 <script lang="ts">
   import type { EdgeProps } from '@xyflow/svelte';
-  import type { EdgeKind } from '../build';
+  import type { EdgeKind } from '../../../../engine/view.ts';
   import type { Pt, Routing } from '../layout';
   import { routePath } from '../shapes';
 

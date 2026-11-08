@@ -2,7 +2,8 @@
 // without moving anything.
 import ElkApi, { type ELK, type ElkNode } from 'elkjs/lib/elk-api.js';
 import workerUrl from 'elkjs/lib/elk-worker.min.js?url';
-import { isJunction, verdict, type View, type VNode } from './build';
+import { isJunction, type View, type VNode } from '../../../engine/view.ts';
+import { verdict } from './nodes';
 import { END, FONT, ICON, statusWidth, type Box, type Placed, type Pt, type Routing } from './shapes';
 
 export type { Box, Placed, Pt, Routing };
@@ -33,7 +34,7 @@ const getElk = () =>
     : Promise.resolve(new ElkApi({ workerUrl })));
 let ctx: CanvasRenderingContext2D | null = null;
 
-export function sizeOf(n: VNode): { w: number; h: number } {
+function sizeOf(n: VNode): { w: number; h: number } {
   if (n.kind === 'unknown') return { w: UNKNOWN_W, h: THING_H };
   if (isJunction(n.kind)) return { w: JUNCTION, h: JUNCTION };
   // The ends, the icon, and what a scenario marks after the name. Whether there's a glyph doesn't depend on the scenario's kind.

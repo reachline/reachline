@@ -2,8 +2,9 @@
   // The panel's Details tab: the thing selected in the graph (in edit mode,
   // its form), and its status in the scenario.
   import { fmtWhy } from '../../../engine/model.ts';
-  import { isJunction, type Side, type VNode } from '../graph/build';
-  import type { Model, Outcome } from '../lib/data';
+  import { isJunction, type Outcome, type VNode } from '../../../engine/view.ts';
+  import type { Side } from '../graph/nodes';
+  import type { Model } from '../lib/data';
   import type { Created, Editing, Off } from '../lib/edit';
   import FromPlan from '../forms/FromPlan.svelte';
   import ThingForm from '../forms/ThingForm.svelte';
