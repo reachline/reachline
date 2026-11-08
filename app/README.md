@@ -12,10 +12,12 @@ The page runs the engine (`../engine/`) on the model's text itself; the server
 only stores it. `?plan=spare_key,backup` applies plans from the model's
 `plans:` in order.
 
-URL parameters on `/m/:id` set the initial state, e.g.
-`?target=mail&scenario=nas_dies&place=NETWORK_SIMPLEX`,
-plus `plan=a,b`, `mode=where|all`, `dir=DOWN`, `routing=SPLINES`,
-`select=id`, and `expand=a,b` (clicks those nodes open in turn).
+The URL on `/m/:id` keeps what the graph shows, so a reload or a link comes
+back to it: `?target=mail&scenario=nas_dies`, plus `plan=a,b`,
+`into=plan` (where edits go), `mode=where|all` and `select=id`. `dir=DOWN`,
+`routing=SPLINES` and `place=NETWORK_SIMPLEX` set the layout, which the
+browser then keeps for every model, and `expand=a,b` clicks those nodes open
+in turn.
 
 Expanding a node places the new nodes in free space upstream without moving
 anything; Tidy runs the full ELK layout from scratch.

@@ -144,6 +144,9 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.locator('.cm-content').getByText('# saved').waitFor();
   assert.equal(await edge.getAttribute('aria-valuenow'), width);
   assert.equal(width, '400');
+  // So does the view (kept in the URL) and the layout (kept by the browser).
+  assert.equal(await page.getByRole('button', { name: 'Where things live' }).getAttribute('aria-pressed'), 'true');
+  assert.equal(await page.getByLabel('Direction').inputValue(), 'DOWN');
 
   // History compares the first revision with the text now, and restores it.
   await page.getByRole('button', { name: 'History' }).click();
@@ -252,6 +255,9 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.locator('.verdicts li').first().waitFor();
   const into = page.getByRole('combobox', { name: 'Edits go into' });
   await into.selectOption('spare_key');
+  await into.and(page.locator('select.plan')).waitFor();
+  // Where edits go survives a reload.
+  await page.reload();
   await into.and(page.locator('select.plan')).waitFor();
   await page.getByRole('button', { name: 'Add', exact: true }).click();
   await page.getByRole('button', { name: 'Thing…' }).click();

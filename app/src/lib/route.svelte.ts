@@ -37,6 +37,15 @@ export function go(to: string, replace = false) {
   here = location.pathname + location.search;
 }
 
+/** Rewrites this page's query to match its state, without adding a step to history. */
+export function setQuery(params: Record<string, string>) {
+  // Ids never contain commas, so lists stay readable.
+  // eslint-disable-next-line svelte/prefer-svelte-reactivity -- used once, never kept as state
+  const s = new URLSearchParams(params).toString().replaceAll('%2C', ',');
+  history.replaceState(history.state, '', location.pathname + (s ? `?${s}` : ''));
+  here = location.pathname + location.search;
+}
+
 /** Whether the page lets the user leave it, asking them if it needs to. */
 export function mayLeave() {
   return !leaving || leaving();

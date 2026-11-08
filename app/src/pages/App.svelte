@@ -70,7 +70,7 @@
   import Picker, { type PickerGroup } from '../shell/Picker.svelte';
   import { keep, load } from '../lib/prefs';
   import Resizer from '../shell/Resizer.svelte';
-  import { beforeLeave, follow } from '../lib/route.svelte.ts';
+  import { beforeLeave, follow, setQuery } from '../lib/route.svelte.ts';
   import UserMenu from '../shell/UserMenu.svelte';
 
   let { id, user, onsignout }: { id: number; user: string; onsignout: () => void } = $props();
@@ -78,10 +78,17 @@
   type Mode = 'ways' | 'where' | 'all';
   const DEPTH = 2;
 
-  // Initial settings can come from the URL, e.g. ?target=mail&scenario=nas_dies&dir=DOWN
+  // What the graph shows is kept in the URL, e.g. ?target=mail&scenario=nas_dies,
+  // so a reload or a link comes back to it. How it's laid out is this device's.
   const q = new URLSearchParams(location.search);
-  // The plans that are on, kept in ?plan=. They apply in the order the document lists them.
-  let on = $state((q.get('plan') ?? '').split(',').filter(Boolean));
+  // A setting kept in a link or the browser may be out of date, so it's checked.
+  const oneOf = <T extends string>(v: unknown, allowed: readonly T[], usual: T): T =>
+    allowed.includes(v as T) ? (v as T) : usual;
+  // The plans that are on. They apply in the order the document lists them.
+  // The one edits go into is always among them.
+  const into = q.get('into') ?? null;
+  const planned = (q.get('plan') ?? '').split(',').filter(Boolean);
+  let on = $state(into && !planned.includes(into) ? [...planned, into] : planned);
   const inOrder = (t: string) =>
     plansOf(t)
       .map((p) => p.name)
@@ -145,16 +152,32 @@
   let checked = $state<string | null>(null);
   // Where the thing last selected in the graph is defined, for the editor to show.
   let reveal = $state.raw<{ from: number; to: number } | null>(null);
-  let mode = $state<Mode>((q.get('mode') ?? 'ways') as Mode);
+  let mode = $state(oneOf<Mode>(q.get('mode'), ['ways', 'where', 'all'], 'ways'));
   let target = $state(q.get('target') ?? '');
   let scenarioName = $state(q.get('scenario') ?? 'house_fire');
-  let routing = $state<Routing>((q.get('routing') ?? 'ORTHOGONAL') as Routing);
-  let direction = $state<Direction>((q.get('dir') ?? 'RIGHT') as Direction);
-  let placement = $state<Placement>((q.get('place') ?? 'BRANDES_KOEPF') as Placement);
+  // A layout from a link becomes this device's.
+  const ROUTINGS = ['ORTHOGONAL', 'SPLINES', 'POLYLINE'] as const;
+  let routing = $state(oneOf<Routing>(q.get('routing') ?? load('layout.routing'), ROUTINGS, 'ORTHOGONAL'));
+  let direction = $state(oneOf<Direction>(q.get('dir') ?? load('layout.dir'), ['RIGHT', 'DOWN'], 'RIGHT'));
+  const PLACEMENTS = ['BRANDES_KOEPF', 'NETWORK_SIMPLEX'] as const;
+  let placement = $state(oneOf<Placement>(q.get('place') ?? load('layout.place'), PLACEMENTS, 'BRANDES_KOEPF'));
+  $effect(() => keep('layout.routing', routing));
+  $effect(() => keep('layout.dir', direction));
+  $effect(() => keep('layout.place', placement));
   // The nodes whose ways in are shown, and those whose ways into other things are.
   let expanded = $state.raw<Set<string>>(new Set());
   let forward = $state.raw<Set<string>>(new Set());
   let selected = $state<string | null>(q.get('select'));
+  $effect(() => {
+    const view: Record<string, string> = {};
+    if (mode !== 'ways') view.mode = mode;
+    if (target) view.target = target;
+    if (scenarioName !== 'house_fire') view.scenario = scenarioName;
+    if (on.length) view.plan = on.join(',');
+    if (chosenLayer) view.into = chosenLayer;
+    if (selected) view.select = selected;
+    setQuery(view);
+  });
 
   let shown = $state.raw<{ view: View; placed: Placed } | null>(null);
   let fitKey = $state(0);
@@ -366,7 +389,7 @@
   // Guided edits. They go to one layer: the model itself, or a plan.
   let editMode = $state(load('details.edit') === true);
   $effect(() => keep('details.edit', editMode));
-  let chosenLayer = $state<Layer>(null);
+  let chosenLayer = $state<Layer>(into);
   const planList = $derived(text === null ? [] : plansOf(text));
   const plans = $derived(planList.map((p) => p.name).filter((n) => on.includes(n)));
   // A plan that's gone (deleted, or undone) can't take edits: they'd make it again.
@@ -375,11 +398,7 @@
   /** Turns plans on or off, and shows the model with them. */
   function setOn(next: string[]) {
     on = next;
-    if (layer !== null && !next.includes(layer)) chosenLayer = null;
-    const url = new URL(location.href);
-    if (next.length) url.searchParams.set('plan', next.join(','));
-    else url.searchParams.delete('plan');
-    history.replaceState(history.state, '', url);
+    if (chosenLayer !== null && !next.includes(chosenLayer)) chosenLayer = null;
     if (text !== null) lint(text);
   }
 
