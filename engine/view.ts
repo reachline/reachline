@@ -42,6 +42,7 @@ export interface VEdge {
   target: string;
   kind: EdgeKind;
   live: boolean; // can carry access in the scenario
+  by?: string; // a mirror's: what syncs it
 }
 
 export interface View {
@@ -107,11 +108,18 @@ class Builder {
     return id;
   }
 
-  edge(source: string, target: string, kind: EdgeKind, live = true) {
+  edge(source: string, target: string, kind: EdgeKind, live = true): VEdge {
     const id = `${source}>${target}:${kind}`;
     const e = this.edges.get(id);
     if (e) e.live &&= live;
     else this.edges.set(id, { id, source, target, kind, live });
+    return this.edges.get(id)!;
+  }
+
+  /** The edge from what tid mirrors, if it mirrors anything. */
+  mirror(tid: string) {
+    const m = this.m.things.get(tid)!.mirrors;
+    if (m) this.edge(this.node(m.of), this.node(tid), 'mirror').by = m.by;
   }
 
   /** The node standing for a condition at path, and whether it holds by `ok` (an unknown might, so it counts). */
@@ -143,9 +151,8 @@ class Builder {
     const t = this.m.things.get(tid)!;
     if (f === 'in') this.into(places(t.in), 'or', tid, 'in');
     else if (f === 'needs') this.into(t.needs, 'and', tid, 'needs', this.avail);
-    else if (f === 'mirrors') {
-      if (t.mirrors) this.edge(this.node(t.mirrors.of), this.node(tid), 'mirror');
-    } else this.into(t[f], 'or', tid, f);
+    else if (f === 'mirrors') this.mirror(tid);
+    else this.into(t[f], 'or', tid, f);
   }
 
   color() {
@@ -183,7 +190,7 @@ export function whereView(m: Model, sc?: Outcome): View {
   for (const [tid, t] of m.things) {
     b.into(places(t.in), 'or', tid, 'in');
     b.into(t.needs, 'and', tid, 'needs', b.avail);
-    if (t.mirrors) b.edge(b.node(t.mirrors.of), b.node(tid), 'mirror');
+    b.mirror(tid);
   }
   return b.view();
 }

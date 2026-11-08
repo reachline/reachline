@@ -72,7 +72,10 @@ export function toMermaid(view: View, vertical: boolean, kind: string, title?: s
           : [n.status, n.more && 'more'].find((s) => s && s in styles);
     if (cls) members.set(cls, [...(members.get(cls) ?? []), id]);
   }
-  for (const e of view.edges) out.push(`  ${ids.get(e.source)} ${ARROWS[e.kind]} ${ids.get(e.target)}`);
+  for (const e of view.edges) {
+    const arrow = e.by ? `-.->|"mirrored by ${e.by}"|` : ARROWS[e.kind];
+    out.push(`  ${ids.get(e.source)} ${arrow} ${ids.get(e.target)}`);
+  }
   const dead = view.edges.flatMap((e, i) => (e.live ? [] : [i]));
   if (dead.length) out.push(`  linkStyle ${dead.join(',')} stroke:#d6d6d6`);
   for (const [name, style] of Object.entries(styles)) {

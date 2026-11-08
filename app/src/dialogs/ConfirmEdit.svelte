@@ -5,17 +5,10 @@
   import type { Change } from '../lib/edit';
   import Verdicts from '../panel/Verdicts.svelte';
   import Confirm from './Confirm.svelte';
+  import type { Question } from './confirm';
 
   interface Props {
-    asking: {
-      title: string;
-      text: string;
-      action: string;
-      danger: boolean;
-      warnings: string[];
-      changes: Change[];
-      verdicts: ScenarioChange[] | null;
-    } | null;
+    asking: (Question & { warnings: string[]; changes: Change[]; verdicts: ScenarioChange[] | null }) | null;
     onconfirm: () => void;
     onclose: () => void;
   }

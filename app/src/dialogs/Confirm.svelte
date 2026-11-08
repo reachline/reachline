@@ -2,10 +2,10 @@
   // Asks before an action, opening whenever there's a question. What more it
   // shows, such as what the action would change, is its children.
   import type { Snippet } from 'svelte';
+  import type { Question } from './confirm';
 
   interface Props {
-    /** `action` names the button that goes ahead: a danger unless `danger` is false. */
-    question: { title: string; text: string; action: string; danger?: boolean } | null | undefined;
+    question: Question | null | undefined;
     onconfirm: () => void;
     /** Closed, by going ahead or not: the owner drops the question. */
     onclose: () => void;

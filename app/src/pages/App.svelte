@@ -20,6 +20,7 @@
   import { expandToDepth, outcome, waysInView, whereView, type View } from '../../../engine/view.ts';
   import type { Side } from '../graph/nodes';
   import AddDialog from '../dialogs/AddDialog.svelte';
+  import type { Question } from '../dialogs/confirm';
   import ConfirmEdit from '../dialogs/ConfirmEdit.svelte';
   import Details from '../panel/Details.svelte';
   import Logo from '../shell/Logo.svelte';
@@ -464,11 +465,7 @@
   });
 
   // An edit waiting for confirmation, with what it would change.
-  interface Asking {
-    title: string;
-    text: string;
-    action: string;
-    danger: boolean;
+  interface Asking extends Question {
     changes: Change[];
     verdicts: ScenarioChange[] | null;
     warnings: string[];

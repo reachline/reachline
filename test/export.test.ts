@@ -60,7 +60,7 @@ test('the Mermaid has every node and edge, with valid ids and the scenario colou
     );
   for (const e of view.edges) {
     assert.ok(
-      lines.some((l) => new RegExp(`^  ${ids.get(e.source)} \\S+ ${ids.get(e.target)}$`).test(l)),
+      lines.some((l) => new RegExp(`^  ${ids.get(e.source)} -\\S*(\\|[^|]*\\|)? ${ids.get(e.target)}$`).test(l)),
       e.id,
     );
   }

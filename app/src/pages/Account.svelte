@@ -4,6 +4,7 @@
   import { api, message, needsReauth, takeSsoProblem } from '../lib/api';
   import { follow, go } from '../lib/route.svelte.ts';
   import Confirm from '../dialogs/Confirm.svelte';
+  import type { Question } from '../dialogs/confirm';
   import TopBar from '../shell/TopBar.svelte';
 
   let { user, onsignout }: { user: string; onsignout: () => void } = $props();
@@ -24,7 +25,7 @@
   const ssoProblem = takeSsoProblem();
   if (ssoProblem) outcome = { section: 'sso', text: ssoProblem, failed: true };
 
-  let asking = $state<{ section: Section; title: string; text: string; action: string; run: () => Promise<void> }>();
+  let asking = $state<Question & { section: Section; run: () => Promise<void> }>();
 
   async function load() {
     [me, options] = await Promise.all([api.me(), api.options()]);
@@ -66,10 +67,6 @@
     act('sso', async () => {
       location.assign((await api.link()).url);
     });
-
-  function ask(question: NonNullable<typeof asking>) {
-    asking = question;
-  }
 
   function confirmed() {
     const { section, run } = asking!;
@@ -155,7 +152,7 @@
               class="danger"
               disabled={busy}
               onclick={() =>
-                ask({
+                (asking = {
                   section: 'password',
                   title: 'Remove your password?',
                   text: `You'll be able to sign in only with your identity provider, as ${me!.linked}.`,
@@ -188,7 +185,7 @@
               class="danger"
               disabled={busy}
               onclick={() =>
-                ask({
+                (asking = {
                   section: 'sso',
                   title: 'Unlink your identity provider?',
                   text: "You'll be able to sign in only with your password.",
@@ -213,7 +210,7 @@
           class="danger"
           disabled={busy}
           onclick={() =>
-            ask({
+            (asking = {
               section: 'delete',
               title: 'Delete your account?',
               text: `This deletes ${user} and all of your models from this server, with their history. It can't be undone.`,
