@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Shapes } from '@lucide/svelte';
+  import { ChevronLeft, ChevronRight, Shapes } from '@lucide/svelte';
   import { KINDS } from '../../../engine/model.ts';
   import { shapePath } from './shapes';
 
@@ -37,6 +37,8 @@
       <svg width="44" height="10" aria-hidden="true"><line x1="2" y1="5" x2="42" y2="5" class="e-{k}" /></svg>
       <span>{label}</span>
     {/each}
+    <span class="more" aria-hidden="true"><ChevronLeft /><ChevronRight /></span>
+    <span>more ways in, or more it’s a way into, that side; click to show it</span>
   </div>
   <h3>In a scenario</h3>
   <div class="grid">
@@ -44,8 +46,6 @@
       <span class="swatch st-{k}" aria-hidden="true">{mark}</span>
       <span>{label}</span>
     {/each}
-    <span class="swatch" aria-hidden="true"><b class="more">+</b></span>
-    <span>has more ways in; select it to show them</span>
     <span class="swatch" aria-hidden="true"><b class="row">!</b></span>
     <span>checked, and reported by the scenario</span>
   </div>
@@ -132,6 +132,9 @@
     background: var(--gone-fill);
   }
   .more {
+    display: flex;
+    justify-content: center;
+    width: 44px;
     color: var(--muted);
   }
   .row {

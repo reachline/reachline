@@ -115,8 +115,9 @@ const overlaps = (a: Box, b: Box) =>
 
 /**
  * Add the view's new nodes without moving anything already placed: each goes
- * just upstream of what it feeds into, in the nearest free slot. Edges that
- * already had an ELK route keep it; new ones get a simple stepped route.
+ * just upstream of what it feeds into (or downstream of what feeds it), in the
+ * nearest free slot. Edges that already had an ELK route keep it; new ones get
+ * a simple stepped route.
  */
 export function placeLocally(view: View, prev: Placed, dir: Direction): Placed {
   const nodes = new Map<string, Box>();
@@ -136,8 +137,9 @@ export function placeLocally(view: View, prev: Placed, dir: Direction): Placed {
     }
     return want;
   };
-  for (let added = true; added;) {
-    added = false;
+  // Upstream first, as expanding usually adds; then downstream of a placed node, which may open more upstream.
+  for (;;) {
+    let added = false;
     for (const e of view.edges) {
       if (nodes.has(e.source) || !nodes.has(e.target)) continue;
       const t = nodes.get(e.target)!;
@@ -149,8 +151,18 @@ export function placeLocally(view: View, prev: Placed, dir: Direction): Placed {
       nodes.set(e.source, slot(want));
       added = true;
     }
+    if (added) continue;
+    const down = view.edges.find((e) => nodes.has(e.source) && !nodes.has(e.target));
+    if (!down) break;
+    const s = nodes.get(down.source)!;
+    const { w, h } = sizeOf(byId.get(down.target)!);
+    const want =
+      dir === 'RIGHT'
+        ? { x: s.x + s.w + GAP, y: s.y + s.h / 2 - h / 2, w, h }
+        : { x: s.x + s.w / 2 - w / 2, y: s.y + s.h + GAP, w, h };
+    nodes.set(down.target, slot(want));
   }
-  // Anything still unplaced has no placed node downstream; park it below.
+  // Anything still unplaced has no placed neighbour; park it below.
   let bottom = Math.max(0, ...[...nodes.values()].map((b) => b.y + b.h));
   for (const n of view.nodes) {
     if (nodes.has(n.id)) continue;

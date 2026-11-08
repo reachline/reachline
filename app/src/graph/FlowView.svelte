@@ -1,7 +1,7 @@
 <script lang="ts">
   import { Background, MarkerType, Panel, SvelteFlow, type Edge, type Node } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
-  import { describe, isJunction, type View } from './build';
+  import { describe, edgesOf, isJunction, type Side, type View } from './build';
   import { untrack, type Snippet } from 'svelte';
   import JunctionNode from './flow/JunctionNode.svelte';
   import RoutedEdge from './flow/RoutedEdge.svelte';
@@ -19,29 +19,42 @@
     fitKey: number;
     /** A node was chosen, by a click or with Enter or Space. */
     onnode: (id: string) => void;
+    /** Shows or hides a node's ways in, or what it's a way into; without it, nodes have no arrows. */
+    onopen?: (id: string, side: Side, open: boolean) => void;
+    /** A node was opened to edit, by a double click or with Shift+Enter. */
+    onedit: (id: string) => void;
     /** The selection was cleared, by Escape or a click on empty space. */
     ondeselect: () => void;
     /** More controls, after the zoom buttons. */
     tools?: Snippet;
   }
-  let { view, placed, vertical, kind, selected, fitKey, onnode, ondeselect, tools }: Props = $props();
+  let { view, placed, vertical, kind, selected, fitKey, onnode, onopen, onedit, ondeselect, tools }: Props = $props();
 
   // Svelte Flow's own description talks of deleting and moving nodes.
   const ariaLabelConfig = {
-    'node.a11yDescription.default':
-      'Press Enter to select a node and see its details. Selecting a node with more ways in shows them.',
+    'node.a11yDescription.default': 'Press Enter to select a node and see its details, or Shift+Enter to edit it.',
   };
 
   /** Svelte Flow keeps keys to its own selection, which is off; these choose a node as a click does. */
   function onkeydown(e: KeyboardEvent) {
     const el = e.target as HTMLElement;
     if (!el.classList.contains('svelte-flow__node') || !el.dataset.id) return;
-    if (e.key === 'Enter' || e.key === ' ') {
+    if (e.key === 'Enter' && e.shiftKey) {
+      e.preventDefault();
+      onedit(el.dataset.id);
+    } else if (e.key === 'Enter' || e.key === ' ') {
       e.preventDefault();
       onnode(el.dataset.id);
     } else if (e.key === 'Escape') {
       ondeselect();
     }
+  }
+
+  /** Svelte Flow has no double click for nodes; this is one, on a node but not its chevrons. */
+  function ondblclick(e: MouseEvent) {
+    const el = e.target as HTMLElement;
+    const id = el.closest<HTMLElement>('.svelte-flow__node')?.dataset.id;
+    if (id && !el.closest('.node-arrow')) onedit(id);
   }
 
   const nodeTypes = { thing: ThingNode, junction: JunctionNode };
@@ -69,7 +82,7 @@
           height: b.h,
           draggable: false,
           ariaLabel: describe(n, kind),
-          data: { node: n, vertical, selected: false, kind },
+          data: { node: n, vertical, selected: false, kind, onopen },
         };
       });
   });
@@ -85,14 +98,14 @@
     });
   });
 
-  $effect(() => {
-    edges = view.edges.map((e) => ({
+  const laidEdges = $derived(
+    view.edges.map((e): Edge => ({
       id: e.id,
       source: e.source,
       target: e.target,
       type: 'routed',
       selectable: false,
-      data: { kind: e.kind, live: e.live, points: placed.edges.get(e.id) ?? [], routing: placed.routing },
+      data: { kind: e.kind, live: e.live, lit: false, points: placed.edges.get(e.id) ?? [], routing: placed.routing },
       markerEnd:
         e.kind === 'part'
           ? undefined
@@ -102,13 +115,25 @@
               height: 14,
               color: e.live ? `var(--e-${e.kind})` : 'var(--e-dead)',
             },
-    }));
+    })),
+  );
+
+  const lit = $derived(selected ? edgesOf(view, selected) : new Set<string>());
+
+  // Lit edges go last, so they're drawn over the rest.
+  $effect(() => {
+    // Arrowheads scale with the stroke, so a thicker edge gets a smaller one, drawn about the size of the rest.
+    const head = (m: Edge['markerEnd']) => (typeof m === 'object' ? { ...m, width: 8, height: 8 } : m);
+    const on = laidEdges
+      .filter((e) => lit.has(e.id))
+      .map((e) => ({ ...e, markerEnd: head(e.markerEnd), data: { ...e.data, lit: true } }));
+    edges = [...laidEdges.filter((e) => !lit.has(e.id)), ...on];
   });
 </script>
 
-<!-- Keys come from the nodes inside, which are focusable. -->
+<!-- Keys and double clicks come from the nodes inside, which are focusable. -->
 <!-- svelte-ignore a11y_no_static_element_interactions -->
-<div class="pane kind-{kind}" {onkeydown}>
+<div class="pane kind-{kind}" {onkeydown} {ondblclick}>
   <SvelteFlow
     bind:nodes
     bind:edges
@@ -117,9 +142,11 @@
     nodesDraggable={false}
     nodesConnectable={false}
     minZoom={0.05}
+    zoomOnDoubleClick={false}
     elementsSelectable={false}
     colorMode={theme.value}
     {ariaLabelConfig}
+    proOptions={{ hideAttribution: true }}
     onnodeclick={({ node }) => onnode(node.id)}
     onpaneclick={ondeselect}
   >
@@ -139,10 +166,6 @@
   }
   .pane :global(.svelte-flow) {
     --xy-background-color: var(--bg);
-    --xy-attribution-background-color: var(--surface);
-  }
-  .pane :global(.svelte-flow__attribution a) {
-    color: var(--muted);
   }
   .pane :global(.svelte-flow__node) {
     font: var(--graph-font);

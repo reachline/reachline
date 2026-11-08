@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from '@lucide/svelte';
   import { Handle, Position, type NodeProps } from '@xyflow/svelte';
-  import { verdict, type VNode } from '../build';
+  import { verdict, type Side, type VNode } from '../build';
   import { shapePath } from '../shapes';
 
   interface Data {
@@ -9,10 +10,27 @@
     selected: boolean;
     /** The scenario's kind, or '' for none. */
     kind: string;
+    onopen?: (id: string, side: Side, open: boolean) => void;
   }
   let { data, width = 0, height = 0 }: NodeProps & { data: Data } = $props();
   const n = $derived(data.node);
   const d = $derived(shapePath(n.kind, width, height));
+
+  // A chevron on each side that has more to show (pointing out), or, while selected, something to hide (pointing in).
+  const arrows = $derived.by(() => {
+    if (!data.onopen) return [];
+    const sides: [Side, boolean | undefined][] = [
+      ['in', n.more ? true : n.expanded ? false : undefined],
+      ['out', n.moreOut ? true : n.expandedOut ? false : undefined],
+    ];
+    return sides.flatMap(([side, open]) => {
+      if (open === undefined || (!open && !data.selected)) return [];
+      const back = (side === 'in') === open;
+      const Icon = data.vertical ? (back ? ChevronUp : ChevronDown) : back ? ChevronLeft : ChevronRight;
+      const what = side === 'in' ? 'ways in' : 'what it leads to';
+      return [{ side, open, Icon, title: `${open ? 'Show' : 'Hide'} ${what}` }];
+    });
+  });
 </script>
 
 <!-- What all this shows is in the node's aria-label (FlowView). -->
@@ -23,8 +41,17 @@
   </svg>
   {#if n.status}<span class="glyph">{verdict(n, data.kind)?.mark ?? ''}</span>{/if}
   <span class="label">{n.label}</span>
-  {#if n.more}<span class="mark more">+</span>
-  {:else if n.row}<span class="mark row">!</span>{/if}
+  {#if n.row}<span class="mark row">!</span>{/if}
+  <!-- For the pointer; Details has the same actions for the keyboard. The click goes on to select the node. -->
+  {#each arrows as a (a.side)}
+    <button
+      class="quiet icon node-arrow nodrag nopan {a.side}"
+      class:v={data.vertical}
+      tabindex="-1"
+      title={a.title}
+      onclick={() => data.onopen?.(n.id, a.side, a.open)}><a.Icon /></button
+    >
+  {/each}
 </div>
 <Handle type="target" position={data.vertical ? Position.Top : Position.Left} isConnectable={false} />
 <Handle type="source" position={data.vertical ? Position.Bottom : Position.Right} isConnectable={false} />
@@ -76,9 +103,31 @@
   .k-account .mark {
     right: 12px;
   }
-  .more {
-    color: var(--muted);
+  /* Beside the node: the target touches it, and the glyph centred in it leaves a gap. */
+  .node-arrow {
+    position: absolute;
+    top: 50%;
+    translate: 0 -50%;
   }
+  .node-arrow.in {
+    right: 100%;
+  }
+  .node-arrow.out {
+    left: 100%;
+  }
+  .node-arrow.v {
+    top: auto;
+    left: 50%;
+    right: auto;
+    translate: -50% 0;
+  }
+  .node-arrow.v.in {
+    bottom: 100%;
+  }
+  .node-arrow.v.out {
+    top: 100%;
+  }
+
   /* Edges come from ELK, so the handles only anchor them. */
   :global(.svelte-flow__handle) {
     opacity: 0;

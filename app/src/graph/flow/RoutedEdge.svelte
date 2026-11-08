@@ -7,6 +7,8 @@
   interface Data extends Record<string, unknown> {
     kind: EdgeKind;
     live: boolean;
+    /** One of the selected node's edges. */
+    lit: boolean;
     points: Pt[];
     routing: Routing;
   }
@@ -16,7 +18,9 @@
   const path = $derived(routePath(d.points, d.routing) || `M${sourceX},${sourceY} L${targetX},${targetY}`);
 </script>
 
-<path class="sf-edge k-{d.kind}" class:dead={!d.live} d={path} marker-end={markerEnd} />
+<!-- A lit edge has a gap in the background's colour around it where others cross it. -->
+{#if d.lit}<path class="sf-edge under" d={path} />{/if}
+<path class="sf-edge k-{d.kind}" class:dead={!d.live} class:lit={d.lit} d={path} marker-end={markerEnd} />
 
 <style>
   .sf-edge {
@@ -49,5 +53,12 @@
   .dead {
     stroke: var(--e-dead);
     stroke-width: 1;
+  }
+  .lit {
+    stroke-width: 2.8;
+  }
+  .under {
+    stroke: var(--bg);
+    stroke-width: 7;
   }
 </style>

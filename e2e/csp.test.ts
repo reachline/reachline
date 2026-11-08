@@ -73,17 +73,23 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.waitForURL(/\/m\/\d+/);
   await page.locator('.svelte-flow__node').first().waitFor();
 
-  // The graph works from the keyboard: Enter on a node selects it and shows its ways in; Escape clears it.
-  const more = page.getByRole('group', { name: /has more ways in$/ }).first();
+  // The graph works from the keyboard: Enter on a node selects it, Details shows its ways in, Escape clears it.
+  const more = page.getByRole('group', { name: /has more ways in(,|$)/ }).first();
   const id = (await more.getAttribute('aria-label'))!.split(',')[0];
   const count = await page.locator('.svelte-flow__node').count();
   await more.focus();
   await page.keyboard.press('Enter');
   await page.getByRole('heading', { name: new RegExp(`^${id} `) }).waitFor();
+  await page.getByRole('button', { name: 'Show ways in' }).click();
   await page.waitForFunction((n) => document.querySelectorAll('.svelte-flow__node').length > n, count);
   await page.getByRole('group', { name: new RegExp(`^${id},`) }).focus();
   await page.keyboard.press('Escape');
-  await page.getByText('Select a node for its details.').waitFor();
+  await page.getByText(/^Select a node for its details/).waitFor();
+  // Shift+Enter (or a double click) opens it to edit.
+  await page.getByRole('group', { name: new RegExp(`^${id},`) }).focus();
+  await page.keyboard.press('Shift+Enter');
+  await page.getByRole('textbox', { name: 'Name', exact: true }).waitFor();
+  await page.getByRole('button', { name: 'Done', exact: true }).click();
   // The toolbar's Thing picker shows ways into a thing, and selects it; Enter takes the first match.
   await page.getByRole('button', { name: /^Thing / }).click();
   await page.getByRole('searchbox', { name: 'Filter' }).fill('mail_p');
@@ -392,6 +398,11 @@ test('the pages pass axe', async () => {
     await page.waitForURL(/\/m\/\d+/);
     await page.locator('.svelte-flow__node').first().waitFor();
     await check('model');
+    // Selected, a node shows its arrows, and Details what they do.
+    await page.locator('.svelte-flow__node-thing').first().click();
+    await page.locator('.node-arrow').first().waitFor();
+    await check('a node selected');
+    await page.keyboard.press('Escape');
     await page.getByRole('button', { name: 'Details', exact: true }).click();
     await check('the panel closed');
     await page.getByRole('button', { name: 'Details', exact: true }).click();

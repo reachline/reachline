@@ -213,6 +213,16 @@ button.icon {
   width: var(--control-h);
   padding: 0;
 }
+/* A chevron beside a graph node (a .quiet .icon): the glyph alone, on a spot of the page's colour so edges stop short of it. */
+button.icon.node-arrow {
+  width: 1.5rem;
+  min-height: 1.5rem;
+  color: var(--muted);
+}
+button.node-arrow .lucide {
+  border-radius: 50%;
+  background: var(--bg);
+}
 /* Pressed or chosen: a toggle, the option picked in a set. */
 button[aria-pressed='true'] {
   background: var(--selected);

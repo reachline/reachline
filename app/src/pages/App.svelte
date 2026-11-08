@@ -18,7 +18,7 @@
     WandSparkles,
   } from '@lucide/svelte';
   import { untrack } from 'svelte';
-  import { expandToDepth, waysInView, whereView, type View } from '../graph/build';
+  import { expandToDepth, waysInView, whereView, type Side, type View } from '../graph/build';
   import AddDialog from '../dialogs/AddDialog.svelte';
   import Details from '../panel/Details.svelte';
   import Logo from '../shell/Logo.svelte';
@@ -151,7 +151,9 @@
   let routing = $state<Routing>((q.get('routing') ?? 'ORTHOGONAL') as Routing);
   let direction = $state<Direction>((q.get('dir') ?? 'RIGHT') as Direction);
   let placement = $state<Placement>((q.get('place') ?? 'BRANDES_KOEPF') as Placement);
+  // The nodes whose ways in are shown, and those whose ways into other things are.
   let expanded = $state.raw<Set<string>>(new Set());
+  let forward = $state.raw<Set<string>>(new Set());
   let selected = $state<string | null>(q.get('select'));
 
   let shown = $state.raw<{ view: View; placed: Placed } | null>(null);
@@ -341,7 +343,7 @@
       // Without ?target=, start on the first thing checked for lockouts.
       target ||= [...m.things].find(([, t]) => t.check.includes('lockout'))?.[0] ?? [...m.things.keys()].at(0) ?? '';
       const t = untrack(() => target);
-      if (m.things.has(t)) expanded = expandToDepth(m, [t], DEPTH);
+      if (m.things.has(t)) [expanded, forward] = [expandToDepth(m, [t], DEPTH), new Set()];
     }
     model = m;
     error = '';
@@ -436,7 +438,8 @@
         if (problem || !apply(renameThing(from, to))) return problem || editError;
         if (selected === from) selected = to;
         if (target === from) target = to;
-        expanded = new Set([...expanded].map((x) => (x === from ? to : x)));
+        const swap = (ids: Set<string>) => new Set([...ids].map((x) => (x === from ? to : x)));
+        [expanded, forward] = [swap(expanded), swap(forward)];
         return '';
       },
       renameScenario: (from, to) => {
@@ -647,16 +650,17 @@
     if (mode === 'where') return whereView(model, scenario);
     if (mode === 'all') return waysInView(model, [...model.things.keys()], 'all', scenario);
     if (!model.things.has(target)) return null;
-    return waysInView(model, [target], expanded, scenario);
+    return waysInView(model, [target], expanded, scenario, forward);
   });
 
-  // ?expand=a,b clicks those nodes open one at a time (for headless checks).
+  // ?expand=a,b opens those nodes' ways in one at a time (for headless checks).
   const demo = (q.get('expand') ?? '').split(',').filter(Boolean);
   let demoStarted = false;
   function demoStep() {
     const id = demo.shift();
     if (!id) return;
-    onnode(id);
+    select(id);
+    setOpen(id, 'in', true);
     setTimeout(demoStep, 800);
   }
   $effect(() => {
@@ -714,7 +718,7 @@
     if (!model) return;
     mode = 'ways';
     target = id;
-    expanded = expandToDepth(model, [id], DEPTH);
+    [expanded, forward] = [expandToDepth(model, [id], DEPTH), new Set()];
     restart();
   }
 
@@ -725,14 +729,19 @@
     if (at) reveal = { from: at[0], to: at[1] };
   }
 
-  function onnode(id: string) {
+  /** Selects a node and opens it in Details: a thing's form, or a junction's details. */
+  function editNode(id: string) {
     select(id);
-    const n = shown?.view.nodes.find((n) => n.id === id);
-    if (mode === 'ways' && n?.more) expanded = new Set([...expanded, id]);
+    showTab('details');
+    if (model?.things.has(id)) setEditMode(true);
   }
 
-  function collapse(id: string) {
-    expanded = new Set([...expanded].filter((x) => x !== id));
+  /** Shows or hides a node's ways in, or what it's a way into. */
+  function setOpen(id: string, side: Side, open: boolean) {
+    const was = [...(side === 'in' ? expanded : forward)].filter((x) => x !== id);
+    const ids = new Set(open ? [...was, id] : was);
+    if (side === 'in') expanded = ids;
+    else forward = ids;
   }
 
   const selNode = $derived(selected ? shown?.view.nodes.find((n) => n.id === selected) : undefined);
@@ -966,7 +975,9 @@
         kind={scenario?.sc.kind ?? ''}
         {selected}
         {fitKey}
-        {onnode}
+        onnode={select}
+        onedit={editNode}
+        onopen={mode === 'ways' ? setOpen : undefined}
         ondeselect={() => (selected = null)}
       >
         {#snippet tools()}
@@ -1026,7 +1037,7 @@
         node={selNode}
         target={mode === 'ways' ? target : null}
         onwaysinto={waysInto}
-        oncollapse={collapse}
+        onopen={setOpen}
         edit={editMode}
         {editing}
         onedit={setEditMode}

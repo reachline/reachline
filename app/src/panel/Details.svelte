@@ -2,7 +2,7 @@
   // The panel's Details tab: the thing selected in the graph (in edit mode,
   // its form), and its status in the scenario.
   import { fmtWhy } from '../../../engine/model.ts';
-  import { isJunction, type VNode } from '../graph/build';
+  import { isJunction, type Side, type VNode } from '../graph/build';
   import type { Model, Outcome } from '../lib/data';
   import type { Created, Editing, Off } from '../lib/edit';
   import FromPlan from '../forms/FromPlan.svelte';
@@ -19,7 +19,8 @@
     /** The thing whose ways in are shown, if that's the view. */
     target: string | null;
     onwaysinto: (id: string) => void;
-    oncollapse: (id: string) => void;
+    /** Shows or hides the node's ways in, or what it's a way into. */
+    onopen: (id: string, side: Side, open: boolean) => void;
     /** Whether the forms are showing. */
     edit: boolean;
     /** Null while the text doesn't load. */
@@ -27,26 +28,26 @@
     onedit: (on: boolean) => void;
     off: Off;
   }
-  let {
-    model,
-    scenario,
-    scenarioName,
-    selected,
-    node,
-    target,
-    onwaysinto,
-    oncollapse,
-    edit,
-    editing,
-    onedit,
-    off,
-  }: Props = $props();
+  let { model, scenario, scenarioName, selected, node, target, onwaysinto, onopen, edit, editing, onedit, off }: Props =
+    $props();
 
   const thingSpec = $derived(selected ? editing?.written.things[selected] : undefined);
 
   const junction = $derived(node && isJunction(node.kind) ? node : undefined);
   const thing = $derived(selected && !junction ? model?.things.get(selected) : undefined);
   const reach = $derived(selected ? scenario?.best.get(selected) : undefined);
+
+  // What the node can show or hide, in the ways-in view. The arrows on its sides do the same.
+  const toggles = $derived.by(() => {
+    if (target === null || !node) return [];
+    const all: [Side, boolean, string, boolean | undefined][] = [
+      ['in', true, 'Show ways in', node.more],
+      ['in', false, 'Hide ways in', node.expanded],
+      ['out', true, 'Show what it leads to', node.moreOut],
+      ['out', false, 'Hide what it leads to', node.expandedOut],
+    ];
+    return all.filter(([, , , on]) => on);
+  });
 </script>
 
 <Pane
@@ -80,7 +81,7 @@
         {#if thing.todo}<p class="todo">To do: {thing.todo}</p>{/if}
       {/if}
     </section>
-    {#if scenario !== undefined || target !== selected || (node?.expanded && !node.root)}
+    {#if scenario !== undefined || target !== selected || toggles.length}
       <section aria-label="In the scenario">
         {#if scenario}
           {#if !scenario.avail.get(selected)}
@@ -93,14 +94,14 @@
           {/if}
           {#if scenario.rows.has(selected)}<p class="row">{scenario.rows.get(selected)![0]}</p>{/if}
         {/if}
-        {#if target !== selected || (node?.expanded && !node.root)}
+        {#if target !== selected || toggles.length}
           <div class="actions">
             {#if target !== selected}
               <button onclick={() => onwaysinto(selected)}>Ways into this</button>
             {/if}
-            {#if target !== null && node?.expanded && !node.root}
-              <button class="quiet" onclick={() => oncollapse(selected)}>Collapse</button>
-            {/if}
+            {#each toggles as [side, open, label] (label)}
+              <button class="quiet" onclick={() => onopen(selected, side, open)}>{label}</button>
+            {/each}
           </div>
         {/if}
       </section>
@@ -110,7 +111,8 @@
   {:else}
     <section>
       <p class="muted">
-        Select a node for its details. A <b>+</b> on a node means it has more ways in; selecting it shows them.
+        Select a node for its details, or double-click it to edit it. A chevron beside a node means there’s more that
+        side; selected, a node also has chevrons that hide what’s shown.
       </p>
     </section>
   {/if}

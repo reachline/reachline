@@ -2,7 +2,7 @@
 // builders. Junction ids come from their position in the model (not a
 // counter), so a junction keeps its id as the view expands.
 import { refs, split, UNKNOWN, type Cond, type Op } from '../../../engine/cond.ts';
-import type { Kind, Model } from '../../../engine/model.ts';
+import type { Kind, Model, Spec } from '../../../engine/model.ts';
 import type { Outcome } from '../lib/data.ts';
 
 export type NodeKind = Kind | 'and' | 'or' | 'unknown';
@@ -16,7 +16,9 @@ export interface VNode {
   status?: Status;
   row?: string; // the CLI's verdict for this thing in the scenario, if flagged
   more?: boolean; // has ways in that aren't shown yet
-  expanded?: boolean;
+  expanded?: boolean; // its ways in are shown, and can be hidden
+  moreOut?: boolean; // is a way into things that aren't shown yet
+  expandedOut?: boolean; // what it's a way into is shown, and can be hidden
   root?: boolean;
   flag?: boolean; // checked for the scenario's kind
 }
@@ -33,6 +35,9 @@ export interface View {
   nodes: VNode[];
   edges: VEdge[];
 }
+
+/** A node's ways in, or what it's a way into. */
+export type Side = 'in' | 'out';
 
 export const isJunction = (k: NodeKind) => k === 'and' || k === 'or' || k === 'unknown';
 
@@ -75,20 +80,42 @@ export function describe(n: VNode, scenarioKind: string): string {
   if (v) parts.push(v.words);
   if (n.row) parts.push(`flagged: ${n.row.toLowerCase()}`);
   if (n.more) parts.push('has more ways in');
+  if (n.moreOut) parts.push('is a way into more');
   return parts.join(', ');
+}
+
+/** A thing's fields that name its ways in, in the order they're drawn. */
+const FIELDS = ['in', 'needs', 'mirrors', 'access', 'recovery'] as const;
+type Field = (typeof FIELDS)[number];
+
+/** The things a field of t names. */
+function named(t: Spec, f: Field): string[] {
+  if (f === 'in') return t.in.filter((c) => c !== UNKNOWN);
+  if (f === 'mirrors') return t.mirrors ? [t.mirrors.of] : [];
+  return [...refs(t[f])];
 }
 
 /** Every thing with a direct way into tid. */
 export function incoming(m: Model, tid: string): string[] {
   const t = m.things.get(tid)!;
-  const mir = t.mirrors ? [t.mirrors.of] : [];
-  const places = t.in.filter((c) => c !== UNKNOWN);
-  return [...new Set([...places, ...refs(t.needs), ...mir, ...refs(t.access), ...refs(t.recovery)])];
+  return [...new Set(FIELDS.flatMap((f) => named(t, f)))];
+}
+
+/** For each thing, the fields of other things that name it: what it's a way into. */
+function outgoing(m: Model): Map<string, [string, Field][]> {
+  const out = new Map<string, [string, Field][]>();
+  for (const [tid, t] of m.things)
+    for (const f of FIELDS) for (const id of new Set(named(t, f))) out.set(id, [...(out.get(id) ?? []), [tid, f]]);
+  return out;
 }
 
 class Builder {
   nodes = new Map<string, VNode>();
   edges = new Map<string, VEdge>();
+  /** Thing nodes, in the order they were added. */
+  things: string[] = [];
+  /** The fields drawn, as `thing:field`. */
+  drawn = new Set<string>();
 
   private readonly m: Model;
   private readonly sc?: Outcome;
@@ -102,7 +129,10 @@ class Builder {
   avail = (id: string) => this.sc?.avail.get(id) ?? true;
 
   node(id: string): string {
-    if (!this.nodes.has(id)) this.nodes.set(id, { id, label: id, kind: this.m.things.get(id)!.kind });
+    if (!this.nodes.has(id)) {
+      this.nodes.set(id, { id, label: id, kind: this.m.things.get(id)!.kind });
+      this.things.push(id);
+    }
     return id;
   }
 
@@ -138,6 +168,18 @@ class Builder {
       const [nid, live] = this.cond(part, `${target}/${kind}${i}`, ok);
       this.edge(nid, this.node(target), kind, live);
     });
+  }
+
+  /** The edges into tid from one of its fields, once. */
+  field(tid: string, f: Field) {
+    if (this.drawn.has(`${tid}:${f}`)) return;
+    this.drawn.add(`${tid}:${f}`);
+    const t = this.m.things.get(tid)!;
+    if (f === 'in') this.into(places(t.in), 'or', tid, 'in');
+    else if (f === 'needs') this.into(t.needs, 'and', tid, 'needs', this.avail);
+    else if (f === 'mirrors') {
+      if (t.mirrors) this.edge(this.node(t.mirrors.of), this.node(tid), 'mirror');
+    } else this.into(t[f], 'or', tid, f);
   }
 
   color() {
@@ -181,34 +223,61 @@ export function whereView(m: Model, sc?: Outcome): View {
 
 /**
  * Every way into the roots, following only expanded nodes ('all' expands
- * everything). Unexpanded nodes with ways in are marked `more`.
+ * everything), and what each node in `forward` is a way into. Nodes are
+ * marked with what more they could show, or hide, in each direction.
  */
-export function waysInView(m: Model, roots: string[], expanded: Set<string> | 'all', sc?: Outcome): View {
+export function waysInView(
+  m: Model,
+  roots: string[],
+  expanded: Set<string> | 'all',
+  sc?: Outcome,
+  forward: ReadonlySet<string> = new Set(),
+): View {
   const b = new Builder(m, sc);
+  const all = expanded === 'all';
+  const out = all ? null : outgoing(m);
   const seen = new Set<string>();
-  const frontier = [...roots];
-  while (frontier.length) {
-    const tid = frontier.shift()!;
+  const queue = [...roots];
+  while (queue.length) {
+    const tid = queue.shift()!;
     if (seen.has(tid)) continue;
     seen.add(tid);
     b.node(tid);
-    const ins = incoming(m, tid);
-    const node = b.nodes.get(tid)!;
-    if (expanded !== 'all' && !expanded.has(tid)) {
-      node.more = ins.length > 0;
-      continue;
-    }
-    node.expanded = ins.length > 0;
+    // Drawing a field adds the things it names, which are then visited in turn.
+    const before = b.things.length;
+    if (all || expanded.has(tid)) for (const f of FIELDS) b.field(tid, f);
+    if (forward.has(tid)) for (const [uid, f] of out?.get(tid) ?? []) b.field(uid, f);
+    queue.push(...b.things.slice(before));
+  }
+  for (const tid of b.things) {
+    const n = b.nodes.get(tid)!;
     const t = m.things.get(tid)!;
-    b.into(places(t.in), 'or', tid, 'in');
-    b.into(t.needs, 'and', tid, 'needs', b.avail);
-    if (t.mirrors) b.edge(b.node(t.mirrors.of), tid, 'mirror');
-    b.into(t.access, 'or', tid, 'access');
-    b.into(t.recovery, 'or', tid, 'recovery');
-    frontier.push(...ins);
+    const ins = FIELDS.filter((f) => named(t, f).length);
+    const outs = out?.get(tid) ?? [];
+    n.more = ins.some((f) => !b.drawn.has(`${tid}:${f}`));
+    n.expanded = !all && expanded.has(tid) && ins.length > 0;
+    n.moreOut = outs.some(([uid, f]) => !b.drawn.has(`${uid}:${f}`));
+    n.expandedOut = forward.has(tid) && outs.length > 0;
   }
   for (const r of roots) b.nodes.get(r)!.root = true;
   return b.view();
+}
+
+/** The ids of a node's edges, followed through junctions so each condition it's part of is whole. */
+export function edgesOf(view: View, id: string): Set<string> {
+  const ids = new Set<string>();
+  const junctions = new Set(view.nodes.filter((n) => isJunction(n.kind)).map((n) => n.id));
+  const walk = (from: string, down: boolean) => {
+    for (const e of view.edges) {
+      if ((down ? e.source : e.target) !== from || ids.has(e.id)) continue;
+      ids.add(e.id);
+      const next = down ? e.target : e.source;
+      if (junctions.has(next)) walk(next, down);
+    }
+  };
+  walk(id, true);
+  walk(id, false);
+  return ids;
 }
 
 /** The ids within `depth` steps of the roots whose ways in should show. */

@@ -10,6 +10,8 @@ export type Colors = (name: string) => string;
 const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => `&#${ch.charCodeAt(0)};`);
 
 const PAD = 16;
+/** How far a node's chevron is centred beyond its side, as ThingNode draws it: half its 24px target. */
+const CHEVRON = 12;
 const LEFT: Partial<Record<VNode['kind'], number>> = { state: 16, service: 14, account: 14 };
 const DASH: Partial<Record<EdgeKind, string>> = { recovery: '6 4', needs: '2 3', mirror: '8 3 2 3' };
 
@@ -31,9 +33,19 @@ function look(n: VNode, kind: string, c: Colors) {
  */
 export function toSvg(view: View, placed: Placed, kind: string, vertical: boolean, c: Colors) {
   const box = (id: string) => placed.nodes.get(id)!;
+  // A chevron's glyph reaches about 20px beyond its node.
   const corners = view.nodes.flatMap((n) => {
     const b = box(n.id);
-    return [b, { x: b.x + b.w, y: b.y + b.h }];
+    const [before, after] = [n.more ? 20 : 0, n.moreOut ? 20 : 0];
+    return vertical
+      ? [
+          { x: b.x, y: b.y - before },
+          { x: b.x + b.w, y: b.y + b.h + after },
+        ]
+      : [
+          { x: b.x - before, y: b.y },
+          { x: b.x + b.w + after, y: b.y + b.h },
+        ];
   });
   const pts = [...corners, ...view.edges.flatMap((e) => placed.edges.get(e.id) ?? [])];
   const x0 = Math.min(...pts.map((p) => p.x)) - PAD;
@@ -74,11 +86,22 @@ export function toSvg(view: View, placed: Placed, kind: string, vertical: boolea
     const s = look(n, kind, c);
     const dash = s.dash ? ` stroke-dasharray="${s.dash}"` : '';
     const right = w - (n.kind === 'account' ? 12 : 7);
-    const mark = n.more
-      ? `<text x="${right}" y="${h / 2}" text-anchor="end" dominant-baseline="central" font-weight="700" fill="${c('muted')}">+</text>`
-      : n.row
-        ? `<text x="${right}" y="${h / 2}" text-anchor="end" dominant-baseline="central" font-weight="700" fill="${c('danger')}">!</text>`
-        : '';
+    const mark = n.row
+      ? `<text x="${right}" y="${h / 2}" text-anchor="end" dominant-baseline="central" font-weight="700" fill="${c('danger')}">!</text>`
+      : '';
+    // The chevrons pointing out, where there's more to show; the ones that hide are only for a selected node.
+    const chevron = (back: boolean) => {
+      const [cx, cy] = vertical ? [w / 2, back ? -CHEVRON : h + CHEVRON] : [back ? -CHEVRON : w + CHEVRON, h / 2];
+      const s = back ? -1 : 1;
+      const pts = vertical
+        ? `${cx - 4},${cy - 2 * s} ${cx},${cy + 2 * s} ${cx + 4},${cy - 2 * s}`
+        : `${cx - 2 * s},${cy - 4} ${cx + 2 * s},${cy} ${cx - 2 * s},${cy + 4}`;
+      return (
+        `<circle cx="${cx}" cy="${cy}" r="7" fill="${c('bg')}"/>` +
+        `<polyline points="${pts}" fill="none" stroke="${c('muted')}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`
+      );
+    };
+    const chevrons = (n.more ? chevron(true) : '') + (n.moreOut ? chevron(false) : '');
     const left = LEFT[n.kind] ?? 12;
     const glyph = verdict(n, kind)?.mark;
     const status = glyph
@@ -86,7 +109,7 @@ export function toSvg(view: View, placed: Placed, kind: string, vertical: boolea
       : '';
     return (
       `<g transform="translate(${x},${y})"><path d="${shapePath(n.kind, w, h)}" fill="${s.fill}" stroke="${s.stroke}" stroke-width="${s.width}"${dash}/>` +
-      `${status}<text x="${left + (n.status ? STATUS_SLOT : 0)}" y="${h / 2}" dominant-baseline="central" fill="${s.text}">${esc(n.label)}</text>${mark}</g>`
+      `${status}<text x="${left + (n.status ? STATUS_SLOT : 0)}" y="${h / 2}" dominant-baseline="central" fill="${s.text}">${esc(n.label)}</text>${mark}${chevrons}</g>`
     );
   });
 
