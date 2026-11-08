@@ -235,7 +235,7 @@ button.quiet:disabled {
   }
   :where(button:not([class*='svelte-flow'])):not(:disabled, [aria-pressed='true']):hover,
   ::file-selector-button:hover,
-  .menu a:hover {
+  .menu :is(a, label:not(.field)):hover {
     background: var(--hover);
   }
   button.primary:not(:disabled):hover {
@@ -269,6 +269,10 @@ button.quiet:disabled {
 }
 textarea {
   padding: var(--space-2);
+}
+::placeholder {
+  color: var(--muted);
+  opacity: 1;
 }
 input[type='file'] {
   font: inherit;
@@ -499,8 +503,12 @@ button.tip {
 .menu button {
   justify-content: flex-start;
 }
-/* A link in a menu is one of its items, so it looks like the buttons beside it. */
-.menu a {
+/*
+ * A link in a menu is one of its items, so it looks like the buttons beside
+ * it; so is a checkbox's label, in a menu of things to turn on and off. An
+ * <h3> names a group of items.
+ */
+.menu :is(a, label:not(.field)) {
   display: flex;
   align-items: center;
   gap: var(--space-2);
@@ -510,6 +518,12 @@ button.tip {
   color: var(--text);
   font-weight: 500;
   text-decoration: none;
+  cursor: pointer;
+}
+.menu h3 {
+  padding: var(--space-2) var(--space-3) var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
 }
 .menu a[aria-current='page'] {
   background: var(--selected);
@@ -557,15 +571,20 @@ button.tip {
   white-space: nowrap;
 }
 /*
- * A button's words, beside its icon where there's room; on phones the icon
- * shows alone, as it does in a .shrinks box that's narrow. A .shrinks box
- * takes its width from outside, never from what's in it.
+ * A button's words, beside its icon where there's room. On phones, and in a
+ * .shrinks box that's narrow, the icon shows alone, except in the button
+ * that's pressed, so a strip of choices still names the one chosen; a title
+ * names the others on hover. A .shrinks box takes its width from outside,
+ * never from what's in it; .shrinks.wide is the toolbar over the graph.
  */
 .shrinks {
   container: shrinks / inline-size;
 }
+.shrinks.wide {
+  container-name: shrinks-wide;
+}
 @media (max-width: 760px) {
-  .wide-only {
+  :not([aria-pressed='true']) > .wide-only {
     position: absolute;
     width: 1px;
     height: 1px;
@@ -574,8 +593,20 @@ button.tip {
     white-space: nowrap;
   }
 }
-@container shrinks (max-width: 21.5rem) {
-  .wide-only {
+/* As wide as the panel's tabs need for all their words. */
+@container shrinks (max-width: 29rem) {
+  :not([aria-pressed='true']) > .wide-only {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+}
+/* As wide as the toolbar needs for its words, and its three pickers at their widest. */
+@container shrinks-wide (max-width: 57rem) {
+  :not([aria-pressed='true']) > .wide-only {
     position: absolute;
     width: 1px;
     height: 1px;

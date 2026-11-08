@@ -84,6 +84,18 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.getByRole('group', { name: new RegExp(`^${id},`) }).focus();
   await page.keyboard.press('Escape');
   await page.getByText('Select a node for its details.').waitFor();
+  // The toolbar's Thing picker shows ways into a thing, and selects it; Enter takes the first match.
+  await page.getByRole('button', { name: /^Thing / }).click();
+  await page.getByRole('searchbox', { name: 'Filter' }).fill('mail_p');
+  await page.keyboard.press('Enter');
+  await page.getByRole('heading', { name: /^mail_pw / }).waitFor();
+  // Closed, the panel's tabs float over the graph; the one pressed keeps the focus as they move.
+  const details = page.getByRole('button', { name: 'Details', exact: true });
+  await details.click();
+  await page.locator('#panel').waitFor({ state: 'hidden' });
+  assert.ok(await details.evaluate((b) => b === document.activeElement));
+  await details.click();
+  await page.locator('#panel').waitFor();
 
   await page.getByRole('button', { name: 'Tidy' }).click();
   await page.getByRole('button', { name: 'Where things live' }).click();
@@ -95,7 +107,7 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.keyboard.press('Escape');
 
   // The editor (loaded on demand) marks an error and the graph goes out of date until it's fixed.
-  await page.getByRole('button', { name: 'Text' }).click();
+  await page.getByRole('button', { name: 'Text', exact: true }).click();
   await page.locator('.cm-content').click();
   await page.keyboard.press('ControlOrMeta+Home');
   await page.keyboard.insertText('bogus: 1\n');
@@ -131,7 +143,7 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.getByText('Saved', { exact: true }).waitFor();
 
   // Ids complete where the text refers to things.
-  await page.getByRole('button', { name: 'Text' }).click();
+  await page.getByRole('button', { name: 'Text', exact: true }).click();
   await page.locator('.cm-content').click();
   await page.keyboard.press('ControlOrMeta+Home');
   await page.keyboard.insertText('me: [ho');
@@ -162,10 +174,11 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.getByRole('searchbox', { name: 'Find' }).fill('hw_key');
   await page.getByText(/^\d+ of \d+$/).waitFor();
   assert.ok((await page.locator('.cm-searchMatch').count()) > 1);
-  // Folding hides all but the top level.
-  await page.getByRole('button', { name: 'Fold all', exact: true }).click();
+  // Folding everything (from the keyboard; the gutter folds one) hides all but the top level.
+  await page.locator('.cm-content').click();
+  await page.keyboard.press('Control+Alt+BracketLeft');
   await page.locator('.cm-content').getByText('laptop_unlocked').waitFor({ state: 'detached' });
-  await page.getByRole('button', { name: 'Unfold all' }).click();
+  await page.keyboard.press('Control+Alt+BracketRight');
   await page.locator('.cm-content').getByText('laptop_unlocked').first().waitFor();
 
   // Guided edits: add a thing, fill it in, rename it, delete it, and undo that.
@@ -205,41 +218,62 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await undo.click();
   await page.locator('#thing-ids option[value="slate"]').waitFor({ state: 'attached' });
   await page.getByRole('button', { name: 'Done' }).click();
-  await page.getByRole('button', { name: 'Text' }).click();
+  await page.getByRole('button', { name: 'Text', exact: true }).click();
   // Each guided edit was one step: four more undo the rename, the way in, the place, and the thing.
   for (let i = 0; i < 4; i++) await undo.click();
   await page.getByText('Saved', { exact: true }).waitFor();
 
   // Plans: one on shows what it changes; edits can go into it; applying it makes it part of the model.
-  await page.getByRole('button', { name: 'Plans' }).click();
-  await page.getByRole('checkbox', { name: 'spare_key' }).check();
+  const plansPicker = page.getByRole('button', { name: /^Plans / });
+  // In the Plans picker, which may be closed.
+  const planBox = (name: string) => page.getByRole('checkbox', { name: new RegExp(`^${name}`), includeHidden: true });
+  await plansPicker.click();
+  await planBox('spare_key').check();
+  await page.keyboard.press('Escape');
+  await page.getByRole('button', { name: 'Plans', exact: true }).click();
   await page.locator('.verdicts li').first().waitFor();
-  await page.getByRole('listitem').filter({ hasText: 'spare_key' }).getByRole('button', { name: 'Edit' }).click();
-  await page.getByRole('combobox', { name: 'Edits go into' }).and(page.locator('select.plan')).waitFor();
+  const into = page.getByRole('combobox', { name: 'Edits go into' });
+  await into.selectOption('spare_key');
+  await into.and(page.locator('select.plan')).waitFor();
   await page.getByRole('button', { name: 'Add', exact: true }).click();
   await page.getByRole('button', { name: 'Thing…' }).click();
   await add.getByLabel('Name').fill('key_drawer');
   await add.getByLabel('Kind').selectOption('device');
   await add.getByRole('button', { name: 'Add' }).click();
   await page.getByText('Added by plan spare_key.').waitFor();
-  await page.getByRole('button', { name: 'Plans' }).click();
+  await page.getByRole('button', { name: 'Plans', exact: true }).click();
   await page.getByRole('button', { name: 'Apply…' }).first().click();
   const applying = page.getByRole('dialog', { name: 'Apply spare_key?' });
   await applying.getByText('key_drawer').waitFor();
   await applying.getByRole('button', { name: 'Apply' }).click();
-  await page.getByRole('checkbox', { name: 'spare_key' }).waitFor({ state: 'detached' });
+  await planBox('spare_key').waitFor({ state: 'detached' });
   await undo.click();
-  await page.getByRole('checkbox', { name: 'spare_key' }).waitFor();
+  await planBox('spare_key').waitFor({ state: 'attached' });
   await undo.click();
   await page.getByText('Saved', { exact: true }).waitFor();
 
+  // Add makes a plan too: it's on, edits go into it, and its tab opens on its name and note.
+  await page.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByRole('button', { name: 'Plan…' }).click();
+  const addPlan = page.getByRole('dialog', { name: 'Add a plan' });
+  await addPlan.getByLabel('Name').fill('new_plan');
+  await addPlan.getByRole('button', { name: 'Add', exact: true }).click();
+  await page.getByRole('heading', { name: 'new_plan plan' }).waitFor();
+  await page.getByRole('textbox', { name: 'Note' }).waitFor();
+  assert.equal(await into.inputValue(), 'new_plan');
+  await undo.click();
+  await page.getByText('Saved', { exact: true }).waitFor();
+  // Nothing, the panel's tabs included, is wider than the window, so the page never scrolls sideways.
+  assert.equal(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), 0);
+
   // A plan that doesn't load with the model (this one builds on spare_key) says why, and can be turned off.
-  await page.getByRole('button', { name: 'Text' }).click();
+  await page.getByRole('button', { name: 'Text', exact: true }).click();
   await page.locator('.cm-content').click();
   await page.keyboard.press('ControlOrMeta+End');
   await page.keyboard.insertText('  after_key:\n    things:\n      key_offsite: {in: [home]}\n');
-  await page.getByRole('button', { name: 'Plans' }).click();
-  const afterKey = page.getByRole('checkbox', { name: 'after_key' });
+  await page.getByRole('button', { name: 'Plans', exact: true }).click();
+  const afterKey = planBox('after_key');
+  await plansPicker.click();
   await afterKey.check();
   await page
     .getByRole('alert')
@@ -248,6 +282,7 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.getByText('Out of date: the plans that are on don’t load').waitFor();
   await afterKey.uncheck();
   await page.getByText('Out of date').waitFor({ state: 'detached' });
+  await page.keyboard.press('Escape');
   await undo.click();
   await page.getByText('Saved', { exact: true }).waitFor();
 
@@ -264,9 +299,9 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   };
   await openGithub();
   await github.getByRole('button', { name: 'Add as a plan' }).click();
-  await page.getByRole('checkbox', { name: 'add_github' }).waitFor();
+  await planBox('add_github').waitFor({ state: 'attached' });
   await undo.click();
-  await page.getByRole('checkbox', { name: 'add_github' }).waitFor({ state: 'detached' });
+  await planBox('add_github').waitFor({ state: 'detached' });
   await openGithub();
   await github.getByRole('button', { name: 'Add to model' }).click();
   await page.getByText('Added by plan').waitFor({ state: 'detached' });
@@ -274,13 +309,17 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await undo.click();
   await page.getByText('Saved', { exact: true }).waitFor();
 
-  // Scenarios: choosing one sets the graph's; its checked verdicts, then everything else it leaves worse off.
-  const picker = page.getByRole('combobox', { name: 'Scenario', exact: true });
-  await page.getByRole('button', { name: 'Scenarios', exact: true }).click();
-  await page.getByRole('button', { name: /^burglary/ }).click();
-  assert.equal(await picker.inputValue(), 'burglary');
-  await picker.selectOption('house_fire');
-  await page.getByRole('button', { name: /^house_fire/, pressed: true }).waitFor();
+  // Scenarios: the tab shows the one chosen in the toolbar: its checked verdicts, then everything else it leaves worse off.
+  const scenario = (name: string) => page.getByRole('button', { name: `Scenario ${name}`, exact: true });
+  const chooseScenario = async (name: string) => {
+    await page.getByRole('button', { name: /^Scenario / }).click();
+    await page.getByRole('button', { name: new RegExp(`^${name} `) }).click();
+  };
+  await page.getByRole('button', { name: 'Scenario', exact: true }).click();
+  await chooseScenario('burglary');
+  await page.getByRole('heading', { name: /^burglary / }).waitFor();
+  await chooseScenario('house_fire');
+  await scenario('house_fire').waitFor();
   const verdicts = page.getByRole('region', { name: 'Worse off than on a normal day' });
   await verdicts
     .getByRole('listitem')
@@ -295,9 +334,8 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   const scenarioName = page.getByRole('textbox', { name: 'Scenario', exact: true });
   await scenarioName.fill('fire');
   await scenarioName.blur();
-  await page.getByRole('button', { name: /^fire/, pressed: true }).waitFor();
-  assert.equal(await picker.inputValue(), 'fire');
-  await page.getByRole('button', { name: /^baseline/ }).click();
+  await scenario('fire').waitFor();
+  await chooseScenario('baseline');
   await page.getByRole('group', { name: 'On a normal day you have' }).waitFor();
   await undo.click();
   await page.getByText('Saved', { exact: true }).waitFor();
@@ -354,6 +392,9 @@ test('the pages pass axe', async () => {
     await page.waitForURL(/\/m\/\d+/);
     await page.locator('.svelte-flow__node').first().waitFor();
     await check('model');
+    await page.getByRole('button', { name: 'Details', exact: true }).click();
+    await check('the panel closed');
+    await page.getByRole('button', { name: 'Details', exact: true }).click();
     await page.getByRole('button', { name: 'Edit', exact: true }).click();
     await page.getByRole('button', { name: 'Add', exact: true }).click();
     await page.getByRole('button', { name: 'Thing…' }).click();
@@ -366,11 +407,17 @@ test('the pages pass axe', async () => {
     await check('editing a thing and a scenario');
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
     await page.getByText('Saved', { exact: true }).waitFor();
-    await page.getByRole('button', { name: 'Plans' }).click();
-    await page.getByRole('checkbox', { name: 'spare_key' }).check();
+    await page.getByRole('button', { name: /^Thing / }).click();
+    await check('choosing a thing');
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: /^Plans / }).click();
+    await page.getByRole('checkbox', { name: /^spare_key/ }).check();
+    await check('choosing plans');
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Plans', exact: true }).click();
     await page.locator('.verdicts li').first().waitFor();
     await check('plans');
-    await page.getByRole('button', { name: 'Scenarios', exact: true }).click();
+    await page.getByRole('button', { name: 'Scenario', exact: true }).click();
     await page.getByText(/^Also affected \(/).click();
     await check('scenarios');
     await page.getByRole('button', { name: 'Add', exact: true }).click();
@@ -381,7 +428,7 @@ test('the pages pass axe', async () => {
     await page.getByRole('dialog', { name: 'GitHub' }).getByText('Adds').waitFor();
     await check('a template');
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Text' }).click();
+    await page.getByRole('button', { name: 'Text', exact: true }).click();
     await page.getByRole('searchbox', { name: 'Find' }).fill('home');
     await page.getByText(/^\d+ of \d+$/).waitFor();
     await check('the text, finding');

@@ -1,216 +1,128 @@
 <script lang="ts">
-  // The panel's Plans tab: each plan, on or off; the one edits go into; and
-  // what the plans that are on change, against the model alone.
-  import { Check, FilePlus, Pencil, Trash } from '@lucide/svelte';
+  // The panel's Plans tab: the plans that are on, in the order they apply
+  // (in edit mode, each one's name and note), and what they change, against
+  // the model alone.
+  import { Trash } from '@lucide/svelte';
   import type { ScenarioChange } from '../../../engine/report.ts';
-  import { idProblem, type Layer } from '../lib/edit';
   import NameField from '../forms/NameField.svelte';
+  import type { Off } from '../lib/edit';
+  import Pane from './Pane.svelte';
   import Verdicts from './Verdicts.svelte';
 
   interface Props {
+    /** The plans that are on, in order. */
     plans: { name: string; note: string }[];
-    on: string[];
-    layer: Layer;
+    /** Whether the model has any plans at all. */
+    any: boolean;
     /** Fields that more than one plan that's on sets. */
     overlaps: { at: string; plans: string[] }[];
-    /** Verdicts with the plans that are on, against without them; null with none on. */
+    /** Verdicts with the plans that are on, against without them; null while they can't be compared. */
     comparison: ScenarioChange[] | null;
-    /** Whether the text loads, so plans can be changed. Turning them on and off never needs it. */
+    /** Whether the text loads, so plans can be changed. */
     editable: boolean;
     /** Why the plans that are on don't load with the model, if they don't. */
     error: string;
-    onturn: (name: string, on: boolean) => void;
-    /** Makes it where edits go (null: the model), and shows the forms. */
-    onedit: (name: Layer) => void;
+    edit: boolean;
+    onedit: (on: boolean) => void;
+    off: Off;
     onapply: (name: string) => void;
     ondelete: (name: string) => void;
-    oncreate: (name: string, note: string) => void;
     onrename: (from: string, to: string) => string;
     onnote: (name: string, note: string) => void;
   }
   let {
     plans,
-    on,
-    layer,
+    any,
     overlaps,
     comparison,
     editable,
     error,
-    onturn,
+    edit,
     onedit,
+    off,
     onapply,
     ondelete,
-    oncreate,
     onrename,
     onnote,
   }: Props = $props();
 
   const uid = $props.id();
-  let name = $state('');
-  let note = $state('');
-  let problem = $state('');
-
-  function create(e: SubmitEvent) {
-    e.preventDefault();
-    const n = name.trim();
-    problem = idProblem(n);
-    if (problem) return;
-    if (plans.some((p) => p.name === n)) problem = `${n} is already a plan.`;
-    else {
-      oncreate(n, note.trim());
-      name = note = problem = '';
-    }
-  }
+  const one = $derived(plans.length === 1);
 </script>
 
-<div class="plans">
-  <section>
-    <h2>Plans</h2>
-    <p class="muted">
-      What-ifs over the model. The ones that are on show in the graph, in the order they're listed; applying one makes
-      it part of the model.
+<Pane
+  name={plans.length ? plans.map((p) => p.name).join(' + ') : undefined}
+  kind={one ? 'plan' : 'plans'}
+  {edit}
+  {editable}
+  {onedit}
+  {off}
+>
+  {#if error}
+    <p class="notice" role="alert">
+      The plans that are on don’t load with the model: {error}. Turn one off, or fix it in the text.
     </p>
-    {#if error}
-      <p class="notice" role="alert">
-        The plans that are on don’t load with the model: {error}. Turn one off, or fix it in the text.
-      </p>
-    {:else if !editable}
-      <p class="notice" role="status">The text has errors, so plans can't be changed until they're fixed.</p>
-    {/if}
-    {#if plans.length}
-      <ul class="list">
-        {#each plans as p (p.name)}
-          <li class="card plan" class:target={layer === p.name}>
-            <label class="check"
-              ><input
-                type="checkbox"
-                checked={on.includes(p.name)}
-                onchange={(e) => onturn(p.name, e.currentTarget.checked)}
-              /><span class="mono">{p.name}</span></label
-            >
-            {#if layer === p.name}
-              <p class="muted"><Check /> Edits go into this plan.</p>
-              <NameField label="Name" value={p.name} onrename={(to: string) => onrename(p.name, to)} />
-              <label class="field"
-                >Note
-                <textarea rows="2" value={p.note} onchange={(e) => onnote(p.name, e.currentTarget.value.trim())}
-                ></textarea>
-              </label>
-            {:else if p.note}
-              <p>{p.note}</p>
-            {/if}
-            <div class="buttons">
-              {#if layer === p.name}
-                <button class="quiet" onclick={() => onedit(null)}>Edit the model instead</button>
-              {:else}
-                <button class="quiet" disabled={!editable} onclick={() => onedit(p.name)}><Pencil />Edit</button>
-              {/if}
-              <button class="quiet" disabled={!editable} onclick={() => onapply(p.name)}>Apply…</button>
-              <button class="quiet danger" disabled={!editable} onclick={() => ondelete(p.name)}
-                ><Trash />Delete…</button
-              >
-            </div>
-          </li>
-        {/each}
-      </ul>
-    {:else}
-      <p class="muted">No plans yet.</p>
-    {/if}
-  </section>
-
-  {#if overlaps.length}
-    <section>
-      <p class="notice" role="status">
-        Plans that are on set the same fields, so the later one's wins:
-        {overlaps.map((o) => `${o.at} (${o.plans.join(', ')})`).join('; ')}.
-      </p>
-    </section>
+  {:else if !editable && !edit && plans.length}
+    <p class="notice" role="status">The text has errors, so plans can't be applied until they're fixed.</p>
   {/if}
 
-  <section aria-labelledby="{uid}-compare">
-    <h2 id="{uid}-compare">What the plans that are on change</h2>
-    {#if comparison}
-      <Verdicts changes={comparison} />
-    {:else}
-      <p class="muted">Turn a plan on to see what it changes, scenario by scenario.</p>
-    {/if}
-  </section>
-
-  <section>
-    <form class="new" onsubmit={create} aria-labelledby="{uid}-new">
-      <h2 id="{uid}-new">New plan</h2>
-      <div class="field">
-        <label for="{uid}-name">Name</label>
-        <input
-          id="{uid}-name"
-          bind:value={name}
-          required
-          autocomplete="off"
-          autocapitalize="off"
-          spellcheck="false"
-          aria-describedby="{uid}-hint"
-          aria-invalid={problem ? 'true' : undefined}
-        />
-        {#if problem}
-          <span class="hint error" id="{uid}-hint" role="alert">{problem}</span>
-        {:else}
-          <span class="hint" id="{uid}-hint">Such as spare_key. It starts on, and edits go into it.</span>
+  {#each plans as p (p.name)}
+    <section aria-label={one ? 'Plan' : `Plan ${p.name}`}>
+      {#if !one}<h3 class="mono">{p.name}</h3>{/if}
+      {#if edit && editable}
+        <div class="form">
+          <NameField label="Name" value={p.name} onrename={(to: string) => onrename(p.name, to)} />
+          <label class="field"
+            >Note
+            <textarea rows="2" value={p.note} onchange={(e) => onnote(p.name, e.currentTarget.value.trim())}></textarea>
+          </label>
+        </div>
+      {:else if p.note}
+        <p>{p.note}</p>
+      {/if}
+      <div class="buttons">
+        <button disabled={!editable} onclick={() => onapply(p.name)}>Apply…</button>
+        {#if edit}
+          <button class="danger" disabled={!editable} onclick={() => ondelete(p.name)}><Trash />Delete {p.name}</button>
         {/if}
       </div>
-      <label class="field">Note <input bind:value={note} /></label>
-      <div><button disabled={!editable}><FilePlus />Create plan</button></div>
-    </form>
-  </section>
-</div>
+    </section>
+  {:else}
+    <section>
+      <p class="muted">
+        A plan is a what-if over the model. Those that are on show in the graph, applied in the order they're written;
+        applying one makes it part of the model.
+      </p>
+      <p class="muted">
+        {any ? 'Turn one on from Plans above the graph to see what it changes.' : 'Add one from Add.'}
+      </p>
+    </section>
+  {/each}
+
+  {#if overlaps.length}
+    <p class="notice" role="status">
+      Plans that are on set the same fields, so the later one's wins:
+      {overlaps.map((o) => `${o.at} (${o.plans.join(', ')})`).join('; ')}.
+    </p>
+  {/if}
+
+  {#if plans.length && comparison}
+    <section aria-labelledby="{uid}-compare">
+      <h3 id="{uid}-compare">What {one ? 'it changes' : 'they change'}</h3>
+      <Verdicts changes={comparison} />
+    </section>
+  {/if}
+</Pane>
 
 <style>
-  .plans {
+  .form {
     display: grid;
-    align-content: start;
     gap: var(--space-4);
-    height: 100%;
-    overflow-y: auto;
-    padding: var(--space-4);
-  }
-  section,
-  .new {
-    display: grid;
-    gap: var(--space-2);
-  }
-  section + section {
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--border);
-  }
-  h2 {
-    font-size: var(--text-md);
-  }
-  .list {
-    display: grid;
-    gap: var(--space-2);
-    margin: 0;
-    padding: 0;
-    list-style: none;
-  }
-  .plan {
-    display: grid;
-    gap: var(--space-2);
-    padding: var(--space-3);
-  }
-  .plan.target {
-    border-color: var(--accent);
-  }
-  .check {
-    display: flex;
-    align-items: center;
-    gap: var(--space-2);
-    font-weight: 600;
+    margin-bottom: var(--space-2);
   }
   .buttons {
     display: flex;
     flex-wrap: wrap;
-    gap: var(--space-1);
-  }
-  .new input:not([type]) {
-    font-family: var(--code-font);
+    gap: var(--space-2);
   }
 </style>

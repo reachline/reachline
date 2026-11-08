@@ -1,45 +1,28 @@
 <script lang="ts">
-  // The panel's Scenarios tab: every scenario, and the chosen one's verdicts
-  // as the CLI reports them, then what else it leaves worse off. In edit mode,
-  // the chosen one's form.
-  import { Plus } from '@lucide/svelte';
-  import { BASELINE, type Row, type Scenario } from '../../../engine/model.ts';
-  import type { Model, Outcome } from '../lib/data';
-  import type { Created, Editing } from '../lib/edit';
-  import EditBar from '../forms/EditBar.svelte';
+  // The panel's Scenario tab: the scenario chosen in the toolbar (in edit
+  // mode, its form), and its verdicts as the CLI reports them, then what else
+  // it leaves worse off.
+  import { BASELINE, type Row } from '../../../engine/model.ts';
+  import { summary, type Model, type Outcome } from '../lib/data';
+  import type { Created, Editing, Off } from '../lib/edit';
   import FromPlan from '../forms/FromPlan.svelte';
   import ScenarioForm from '../forms/ScenarioForm.svelte';
   import Tip from '../shell/Tip.svelte';
+  import Pane from './Pane.svelte';
 
   interface Props {
     model: Model | null;
     scenario: Outcome | undefined;
     scenarioName: string;
-    onchoose: (name: string) => void;
     edit: boolean;
     /** Null while the text doesn't load. */
     editing: Editing | null;
     onedit: (on: boolean) => void;
-    onadd: () => void;
-    /** Why the forms are off while editing is null, and what fixes it. */
-    off: { why: string; fix: string; onfix: () => void };
+    off: Off;
   }
-  let { model, scenario, scenarioName, onchoose, edit, editing, onedit, onadd, off }: Props = $props();
+  let { model, scenario, scenarioName, edit, editing, onedit, off }: Props = $props();
 
   const uid = $props.id();
-
-  // The normal day, then lockouts, then breaches.
-  const list = $derived(
-    [...(model?.scenarios ?? [])].sort(
-      ([a, x], [b, y]) => +(b === BASELINE) - +(a === BASELINE) || +(x.kind === 'breach') - +(y.kind === 'breach'),
-    ),
-  );
-
-  function summary(name: string, sc: Scenario): string {
-    if (name === BASELINE) return 'the normal day: you, with nothing lost';
-    const ids = ((sc.kind === 'lockout' ? sc.lost : sc.attacker) ?? []).join(', ') || 'nothing';
-    return sc.kind === 'lockout' ? `loses ${ids}` : `the attacker has ${ids}`;
-  }
 
   const kind = $derived(scenario?.sc.kind ?? 'lockout');
   const checked = $derived(!!model && [...model.things.values()].some((t) => t.check.includes(kind)));
@@ -65,33 +48,7 @@
   const spec = $derived(scenarioName === BASELINE ? { kind: 'lockout' } : editing?.written.scenarios[scenarioName]);
 </script>
 
-<div class="scenarios">
-  <div class="top">
-    <h2>Scenarios</h2>
-    <span class="bar"><EditBar {edit} {editing} {onedit} /></span>
-  </div>
-  {#if edit && !editing}
-    <p class="notice" role="status">
-      {off.why}, so the forms are off until that's fixed. <button onclick={off.onfix}>{off.fix}</button>
-    </p>
-  {/if}
-
-  <section>
-    <ul class="list">
-      {#each list as [name, sc] (name)}
-        <li>
-          <button class="quiet" aria-pressed={name === scenarioName} onclick={() => onchoose(name)}>
-            <span><span class="mono name">{name}</span> <span class="muted">{sc.kind}</span></span>
-            <span class="muted">{summary(name, sc)}</span>
-          </button>
-        </li>
-      {/each}
-    </ul>
-    {#if edit}
-      <div><button class="quiet" disabled={!editing} onclick={onadd}><Plus />Add a scenario…</button></div>
-    {/if}
-  </section>
-
+<Pane name={scenario ? scenarioName : undefined} {kind} {edit} editable={!!editing} {onedit} {off}>
   {#if scenario}
     <section aria-label="Scenario">
       {#if edit && editing && spec}
@@ -110,7 +67,6 @@
           />
         {/key}
       {:else}
-        <h3><span class="mono">{scenarioName}</span> <span class="muted">{kind}</span></h3>
         <p class="muted">{summary(scenarioName, scenario.sc)}</p>
         {#if scenario.sc.note}<p>{scenario.sc.note}</p>{/if}
       {/if}
@@ -139,9 +95,11 @@
       {/if}
     </section>
   {:else}
-    <p class="muted">Choose a scenario to see what it does.</p>
+    <section>
+      <p class="muted">Choose a scenario above the graph to see what it does, and add one from Add.</p>
+    </section>
   {/if}
-</div>
+</Pane>
 
 <!-- As the CLI lists them: the verdict's word first, then its assumptions, then the path the attacker takes. -->
 {#snippet rows(rs: Map<string, Row>)}
@@ -159,67 +117,13 @@
 {/snippet}
 
 <style>
-  .scenarios {
-    display: grid;
-    align-content: start;
-    gap: var(--space-4);
-    height: 100%;
-    overflow-y: auto;
-    padding: var(--space-4);
-  }
-  .top {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: var(--space-2);
-    margin: calc(-1 * var(--space-2)) 0;
-  }
-  .top h2 {
-    font-size: var(--text-md);
-  }
-  .bar {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2);
-  }
-  section {
-    display: grid;
-    gap: var(--space-2);
-  }
-  section + section {
-    padding-top: var(--space-4);
-    border-top: 1px solid var(--border);
-  }
-  .list,
   .rows {
     display: grid;
+    gap: var(--space-1);
     margin: 0;
     padding: 0;
-    list-style: none;
-  }
-  .list {
-    gap: 2px;
-  }
-  .list button {
-    display: grid;
-    justify-content: start;
-    justify-items: start;
-    width: 100%;
-    padding: var(--space-1) var(--space-2);
-    text-align: left;
-    white-space: normal;
-  }
-  .name {
-    font-weight: 600;
-  }
-  h3 {
-    overflow-wrap: anywhere;
-  }
-  .rows {
-    gap: var(--space-1);
     font-size: var(--text-sm);
+    list-style: none;
   }
   .bad {
     color: var(--danger);

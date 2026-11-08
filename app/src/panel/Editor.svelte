@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The model's text in CodeMirror, under a bar to find, fold and jump in it.
+  // The model's text in CodeMirror, under a bar to find in it.
   // Loaded on demand: it's about as big as the rest of the app.
   import { autocompletion } from '@codemirror/autocomplete';
   import {
@@ -13,7 +13,7 @@
     undo as undoEdit,
     undoDepth,
   } from '@codemirror/commands';
-  import { bracketMatching, foldAll, foldGutter, foldKeymap, indentOnInput, unfoldAll } from '@codemirror/language';
+  import { bracketMatching, foldGutter, foldKeymap, indentOnInput } from '@codemirror/language';
   import { linter, lintGutter } from '@codemirror/lint';
   import {
     closeSearchPanel,
@@ -28,7 +28,7 @@
   } from '@codemirror/search';
   import { EditorState } from '@codemirror/state';
   import { drawSelection, EditorView, highlightActiveLine, keymap } from '@codemirror/view';
-  import { ChevronDown, ChevronUp, FoldVertical, Search, UnfoldVertical } from '@lucide/svelte';
+  import { ChevronDown, ChevronUp, Search } from '@lucide/svelte';
   import { untrack, type Snippet } from 'svelte';
   import type { Problem } from '../lib/check';
   import { base, shadowView } from './codemirror';
@@ -52,8 +52,10 @@
     definition: (id: string) => { from: number; to: number } | null;
     /** More of the bar, after the editor's own. */
     tools?: Snippet;
+    /** Why the last of those failed, shown under the bar. */
+    error?: string;
   }
-  let { text, onchange, lint, things, reveal, onhistory, onready, definition, tools }: Props = $props();
+  let { text, onchange, lint, things, reveal, onhistory, onready, definition, tools, error }: Props = $props();
   const uid = $props.id();
 
   /** Undo and redo from outside the editor, such as the header's buttons. */
@@ -240,13 +242,15 @@
   }
 </script>
 
-<div class="text">
-  <div class="bar">
-    <div class="find">
-      <label class="field inline">
-        <Search aria-hidden="true" /><span class="wide-only">Find</span>
+<!-- A container, so Format gives way to its icon when the panel is narrow. -->
+<div class="text shrinks">
+  <div class="head">
+    <div class="bar">
+      <label class="field inline find">
+        <Search aria-hidden="true" /><span class="visually-hidden">Find</span>
         <input
           type="search"
+          placeholder="Find"
           bind:this={findField}
           value={query}
           oninput={(e) => find(e.currentTarget.value)}
@@ -255,12 +259,6 @@
           aria-keyshortcuts="Control+F Meta+F"
         />
       </label>
-      <button class="quiet icon" aria-label="Previous match" disabled={!found.of} onclick={() => step(true)}
-        ><ChevronUp /></button
-      >
-      <button class="quiet icon" aria-label="Next match" disabled={!found.of} onclick={() => step(false)}
-        ><ChevronDown /></button
-      >
       <span id="{uid}-found" class="muted found" role="status"
         >{#if found.shown}{found.at
             ? `${found.at} of ${total(found.of)}`
@@ -268,16 +266,15 @@
               ? plural(found.of)
               : 'No matches'}{/if}</span
       >
-    </div>
-    <div class="tools">
-      <button class="quiet icon" aria-label="Fold all" title="Fold all" onclick={() => view && foldAll(view)}
-        ><FoldVertical /></button
+      <button class="quiet icon" aria-label="Previous match" disabled={!found.of} onclick={() => step(true)}
+        ><ChevronUp /></button
       >
-      <button class="quiet icon" aria-label="Unfold all" title="Unfold all" onclick={() => view && unfoldAll(view)}
-        ><UnfoldVertical /></button
+      <button class="quiet icon" aria-label="Next match" disabled={!found.of} onclick={() => step(false)}
+        ><ChevronDown /></button
       >
       {@render tools?.()}
     </div>
+    {#if error}<p class="error" role="alert">{error}</p>{/if}
   </div>
   <div class="editor" {@attach editor}></div>
 </div>
@@ -286,36 +283,32 @@
   .text {
     display: grid;
     grid-template-rows: auto minmax(0, 1fr);
+    /* Not as wide as the field would like: the panel's width decides. */
+    grid-template-columns: minmax(0, 1fr);
     height: 100%;
+  }
+  .head {
+    border-bottom: 1px solid var(--border);
   }
   .bar {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-1) var(--space-2);
-    padding: var(--space-1) var(--space-2);
-    border-bottom: 1px solid var(--border);
-  }
-  .find,
-  .tools {
-    display: flex;
     align-items: center;
     gap: var(--space-1);
+    padding: var(--space-1) var(--space-2);
+  }
+  .error {
+    padding: 0 var(--space-2) var(--space-2);
+    font-size: var(--text-sm);
   }
   .find {
-    flex: 1 1 18rem;
+    flex: 1;
+    min-width: 0;
   }
-  .find label,
   .find input {
     flex: 1;
     min-width: 0;
   }
-  /* Kept to the right when it wraps. */
-  .tools {
-    margin-left: auto;
-  }
   .found {
-    min-width: 5em;
     font-size: var(--text-sm);
     white-space: nowrap;
   }

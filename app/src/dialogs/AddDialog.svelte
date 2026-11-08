@@ -1,17 +1,19 @@
 <script lang="ts">
-  // Asks for a name and a kind: a new thing, or a new scenario.
+  // Asks for a name, and a kind if it has one: a new thing, scenario or plan.
   import { idProblem } from '../lib/edit';
 
   interface Props {
     title: string;
-    kinds: readonly string[];
+    /** A name to show as an example. */
+    example: string;
+    kinds?: readonly string[];
     /** Whether a name is already in use. */
     taken: (name: string) => boolean;
     onadd: (name: string, kind: string) => void;
     /** The <dialog>, for its owner to open with showModal(). */
     dialog?: HTMLDialogElement;
   }
-  let { title, kinds, taken, onadd, dialog = $bindable() }: Props = $props();
+  let { title, example, kinds, taken, onadd, dialog = $bindable() }: Props = $props();
 
   const uid = $props.id();
   let name = $state('');
@@ -56,16 +58,18 @@
       {#if problem}
         <span class="hint error" id="{uid}-hint" role="alert">{problem}</span>
       {:else}
-        <span class="hint" id="{uid}-hint">Lowercase letters, digits and _, such as mail_pw.</span>
+        <span class="hint" id="{uid}-hint">Lowercase letters, digits and _, such as {example}.</span>
       {/if}
     </div>
-    <label class="field"
-      >Kind
-      <select bind:value={kind} required>
-        <option value="" disabled>Choose a kind</option>
-        {#each kinds as k (k)}<option value={k}>{k}</option>{/each}
-      </select>
-    </label>
+    {#if kinds}
+      <label class="field"
+        >Kind
+        <select bind:value={kind} required>
+          <option value="" disabled>Choose a kind</option>
+          {#each kinds as k (k)}<option value={k}>{k}</option>{/each}
+        </select>
+      </label>
+    {/if}
     <div class="buttons">
       <button type="button" class="quiet" onclick={() => dialog?.close()}>Cancel</button>
       <button class="primary">Add</button>

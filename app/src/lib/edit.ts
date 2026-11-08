@@ -378,12 +378,16 @@ export interface Created {
 }
 
 /** The layer being edited, and what can be done to it. */
+/** Why the forms are off, while the text doesn't load, and what fixes it. */
+export interface Off {
+  why: string;
+  fix: string;
+  onfix: () => void;
+}
+
 export interface Editing {
   /** Where edits go: the model, or a plan. */
   layer: Layer;
-  /** Every plan, in order. */
-  plans: string[];
-  setLayer: (layer: Layer) => void;
   /** The fields this layer's plan sets on a thing or scenario; none when it's the model. */
   sets: (section: 'things' | 'scenarios', id: string) => string[];
   /** Whether the model has it, rather than only the plan. */

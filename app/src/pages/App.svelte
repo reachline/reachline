@@ -5,6 +5,9 @@
     FileCode,
     Info,
     Layers,
+    LogIn,
+    MapPin,
+    Network,
     Plus,
     Redo2,
     RotateCcw,
@@ -12,7 +15,6 @@
     SlidersHorizontal,
     TextAlignStart,
     Undo2,
-    UnfoldVertical,
     WandSparkles,
   } from '@lucide/svelte';
   import { untrack } from 'svelte';
@@ -51,7 +53,7 @@
   import FlowView from '../graph/FlowView.svelte';
   import Legend from '../graph/Legend.svelte';
   import { layout, placeLocally, type Direction, type Placed, type Placement, type Routing } from '../graph/layout';
-  import { KINDS, SCENARIO_KINDS } from '../../../engine/model.ts';
+  import { BASELINE, KINDS, SCENARIO_KINDS } from '../../../engine/model.ts';
   import { compare, type ScenarioChange } from '../../../engine/report.ts';
   import Plans from '../panel/Plans.svelte';
   import Scenarios from '../panel/Scenarios.svelte';
@@ -63,8 +65,9 @@
   import { check, definitionOf } from '../lib/check';
   import { download, toMermaid, toPng, toSvg } from '../graph/export';
   import { format } from '../lib/format';
-  import { loadModel, outcome, ReachError, type Model } from '../lib/data';
+  import { loadModel, outcome, ReachError, summary, type Model } from '../lib/data';
   import ModelSwitcher from '../shell/ModelSwitcher.svelte';
+  import Picker, { type PickerGroup } from '../shell/Picker.svelte';
   import { keep, load } from '../lib/prefs';
   import Resizer from '../shell/Resizer.svelte';
   import { beforeLeave, follow } from '../lib/route.svelte.ts';
@@ -100,14 +103,15 @@
   const dirty = $derived(text !== null && text !== saved);
   // The panel beside the graph: which tab is open (none when it's closed), and
   // how wide it is, as this device last had them. Phones start with it closed,
-  // since there it covers the graph.
+  // since there it covers the graph. The first three are about what the
+  // toolbar has chosen; the others, the document.
   type Tab = 'details' | 'scenarios' | 'text' | 'history' | 'plans';
   const TABS = [
     ['details', 'Details', Info],
-    ['scenarios', 'Scenarios', ShieldAlert],
+    ['scenarios', 'Scenario', ShieldAlert],
+    ['plans', 'Plans', Layers],
     ['text', 'Text', FileCode],
     ['history', 'History', FileClock],
-    ['plans', 'Plans', Layers],
   ] as const;
   const PANEL = { min: 280, usual: 380, wide: 640 };
   const lastTab = load('panel.tab');
@@ -384,6 +388,7 @@
   }
   let addThingDialog = $state<HTMLDialogElement>();
   let addScenarioDialog = $state<HTMLDialogElement>();
+  let addPlanDialog = $state<HTMLDialogElement>();
   let templateDialog = $state<HTMLDialogElement>();
 
   function setEditMode(on: boolean) {
@@ -414,8 +419,6 @@
     const t = text;
     return {
       layer,
-      plans: planList.map((p) => p.name),
-      setLayer,
       sets: (section, id) => (layer === null ? [] : planFields(t, layer, section, id)),
       inModel: (section, id) => !!written(t, null)[section][id],
       revert: (section, id, field) => {
@@ -545,14 +548,12 @@
     setOn(isOn ? [...on, name] : on.filter((n) => n !== name));
   }
 
-  function editPlan(name: Layer) {
+  /** A new plan is on, and edits go into it; its tab opens on its note. */
+  function addedPlan(name: string) {
+    if (!apply(addPlan(name, ''))) return;
     setLayer(name);
     setEditMode(true);
-    showTab('details');
-  }
-
-  function createPlan(name: string, note: string) {
-    if (apply(addPlan(name, note))) editPlan(name);
+    showTab('plans');
   }
 
   function renamePlanTo(from: string, to: string): string {
@@ -717,10 +718,15 @@
     restart();
   }
 
-  function onnode(id: string) {
+  /** Selects a thing, for Details, and shows where it's defined in the text. */
+  function select(id: string) {
     selected = id;
     const at = text !== null && model?.things.has(id) ? definitionOf(text, id, plans) : null;
     if (at) reveal = { from: at[0], to: at[1] };
+  }
+
+  function onnode(id: string) {
+    select(id);
     const n = shown?.view.nodes.find((n) => n.id === id);
     if (mode === 'ways' && n?.more) expanded = new Set([...expanded, id]);
   }
@@ -740,15 +746,41 @@
 
   const stateIds = $derived([...(editing?.ids ?? [])].filter(([, k]) => k === 'state').map(([id]) => id));
 
-  const thingsByKind = $derived.by(() => {
+  // What the toolbar's pickers offer.
+  const thingGroups = $derived.by((): PickerGroup[] => {
     const things = [...(model?.things ?? [])];
-    return KINDS.map((k) => [k, things.filter(([, t]) => t.kind === k).map(([id]) => id)] as const);
+    const byName = (a: string, b: string) => a.localeCompare(b);
+    return [...KINDS]
+      .sort(byName)
+      .map((k) => ({
+        name: k,
+        rows: things
+          .filter(([, t]) => t.kind === k)
+          .map(([id]) => id)
+          .sort(byName)
+          .map((id) => ({ id })),
+      }))
+      .filter((g) => g.rows.length);
   });
+  const scenarioGroups = $derived.by((): PickerGroup[] => {
+    const all = [...(model?.scenarios ?? [])].map(([id, sc]) => ({ id, kind: sc.kind, summary: summary(id, sc) }));
+    const PLURAL = { lockout: 'lockouts', breach: 'breaches' };
+    return [
+      {
+        rows: [
+          { id: '', label: 'none', summary: 'the graph without a scenario' },
+          ...all.filter((r) => r.id === BASELINE),
+        ],
+      },
+      ...SCENARIO_KINDS.map((k) => ({ name: PLURAL[k], rows: all.filter((r) => r.id !== BASELINE && r.kind === k) })),
+    ].filter((g) => g.rows.length);
+  });
+  const planGroups = $derived([{ rows: planList.map((p) => ({ id: p.name, summary: p.note || undefined })) }]);
 
   const MODES = [
-    ['ways', 'Ways in'],
-    ['where', 'Where things live'],
-    ['all', 'Everything'],
+    ['ways', 'Ways in', LogIn],
+    ['where', 'Where things live', MapPin],
+    ['all', 'Everything', Network],
   ] as const;
 </script>
 
@@ -769,6 +801,20 @@
       >
     {/if}
     <span class="spacer"></span>
+    {#if planList.length}
+      <!-- Add and every form write here, so it shows whenever there's a choice. -->
+      <label class="field inline layer"
+        >Edits go into
+        <select
+          value={layer ?? ''}
+          onchange={(e) => setLayer(e.currentTarget.value || null)}
+          class:plan={layer !== null}
+        >
+          <option value="">the model</option>
+          {#each planList as p (p.name)}<option value={p.name}>plan {p.name}</option>{/each}
+        </select>
+      </label>
+    {/if}
     <button class="quiet" popovertarget="add-menu" disabled={!editing}
       ><Plus /><span class="wide-only">Add</span></button
     >
@@ -784,6 +830,12 @@
         popovertarget="add-menu"
         popovertargetaction="hide"
         onclick={() => addScenarioDialog?.showModal()}>Scenario…</button
+      >
+      <button
+        class="quiet"
+        popovertarget="add-menu"
+        popovertargetaction="hide"
+        onclick={() => addPlanDialog?.showModal()}>Plan…</button
       >
       <button
         class="quiet"
@@ -842,57 +894,38 @@
     </div>
   {/if}
 
-  <div class="tools">
-    <div class="segmented" role="group" aria-label="View">
-      {#each MODES as [m, label] (m)}
-        <button class="quiet" aria-pressed={mode === m} onclick={() => setMode(m)}>{label}</button>
-      {/each}
-    </div>
-    {#if mode === 'ways'}
-      <span class="group">
-        <label class="field inline"
-          >Thing
-          <select bind:value={target} onchange={() => waysInto(target)}>
-            {#each thingsByKind as [kind, ids] (kind)}
-              <optgroup label={kind}>
-                {#each ids as id (id)}<option value={id}>{id}</option>{/each}
-              </optgroup>
-            {/each}
-          </select>
-        </label>
-        <button class="quiet" onclick={() => waysInto(target)}><RotateCcw />Reset</button>
-        <button class="quiet" onclick={() => (expanded = new Set(model?.things.keys()))}
-          ><UnfoldVertical />Expand all</button
-        >
-      </span>
-    {/if}
-    <label class="field inline"
-      >Scenario
-      <select bind:value={scenarioName}>
-        <option value="">(none)</option>
-        {#each [...(model?.scenarios ?? [])] as [name, sc] (name)}
-          <option value={name}>{name} ({sc.kind})</option>
+  <!-- What the graph shows: over its top-left corner, or on phones a row of its own. -->
+  <div class="lens shrinks wide">
+    <div class="tools">
+      <div class="segmented" role="group" aria-label="View">
+        {#each MODES as [m, label, Icon] (m)}
+          <button class="quiet" aria-pressed={mode === m} title={label} onclick={() => setMode(m)}
+            ><Icon /><span class="wide-only">{label}</span></button
+          >
         {/each}
-      </select>
-    </label>
-    {#if plans.length}<span class="muted">with {plans.join(' + ')}</span>{/if}
-  </div>
-
-  <!-- Open, the tabs are as wide as the panel, and give their words up to fit it. -->
-  <div class="tabs" class:shrinks={tab !== null}>
-    <div class="segmented" role="group" aria-label="Panel">
-      {#each TABS as [t, label, Icon] (t)}
-        <button
-          class="quiet"
-          aria-pressed={tab === t}
-          aria-controls="panel"
-          onclick={() => showTab(tab === t ? null : t)}><Icon /><span class="wide-only">{label}</span></button
-        >
-      {/each}
+      </div>
+      {#if mode === 'ways'}
+        <Picker
+          label="Thing"
+          groups={thingGroups}
+          chosen={[target]}
+          filter
+          onchoose={(id: string) => {
+            waysInto(id);
+            select(id);
+          }}
+        />
+      {/if}
+      <Picker
+        label="Scenario"
+        groups={scenarioGroups}
+        chosen={[scenarioName]}
+        onchoose={(name: string) => (scenarioName = name)}
+      />
+      {#if planList.length}
+        <Picker label="Plans" groups={planGroups} chosen={plans} multiple onchoose={turn} />
+      {/if}
     </div>
-  </div>
-
-  <main class="canvas" class:outdated={shown && (invalid || lost)}>
     {#if shown && (invalid || lost)}
       <p class="notice badge" role="status">
         Out of date: {invalid
@@ -902,6 +935,29 @@
           : `${target} is no longer in the model`}
       </p>
     {/if}
+  </div>
+
+  <!--
+    Open, the panel's header, as wide as the panel, giving their words up to fit
+    it; closed, a strip of icons over the graph's top-right corner. One element
+    either way, so the button pressed keeps the focus.
+  -->
+  <div class="tabs" class:shrinks={tab !== null}>
+    <div class="segmented" role="group" aria-label="Panel">
+      {#each TABS as [t, label, Icon] (t)}
+        <button
+          class="quiet"
+          aria-pressed={tab === t}
+          aria-controls="panel"
+          title={label}
+          onclick={() => showTab(tab === t ? null : t)}
+          ><Icon /><span class:wide-only={tab !== null} class:visually-hidden={tab === null}>{label}</span></button
+        >
+      {/each}
+    </div>
+  </div>
+
+  <main class="canvas" class:outdated={shown && (invalid || lost)}>
     {#if shown}
       <FlowView
         view={shown.view}
@@ -914,6 +970,11 @@
         ondeselect={() => (selected = null)}
       >
         {#snippet tools()}
+          {#if mode === 'ways'}
+            <button class="quiet" onclick={() => waysInto(target)} title="Back to the first steps into {target}"
+              ><RotateCcw />Reset</button
+            >
+          {/if}
           <button class="quiet" onclick={tidy} title="Lay the whole graph out again"><WandSparkles />Tidy</button>
           <button class="quiet" popovertarget="layout"><SlidersHorizontal />Layout</button>
           <div id="layout" class="popup" popover>
@@ -973,17 +1034,7 @@
       />
     {/if}
     {#if tab === 'scenarios'}
-      <Scenarios
-        {model}
-        {scenario}
-        {scenarioName}
-        onchoose={(name: string) => (scenarioName = name)}
-        edit={editMode}
-        {editing}
-        onedit={setEditMode}
-        onadd={() => addScenarioDialog?.showModal()}
-        {off}
-      />
+      <Scenarios {model} {scenario} {scenarioName} edit={editMode} {editing} onedit={setEditMode} {off} />
     {/if}
     {#if editMode && editing}
       <!-- What the forms' id fields offer. -->
@@ -1013,9 +1064,9 @@
               const at = definitionOf(text ?? '', id, plans);
               return at && { from: at[0], to: at[1] };
             }}
+            error={formatError}
           >
             {#snippet tools()}
-              {#if formatError}<p class="error" role="alert">{formatError}</p>{/if}
               <button
                 class="quiet"
                 onclick={formatText}
@@ -1031,18 +1082,17 @@
     {/if}
     {#if tab === 'plans'}
       <Plans
-        plans={planList}
-        {on}
-        {layer}
+        plans={planList.filter((p) => plans.includes(p.name))}
+        any={planList.length > 0}
         overlaps={text === null ? [] : overlaps(text, plans)}
         {comparison}
         editable={!!editing}
         error={planError}
-        onturn={turn}
-        onedit={editPlan}
+        edit={editMode}
+        onedit={setEditMode}
+        {off}
         onapply={applyPlanNamed}
         ondelete={deletePlanNamed}
-        oncreate={createPlan}
         onrename={renamePlanTo}
         onnote={(name: string, note: string) => apply(setPlanNote(name, note))}
       />
@@ -1062,6 +1112,7 @@
 <AddDialog
   bind:dialog={addThingDialog}
   title="Add a thing"
+  example="mail_pw"
   kinds={KINDS}
   taken={(n: string) => !!editing?.ids.has(n)}
   onadd={(n: string, k: string) => added(n, k)}
@@ -1069,9 +1120,17 @@
 <AddDialog
   bind:dialog={addScenarioDialog}
   title="Add a scenario"
+  example="house_fire"
   kinds={SCENARIO_KINDS}
   taken={(n: string) => !!editing?.written.scenarios[n]}
   onadd={(n: string, k: string) => addedScenario(n, k)}
+/>
+<AddDialog
+  bind:dialog={addPlanDialog}
+  title="Add a plan"
+  example="spare_key"
+  taken={(n: string) => planList.some((p) => p.name === n)}
+  onadd={(n: string) => addedPlan(n)}
 />
 <TemplateDialog
   bind:dialog={templateDialog}
@@ -1114,25 +1173,24 @@
 
 <style>
   /*
-   * The document's header across the top; under it, what the graph shows, and
-   * the panel's tabs, over the graph and the panel. Closed, the panel gives
-   * the graph its room and leaves its tabs at the end of the toolbar.
+   * The document's header across the top, and under it the graph, with what
+   * it shows floating over it. Open, the panel is beside it, under its tabs;
+   * closed, the tabs float over the graph too.
    */
   .app {
     display: grid;
     grid-template:
-      'head head' auto
-      'banner banner' auto
-      'tools tabs' auto
-      'canvas canvas' minmax(0, 1fr)
-      / minmax(0, 1fr) auto;
+      'head' auto
+      'banner' auto
+      'canvas' minmax(0, 1fr)
+      / minmax(0, 1fr);
     height: 100%;
   }
   .app.open {
     grid-template:
       'head head' auto
       'banner banner' auto
-      'tools tabs' auto
+      'canvas tabs' auto
       'canvas panel' minmax(0, 1fr)
       / minmax(0, 1fr) var(--panel-w);
   }
@@ -1157,46 +1215,77 @@
   .spacer {
     flex: 1;
   }
+  select.plan {
+    border-color: var(--accent);
+    color: var(--accent);
+  }
   .banner {
     grid-area: banner;
     padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--border);
   }
-  .tools,
-  .tabs {
+  /* Across the graph's top, letting clicks through to it around the bar. */
+  .lens {
+    grid-area: canvas;
+    z-index: 5;
+    align-self: start;
+    display: grid;
+    justify-items: start;
+    gap: var(--space-2);
+    min-width: 0;
+    padding: var(--space-2);
+    pointer-events: none;
+  }
+  /* Room for the tabs beside it, at the right, while they float too. */
+  .app:not(.open) .lens {
+    padding-right: 13rem;
+  }
+  .tools {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: var(--space-2) var(--space-4);
-    min-width: 0;
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--border);
+    gap: var(--space-2) var(--space-3);
+    max-width: 100%;
+    padding: var(--space-1);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
     background: var(--surface);
+    box-shadow: var(--shadow);
+    pointer-events: auto;
   }
-  .tools {
-    grid-area: tools;
-    column-gap: var(--space-3);
-  }
-  /* A long scenario or thing name shouldn't push the toolbar onto two rows. */
-  .tools select {
-    max-width: 11rem;
+  .tools .segmented {
+    padding: 0;
+    border: none;
   }
   .tabs {
     grid-area: tabs;
-    justify-content: flex-end;
-  }
-  .open .tabs {
-    justify-content: flex-start;
+    min-width: 0;
+    padding: var(--space-2) var(--space-3);
+    border-bottom: 1px solid var(--border);
     border-left: 1px solid var(--border);
+    background: var(--surface);
   }
-  .group {
+  /* Open, the tabs fill the panel's width. */
+  .tabs .segmented {
     display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-1);
+    width: 100%;
   }
-  .group .field {
-    margin-right: var(--space-1);
+  .tabs button {
+    flex: 1 1 auto;
+  }
+  .app:not(.open) .tabs {
+    grid-area: canvas;
+    z-index: 5;
+    align-self: start;
+    justify-self: end;
+    margin: var(--space-2);
+    padding: 0;
+    border: none;
+    background: none;
+  }
+  .app:not(.open) .tabs .segmented {
+    width: auto;
+    box-shadow: var(--shadow);
   }
   .canvas {
     grid-area: canvas;
@@ -1208,13 +1297,8 @@
     opacity: 0.4;
   }
   .badge {
-    position: absolute;
-    top: var(--space-2);
-    left: 50%;
-    z-index: 5;
-    max-width: calc(100% - 2 * var(--space-2));
+    max-width: 100%;
     overflow: hidden;
-    transform: translateX(-50%);
     white-space: nowrap;
     text-overflow: ellipsis;
   }
@@ -1228,9 +1312,6 @@
   }
   .tab {
     height: 100%;
-  }
-  .text .error {
-    font-size: var(--text-sm);
   }
   .hidden {
     display: none;
@@ -1274,29 +1355,65 @@
     font-size: var(--text-md);
   }
 
-  /* Phones: the panel, open, covers the graph. */
+  /* Phones: the panel, open, covers the graph, and where edits go has a row of its own. */
   @media (max-width: 760px) {
+    .head {
+      flex-wrap: wrap;
+    }
+    /* The model's name gives way, so the header's buttons stay on one row. */
+    .head > :global(h1) {
+      flex: 1 1 0;
+    }
+    .spacer {
+      display: none;
+    }
+    .layer {
+      order: 1;
+      width: 100%;
+    }
     .app,
     .app.open {
       grid-template:
         'head' auto
         'banner' auto
-        'tools' auto
+        'lens' auto
         'tabs' auto
         'canvas' minmax(0, 1fr)
         / minmax(0, 1fr);
     }
     .app.open {
-      grid-template-areas: 'head' 'banner' 'tools' 'tabs' 'panel';
+      grid-template-areas: 'head' 'banner' 'lens' 'tabs' 'panel';
     }
     .app.open .canvas {
       display: none;
     }
-    .open .tabs {
-      border-left: none;
+    /* What the graph shows, and the tabs, are rows of their own: the open panel covers the graph. */
+    .lens,
+    .app:not(.open) .lens {
+      grid-area: lens;
+      padding: var(--space-2) var(--space-3);
+      border-bottom: 1px solid var(--border);
+      background: var(--surface);
+      pointer-events: auto;
     }
-    .tabs {
-      justify-content: flex-start;
+    .tools {
+      padding: 0;
+      border: none;
+      box-shadow: none;
+    }
+    .tabs,
+    .app:not(.open) .tabs {
+      grid-area: tabs;
+      margin: 0;
+      padding: var(--space-2) var(--space-3);
+      border-bottom: 1px solid var(--border);
+      border-left: none;
+      background: var(--surface);
+      justify-self: stretch;
+    }
+    .app:not(.open) .tabs .segmented {
+      width: 100%;
+      box-shadow: none;
     }
     .panel {
       border-left: none;

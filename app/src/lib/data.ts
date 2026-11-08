@@ -1,6 +1,14 @@
 // The UI's model: the engine, run in the page on a model's text as the server
 // stores it.
-import { availability, Model, ReachError, type Best, type Row, type Scenario } from '../../../engine/model.ts';
+import {
+  availability,
+  BASELINE,
+  Model,
+  ReachError,
+  type Best,
+  type Row,
+  type Scenario,
+} from '../../../engine/model.ts';
 
 export { Model, ReachError };
 
@@ -24,4 +32,11 @@ export interface Outcome {
 export function outcome(m: Model, name: string): Outcome {
   const { sc, best } = m.run(name);
   return { sc, start: m.start(sc), best, avail: availability(m.things, new Set(sc.lost)), rows: m.rows(name) };
+}
+
+/** A scenario in a line: what it takes away, or what the attacker starts with. */
+export function summary(name: string, sc: Scenario): string {
+  if (name === BASELINE) return 'the normal day: you, with nothing lost';
+  const ids = ((sc.kind === 'lockout' ? sc.lost : sc.attacker) ?? []).join(', ') || 'nothing';
+  return sc.kind === 'lockout' ? `loses ${ids}` : `the attacker has ${ids}`;
 }

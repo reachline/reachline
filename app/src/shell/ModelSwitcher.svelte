@@ -25,7 +25,7 @@
   }
 </script>
 
-<h1><button class="quiet" popovertarget="models-menu">{name}<ChevronsUpDown /></button></h1>
+<h1><button class="quiet" popovertarget="models-menu"><span class="name">{name}</span><ChevronsUpDown /></button></h1>
 <div id="models-menu" class="menu" popover bind:this={menu} {ontoggle}>
   {#if error}
     <p class="error" role="alert">{error}</p>
@@ -49,6 +49,10 @@
     max-width: 100%;
     padding: 0 var(--space-2);
     font-weight: 650;
+  }
+  .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
   .menu {
     max-width: 20rem;
