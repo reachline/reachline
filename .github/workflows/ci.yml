@@ -24,4 +24,4 @@ jobs:
       - run: pnpm verify
       - run: pnpm build
       - run: pnpm exec playwright install --with-deps chromium-headless-shell
-      - run: pnpm test:csp
+      - run: pnpm test:e2e

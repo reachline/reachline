@@ -98,15 +98,15 @@ To model your own setup, create `data/model.yml`, starting from `examples/model.
 ### Checking
 
 ```sh
-pnpm verify     # all of the below but test:csp
+pnpm verify     # all of the below but test:e2e
 pnpm check      # type-check the engine, CLI, server and UI
 pnpm lint       # ESLint
 pnpm format     # Prettier (format:check only checks)
 pnpm test       # engine, CLI and server tests
-pnpm test:csp   # the built app in Chromium, under the strict CSP (needs pnpm build)
+pnpm test:e2e   # the built app in Chromium: user flows, the strict CSP, axe (needs pnpm build)
 ```
 
-`pnpm install` sets up a pre-commit hook that checks the formatting of staged files. CI runs `pnpm verify` and `pnpm test:csp`. For `test:csp` locally, first run `pnpm exec playwright install chromium-headless-shell`. After a deliberate change to what the engine computes, update the test snapshot with `node --test --test-update-snapshots "test/*.test.ts"`.
+`pnpm install` sets up a pre-commit hook that checks the formatting of staged files. CI runs `pnpm verify` and `pnpm test:e2e`. For `test:e2e` locally, first run `pnpm exec playwright install chromium-headless-shell`. After a deliberate change to what the engine computes, update the test snapshot with `node --test --test-update-snapshots "test/*.test.ts"`.
 
 ## Contributing
 

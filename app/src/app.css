@@ -463,6 +463,7 @@ legend {
 }
 .segmented button.icon {
   width: calc(var(--control-h) - 6px);
+  padding: 0;
 }
 .floating {
   box-shadow: var(--shadow);
@@ -541,7 +542,8 @@ button.tip {
   font-size: var(--text-sm);
   font-weight: 400;
 }
-.menu button {
+/* Items line up on the left; an icon alone (such as the theme's) stays centred. */
+.menu button:not(.icon) {
   justify-content: flex-start;
 }
 /*
