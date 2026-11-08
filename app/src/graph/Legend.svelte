@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ChevronLeft, ChevronRight, Shapes } from '@lucide/svelte';
   import { KINDS } from '../../../engine/model.ts';
-  import { KIND_ICONS } from './shapes';
+  import KindIcon from '../shell/KindIcon.svelte';
 
   const EDGES = [
     ['in', 'in'],
@@ -28,10 +28,7 @@
   <h2>Legend</h2>
   <div class="grid">
     {#each KINDS as k (k)}
-      <svg class="kind" viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
-        <!-- eslint-disable-next-line svelte/no-at-html-tags -- Lucide's markup, a constant in shapes.ts -->
-        {@html KIND_ICONS[k]}
-      </svg>
+      <KindIcon kind={k} />
       <span>{k}</span>
     {/each}
     {#each EDGES as [k, label] (k)}
@@ -70,13 +67,8 @@
     gap: var(--space-1) var(--space-2);
     align-items: center;
   }
-  .kind {
+  .grid > :global(.kind-icon) {
     justify-self: center;
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
   line {
     stroke-width: 1.6;

@@ -753,8 +753,6 @@
       : { why: 'The text has errors', fix: 'Show the text', onfix: () => showTab('text') },
   );
 
-  const stateIds = $derived([...(editing?.ids ?? [])].filter(([, k]) => k === 'state').map(([id]) => id));
-
   // What the toolbar's pickers offer.
   const thingGroups = $derived.by((): PickerGroup[] => {
     const things = [...(model?.things ?? [])];
@@ -763,6 +761,7 @@
       .sort(byName)
       .map((k) => ({
         name: k,
+        kind: k,
         rows: things
           .filter(([, t]) => t.kind === k)
           .map(([id]) => id)
@@ -1047,15 +1046,6 @@
     {#if tab === 'scenarios'}
       <Scenarios {model} {scenario} {scenarioName} edit={editMode} {editing} onedit={setEditMode} {off} />
     {/if}
-    {#if editMode && editing}
-      <!-- What the forms' id fields offer. -->
-      <datalist id="thing-ids">
-        {#each [...editing.ids.keys()] as id (id)}<option value={id}></option>{/each}
-      </datalist>
-      <datalist id="state-ids">
-        {#each stateIds as id (id)}<option value={id}></option>{/each}
-      </datalist>
-    {/if}
     {#if editorOpened && editorModule && text !== null}
       <section class="tab text" class:hidden={tab !== 'text'} aria-label="Model text">
         {#await editorModule then { default: Editor }}
@@ -1294,8 +1284,10 @@
     border: none;
     background: none;
   }
+  /* As tall as the toolbar beside it, whose controls are 6px taller than these buttons. */
   .app:not(.open) .tabs .segmented {
     width: auto;
+    padding: calc(var(--space-1) + 3px);
     box-shadow: var(--shadow);
   }
   .canvas {

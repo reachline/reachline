@@ -9,7 +9,7 @@ export type { Box, Placed, Pt, Routing };
 
 const THING_H = 28;
 const JUNCTION = 24;
-/** An unknown is a pill, wide enough to say so. */
+/** An unknown is shaped like a thing, wide enough to say so. */
 const UNKNOWN_W = 54;
 
 export type Direction = 'RIGHT' | 'DOWN';
@@ -34,7 +34,8 @@ const getElk = () =>
 let ctx: CanvasRenderingContext2D | null = null;
 
 export function sizeOf(n: VNode): { w: number; h: number } {
-  if (isJunction(n.kind)) return { w: n.kind === 'unknown' ? UNKNOWN_W : JUNCTION, h: JUNCTION };
+  if (n.kind === 'unknown') return { w: UNKNOWN_W, h: THING_H };
+  if (isJunction(n.kind)) return { w: JUNCTION, h: JUNCTION };
   // The ends, the icon, and what a scenario marks after the name. Whether there's a glyph doesn't depend on the scenario's kind.
   const extra = 2 * END + ICON + statusWidth(!!verdict(n, '')?.mark, !!n.row);
   // Outside a browser (bench.ts), estimate the text width.

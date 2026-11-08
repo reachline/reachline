@@ -1,6 +1,7 @@
 <script lang="ts">
   // Asks for a name, and a kind if it has one: a new thing, scenario or plan.
   import { idProblem } from '../lib/edit';
+  import KindSelect from '../forms/KindSelect.svelte';
 
   interface Props {
     title: string;
@@ -19,12 +20,14 @@
   let name = $state('');
   let kind = $state('');
   let problem = $state('');
+  let kindProblem = $state('');
 
   // Each time it opens, it starts empty.
   function reset() {
     name = '';
     kind = '';
     problem = '';
+    kindProblem = '';
   }
 
   function submit(e: SubmitEvent) {
@@ -33,6 +36,7 @@
     problem = idProblem(n);
     if (problem) return;
     if (taken(n)) problem = `${n} is already taken.`;
+    else if (kinds && !kind) kindProblem = 'Choose a kind.';
     else {
       dialog?.close();
       onadd(n, kind);
@@ -62,13 +66,22 @@
       {/if}
     </div>
     {#if kinds}
-      <label class="field"
-        >Kind
-        <select bind:value={kind} required>
-          <option value="" disabled>Choose a kind</option>
-          {#each kinds as k (k)}<option value={k}>{k}</option>{/each}
-        </select>
-      </label>
+      <div class="field">
+        <span id="{uid}-kind">Kind</span>
+        <KindSelect
+          aria-labelledby="{uid}-kind"
+          aria-describedby={kindProblem ? `${uid}-kind-problem` : undefined}
+          aria-invalid={kindProblem ? 'true' : undefined}
+          value={kind}
+          options={kinds}
+          placeholder="Choose a kind"
+          onchange={(k: string) => {
+            kind = k;
+            kindProblem = '';
+          }}
+        />
+        {#if kindProblem}<span class="hint error" id="{uid}-kind-problem" role="alert">{kindProblem}</span>{/if}
+      </div>
     {/if}
     <div class="buttons">
       <button type="button" class="quiet" onclick={() => dialog?.close()}>Cancel</button>

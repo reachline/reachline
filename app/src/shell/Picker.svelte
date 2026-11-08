@@ -7,6 +7,8 @@
   }
   export interface PickerGroup {
     name?: string;
+    /** A kind of thing, whose icon goes beside the name. */
+    kind?: string;
     rows: PickerRow[];
   }
 </script>
@@ -17,6 +19,7 @@
   // `multiple`, any number are (checked), and the menu stays open.
   import { ChevronsUpDown } from '@lucide/svelte';
   import { tick } from 'svelte';
+  import KindIcon from './KindIcon.svelte';
 
   interface Props {
     label: string;
@@ -93,7 +96,7 @@
   <div class="rows" bind:this={list}>
     {#each shown as g, i (g.name ?? i)}
       <div role="group" aria-labelledby={g.name ? `${uid}-g${i}` : undefined}>
-        {#if g.name}<h3 id="{uid}-g{i}">{g.name}</h3>{/if}
+        {#if g.name}<h3 id="{uid}-g{i}"><KindIcon kind={g.kind} />{g.name}</h3>{/if}
         {#each g.rows as r (r.id)}
           {#if multiple}
             <label class="row"
@@ -142,6 +145,11 @@
   }
   .menu {
     width: min(22rem, calc(100vw - 2 * var(--space-4)));
+    gap: var(--space-1);
+  }
+  h3 {
+    display: flex;
+    align-items: center;
     gap: var(--space-1);
   }
   .filter {

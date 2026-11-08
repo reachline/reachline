@@ -11,7 +11,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
 import { AxeBuilder } from '@axe-core/playwright';
-import { chromium, type Browser } from 'playwright';
+import { chromium, type Browser, type Locator } from 'playwright';
 import { ROOT } from '../server/config.ts';
 
 const PORT = 5298;
@@ -23,6 +23,12 @@ const server = spawn(process.execPath, ['server/main.ts'], {
   stdio: 'inherit',
 });
 let browser: Browser;
+
+/** Chooses a kind from the one KindSelect in `within`, as with the pointer. */
+async function chooseKind(within: Locator, kind: string) {
+  await within.getByRole('combobox').click();
+  await within.page().getByRole('option', { name: kind, exact: true }).click();
+}
 
 before(async () => {
   assert.ok(existsSync(join(ROOT, 'app/dist/index.html')), 'run pnpm build first');
@@ -194,7 +200,7 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.getByRole('button', { name: 'Thing…' }).click();
   const add = page.getByRole('dialog', { name: 'Add a thing' });
   await add.getByLabel('Name').fill('tablet');
-  await add.getByLabel('Kind').selectOption('device');
+  await chooseKind(add, 'device');
   await add.getByRole('button', { name: 'Add', exact: true }).click();
   const addIn = page.getByRole('combobox', { name: 'Add to lives in', exact: true });
   await addIn.fill('home');
@@ -210,9 +216,15 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await access.press('ArrowDown');
   await access.press('Enter');
   await access.press('Enter');
-  await page.getByRole('group', { name: 'New things' }).getByRole('combobox').selectOption('secret');
+  await chooseKind(page.getByRole('group', { name: 'New things' }), 'secret');
   await page.getByRole('button', { name: 'Create and add' }).click();
-  await page.locator('#thing-ids option[value="tablet_pin"]').waitFor({ state: 'attached' });
+  // Now a thing, so the id fields suggest it.
+  await addIn.fill('tablet_p');
+  await page
+    .getByRole('listbox', { name: 'Things to add to lives in' })
+    .getByRole('option', { name: /^tablet_pin/ })
+    .waitFor();
+  await addIn.fill('');
   const name = page.getByRole('textbox', { name: 'Name', exact: true });
   await name.fill('slate');
   await name.blur();
@@ -222,9 +234,9 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await confirm.getByRole('button', { name: 'Delete' }).click();
   await page.getByText('Select a node to edit it').waitFor();
   await undo.click();
-  await page.locator('#thing-ids option[value="slate"]').waitFor({ state: 'attached' });
   await page.getByRole('button', { name: 'Done' }).click();
   await page.getByRole('button', { name: 'Text', exact: true }).click();
+  await page.locator('.cm-line', { hasText: /^\s*slate:/ }).waitFor();
   // Each guided edit was one step: four more undo the rename, the way in, the place, and the thing.
   for (let i = 0; i < 4; i++) await undo.click();
   await page.getByText('Saved', { exact: true }).waitFor();
@@ -244,7 +256,7 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await page.getByRole('button', { name: 'Add', exact: true }).click();
   await page.getByRole('button', { name: 'Thing…' }).click();
   await add.getByLabel('Name').fill('key_drawer');
-  await add.getByLabel('Kind').selectOption('device');
+  await chooseKind(add, 'device');
   await add.getByRole('button', { name: 'Add' }).click();
   await page.getByText('Added by plan spare_key.').waitFor();
   await page.getByRole('button', { name: 'Plans', exact: true }).click();
@@ -311,7 +323,11 @@ test('sign up, create a model and see its graph, under the strict CSP', async ()
   await openGithub();
   await github.getByRole('button', { name: 'Add to model' }).click();
   await page.getByText('Added by plan').waitFor({ state: 'detached' });
-  await page.locator('#thing-ids option[value="github_pw"]').waitFor({ state: 'attached' });
+  // In the Thing picker, closed or not.
+  await page.getByRole('button', { name: 'Ways in', exact: true }).click();
+  await page
+    .getByRole('button', { name: 'github_pw', exact: true, includeHidden: true })
+    .waitFor({ state: 'attached' });
   await undo.click();
   await page.getByText('Saved', { exact: true }).waitFor();
 
@@ -412,7 +428,7 @@ test('the pages pass axe', async () => {
     await check('add a thing');
     const add = page.getByRole('dialog', { name: 'Add a thing' });
     await add.getByLabel('Name').fill('tablet');
-    await add.getByLabel('Kind').selectOption('device');
+    await chooseKind(add, 'device');
     await add.getByRole('button', { name: 'Add', exact: true }).click();
     await page.getByRole('textbox', { name: 'Name', exact: true }).waitFor();
     await check('editing a thing and a scenario');

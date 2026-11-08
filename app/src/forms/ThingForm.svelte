@@ -9,6 +9,7 @@
   import IdList from './IdList.svelte';
   import NameField from './NameField.svelte';
   import Tip from '../shell/Tip.svelte';
+  import KindSelect from './KindSelect.svelte';
 
   interface Props {
     id: string;
@@ -45,12 +46,15 @@
 <div class="form">
   <NameField label="Name" value={id} {onrename} />
 
-  <label class="field"
-    >Kind
-    <select value={spec.kind} onchange={(e) => onset('kind', e.currentTarget.value)}>
-      {#each KINDS as k (k)}<option value={k}>{k}</option>{/each}
-    </select>
-  </label>
+  <div class="field">
+    <span id="{uid}-kind">Kind</span>
+    <KindSelect
+      aria-labelledby="{uid}-kind"
+      value={str(spec.kind)}
+      options={KINDS}
+      onchange={(k: string) => onset('kind', k)}
+    />
+  </div>
 
   <fieldset aria-labelledby="{uid}-check" aria-describedby="{uid}-check-hint">
     <legend

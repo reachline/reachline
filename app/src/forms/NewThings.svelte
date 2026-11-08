@@ -4,6 +4,7 @@
   import { untrack } from 'svelte';
   import { KINDS, type Kind } from '../../../engine/model.ts';
   import type { Created } from '../lib/edit';
+  import KindSelect from './KindSelect.svelte';
 
   interface Props {
     ids: string[];
@@ -13,6 +14,8 @@
     oncancel: () => void;
   }
   let { ids, states = false, oncreate, oncancel }: Props = $props();
+
+  const uid = $props.id();
 
   // Asked once: the owner keys this on the ids, so new ones start afresh.
   const kinds = $state<{ id: string; kind: Kind | '' }[]>(
@@ -25,14 +28,18 @@
   <p>
     {ids.length === 1 ? 'This is' : 'These are'} not a thing yet. Create {ids.length === 1 ? 'it' : 'them'} as:
   </p>
-  {#each kinds as m (m.id)}
-    <label class="field inline"
-      ><span class="mono">{m.id}</span>
-      <select bind:value={m.kind} disabled={states}>
-        <option value="" disabled>Choose a kind</option>
-        {#each KINDS as k (k)}<option value={k}>{k}</option>{/each}
-      </select>
-    </label>
+  {#each kinds as m, i (m.id)}
+    <div class="field inline">
+      <span class="mono" id="{uid}-{i}">{m.id}</span>
+      <KindSelect
+        aria-labelledby="{uid}-{i}"
+        value={m.kind}
+        options={KINDS}
+        placeholder="Choose a kind"
+        disabled={states}
+        onchange={(k: string) => (m.kind = k as Kind)}
+      />
+    </div>
   {/each}
   <div class="buttons">
     <button disabled={!ready} onclick={() => oncreate(kinds.map((m) => ({ id: m.id, kind: m.kind as Kind })))}

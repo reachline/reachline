@@ -29,8 +29,9 @@
     background: var(--surface);
     border: 1.5px solid var(--k-junction);
   }
+  /* Shaped like a thing: the centre of its border on outline()'s corners (shapes.ts). */
   .k-unknown {
-    border-radius: 999px;
+    border-radius: 7.75px;
     font-size: 10px;
     color: var(--warning);
     background: var(--maybe-fill);

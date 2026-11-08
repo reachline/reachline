@@ -6,6 +6,7 @@
   import { BASELINE, SCENARIO_KINDS } from '../../../engine/model.ts';
   import { asList as list, type Created } from '../lib/edit';
   import IdList from './IdList.svelte';
+  import KindSelect from './KindSelect.svelte';
   import NameField from './NameField.svelte';
 
   interface Props {
@@ -19,6 +20,8 @@
     ondelete: () => void;
   }
   let { name, spec, me, ids, onset, onme, onrename, ondelete }: Props = $props();
+
+  const uid = $props.id();
 
   const ME_HINT =
     'What you have without getting it through anything else, which everything is reached from: usually places, ' +
@@ -43,12 +46,15 @@
 </div>
 
 {#snippet fields()}
-  <label class="field"
-    >Kind
-    <select value={spec.kind} onchange={(e) => onset('kind', e.currentTarget.value)}>
-      {#each SCENARIO_KINDS as k (k)}<option value={k}>{k}</option>{/each}
-    </select>
-  </label>
+  <div class="field">
+    <span id="{uid}-kind">Kind</span>
+    <KindSelect
+      aria-labelledby="{uid}-kind"
+      value={typeof spec.kind === 'string' ? spec.kind : ''}
+      options={SCENARIO_KINDS}
+      onchange={(k: string) => onset('kind', k)}
+    />
+  </div>
   {#if spec.kind === 'breach'}
     <IdList
       label="Attacker has"

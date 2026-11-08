@@ -4,6 +4,7 @@
   import type { Created } from '../lib/edit';
   import IdInput from './IdInput.svelte';
   import Tip from '../shell/Tip.svelte';
+  import KindIcon from '../shell/KindIcon.svelte';
 
   interface Props {
     label: string;
@@ -29,7 +30,7 @@
     <ul class="chips">
       {#each values as v, i (i)}
         <li class="chip">
-          {v}<button
+          <KindIcon kind={ids.get(v)} />{v}<button
             class="quiet icon"
             aria-label={`Remove ${v} from ${label.toLowerCase()}`}
             title="Remove"

@@ -1,9 +1,10 @@
 <script lang="ts">
-  // A field to add an id, suggested from the model. An id that isn't a thing
-  // yet can be created on the spot, with its kind.
+  // A field to add an id, suggested from the model; picking one adds it. An id
+  // that isn't a thing yet can be created on the spot, with its kind.
   import { Plus } from '@lucide/svelte';
   import { UNKNOWN } from '../../../engine/cond.ts';
   import { idProblem, type Created } from '../lib/edit';
+  import IdCombo from './IdCombo.svelte';
   import NewThings from './NewThings.svelte';
 
   interface Props {
@@ -26,8 +27,8 @@
   // An id to create before adding, waiting for its kind.
   let missing = $state<string | null>(null);
 
-  function submit(e: SubmitEvent) {
-    e.preventDefault();
+  function submit(e?: SubmitEvent) {
+    e?.preventDefault();
     problem = '';
     missing = null;
     const id = value.trim();
@@ -50,16 +51,17 @@
 </script>
 
 <form class="add" onsubmit={submit}>
-  <input
-    list={states ? 'state-ids' : 'thing-ids'}
+  <IdCombo
+    bind:value
+    {ids}
+    {states}
+    {unknown}
+    listLabel={`Things to ${label.toLowerCase()}`}
     aria-label={label}
     {placeholder}
-    bind:value
-    autocomplete="off"
-    autocapitalize="off"
-    spellcheck="false"
     aria-invalid={problem ? 'true' : undefined}
     aria-describedby={problem ? `${uid}-problem` : undefined}
+    onpick={() => submit()}
   />
   <button class="quiet icon" aria-label={`${label}: add`} title="Add"><Plus /></button>
 </form>
@@ -81,10 +83,8 @@
     gap: var(--space-1);
     min-width: 0;
   }
-  .add input {
+  .add > :global(.combo) {
     flex: 1;
-    min-width: 0;
-    font-family: var(--code-font);
   }
   .error {
     font-size: var(--text-sm);

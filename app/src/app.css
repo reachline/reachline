@@ -286,6 +286,43 @@ input[type='file'] {
 .field > :is(input, select, textarea) {
   font-weight: 400;
 }
+/* A dropdown of our own (KindSelect): a button[role=combobox] that looks like a <select>, opening a .listbox. */
+button.select {
+  justify-content: flex-start;
+  width: 100%;
+  padding: 0 var(--space-2);
+  border-color: var(--control-border);
+  background: var(--field);
+  font-weight: 400;
+}
+button.select > .lucide:last-child {
+  margin-left: auto;
+}
+button.select:disabled {
+  border-color: var(--border);
+  background: transparent;
+}
+/*
+ * Its list, a .listbox[popover] in the top layer so a dialog can't clip it;
+ * of words, not ids. Without anchor positioning it opens mid-screen, as a .menu does.
+ */
+.listbox[popover] {
+  position: fixed;
+  inset: 0;
+  margin: auto;
+}
+@supports (position-area: block-end) {
+  .listbox[popover] {
+    inset: auto;
+    margin: var(--space-1) 0;
+    min-width: anchor-size(width);
+    position-area: block-end span-inline-end;
+    position-try-fallbacks: flip-block;
+  }
+}
+.listbox[popover] [role='option'] {
+  font-family: inherit;
+}
 /* Its label beside it instead, in a toolbar. */
 .field.inline {
   display: flex;
@@ -350,6 +387,10 @@ legend {
   font-size: var(--text-sm);
   overflow-wrap: anywhere;
 }
+/* A kind's icon before the id, a little apart from it. */
+.chip > .kind-icon {
+  margin-right: 2px;
+}
 .chip button.icon {
   width: 1.5rem;
   min-height: 1.5rem;
@@ -380,7 +421,6 @@ legend {
 .listbox [role='option'] {
   display: flex;
   align-items: center;
-  justify-content: space-between;
   gap: var(--space-2);
   min-height: 1.75rem;
   padding: 0 var(--space-2);
@@ -389,6 +429,10 @@ legend {
   font-size: var(--text-sm);
   font-weight: 400;
   cursor: pointer;
+}
+/* A note after the option, at its far end. */
+.listbox [role='option'] > .muted {
+  margin-left: auto;
 }
 .listbox [aria-selected='true'] {
   background: var(--selected);

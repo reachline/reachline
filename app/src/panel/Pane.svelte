@@ -4,6 +4,7 @@
   import { Check, Pencil } from '@lucide/svelte';
   import type { Snippet } from 'svelte';
   import type { Off } from '../lib/edit';
+  import KindIcon from '../shell/KindIcon.svelte';
 
   interface Props {
     /** What's chosen; none, and there's only Edit. */
@@ -21,7 +22,7 @@
 
 <div class="pane">
   <div class="top">
-    {#if name}<h2><span class="mono">{name}</span> <span class="muted">{kind}</span></h2>{/if}
+    {#if name}<h2><KindIcon {kind} /><span class="mono">{name}</span> <span class="muted">{kind}</span></h2>{/if}
     <!-- Done keeps the edits, like every edit along the way; it isn't a cancel. -->
     <button class:quiet={!edit} onclick={() => onedit(!edit)}>
       {#if edit}<Check />Done{:else}<Pencil />Edit{/if}
@@ -52,6 +53,10 @@
   }
   .top button {
     margin-left: auto;
+  }
+  h2 :global(.kind-icon) {
+    margin-right: var(--space-1);
+    vertical-align: -0.2em;
   }
   h2 {
     padding-top: var(--space-1);
