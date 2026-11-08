@@ -196,7 +196,8 @@ class Builder {
       if (!this.avail(n.id)) n.status = 'gone';
       else if (!lockout && start.has(n.id)) n.status = 'start';
       else if (r) n.status = r.a.length ? 'maybe' : 'has';
-      else if (lockout && t.check.includes('lockout')) n.status = 'lost';
+      // The fill says what happened, checked or not, in either kind; `row` (the "!") says what the scenario reports.
+      else if (lockout) n.status = 'lost';
       else n.status = 'none';
     }
   }

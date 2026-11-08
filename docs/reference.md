@@ -51,7 +51,7 @@ A thing with no `in` and no `needs` always exists. Apart from a state, a thing w
 | `data` | Files you care about: documents, an archive. |
 | `state` | A condition of the moment: the password manager unlocked on the laptop. |
 
-Only `state` changes how ReachLine treats a thing. A state isn't reached through anything: unless a scenario settles it, it holds for anyone, as an assumption, for as long as it exists. `in` and `needs` can make it gone; `access` and `recovery` have no effect on it. The other kinds set a thing's shape in the graph and what the forms and templates offer.
+Only `state` changes how ReachLine treats a thing. A state isn't reached through anything: unless a scenario settles it, it holds for anyone, as an assumption, for as long as it exists. `in` and `needs` can make it gone; `access` and `recovery` have no effect on it. The other kinds set a thing's icon in the graph and what the forms and templates offer.
 
 ## Conditions
 

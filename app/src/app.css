@@ -63,21 +63,13 @@
   --shadow:
     0 1px 2px light-dark(rgb(0 0 0 / 6%), rgb(0 0 0 / 40%)), 0 8px 24px light-dark(rgb(0 0 0 / 10%), rgb(0 0 0 / 50%));
 
-  /* The graph (and its exports). Kinds: */
-  --k-location: light-dark(#64748b, #94a3b8);
-  --k-device: light-dark(#2563eb, #60a5fa);
-  --k-state: light-dark(#7c3aed, #a78bfa);
-  --k-secret: light-dark(#b45309, #f59e0b);
-  --k-service: light-dark(#0f766e, #2dd4bf);
-  --k-data: light-dark(#15803d, #4ade80);
-  --k-account: light-dark(#4338ca, #818cf8);
+  /* The graph (and its exports). A thing's outline is the same for every kind (its icon tells it); colour is for status. */
+  --node-stroke: light-dark(#7d838e, #7b7b86);
   --k-junction: light-dark(#7d838e, #6b7280);
 
-  /* scenario status: fill / stroke */
+  /* scenario status: fill / stroke (good and bad keep the usual outline) */
   --good-fill: light-dark(#d4edda, #1d3a25);
-  --good-stroke: light-dark(#2e7d32, #4caf50);
   --bad-fill: light-dark(#f8d7da, #4a1f23);
-  --bad-stroke: light-dark(#c62828, #ef5350);
   --maybe-fill: light-dark(#fff3cd, #463a12);
   --maybe-stroke: light-dark(#a57400, #e0b341);
   --gone-fill: light-dark(#efeff1, #232327);
@@ -213,15 +205,10 @@ button.icon {
   width: var(--control-h);
   padding: 0;
 }
-/* A chevron beside a graph node (a .quiet .icon): the glyph alone, on a spot of the page's colour so edges stop short of it. */
+/* A chevron in a graph node's end (a .quiet .icon), in the node's text colour; ThingNode sizes it to the end. */
 button.icon.node-arrow {
-  width: 1.5rem;
-  min-height: 1.5rem;
-  color: var(--muted);
-}
-button.node-arrow .lucide {
-  border-radius: 50%;
-  background: var(--bg);
+  min-height: 0;
+  color: inherit;
 }
 /* Pressed or chosen: a toggle, the option picked in a set. */
 button[aria-pressed='true'] {

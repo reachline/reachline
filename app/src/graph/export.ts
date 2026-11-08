@@ -2,25 +2,35 @@
 // PNG from that), and Mermaid from its view.
 import { CLASSES, COMMON_CLASSES, SHAPES, type ScenarioKind } from '../../../engine/mermaid.ts';
 import { isJunction, verdict, type EdgeKind, type View, type VNode } from './build.ts';
-import { FONT_FAMILY, routePath, shapePath, STATUS_SLOT, type Box, type Placed } from './shapes.ts';
+import {
+  END,
+  FLAG,
+  FONT_FAMILY,
+  GLYPH,
+  ICON,
+  ICON_SIZE,
+  KIND_ICONS,
+  outline,
+  routePath,
+  statusWidth,
+  type Box,
+  type Placed,
+} from './shapes.ts';
 
-/** A colour from app.css by its variable's name, such as 'k-device'. */
+/** A colour from app.css by its variable's name, such as 'node-stroke'. */
 export type Colors = (name: string) => string;
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => `&#${ch.charCodeAt(0)};`);
 
 const PAD = 16;
-/** How far a node's chevron is centred beyond its side, as ThingNode draws it: half its 24px target. */
-const CHEVRON = 12;
-const LEFT: Partial<Record<VNode['kind'], number>> = { state: 16, service: 14, account: 14 };
 const DASH: Partial<Record<EdgeKind, string>> = { recovery: '6 4', needs: '2 3', mirror: '8 3 2 3' };
 
 /** What ThingNode's styles give a node. */
 function look(n: VNode, kind: string, c: Colors) {
-  let [fill, stroke, text, width, dash] = [c('surface'), c(`k-${n.kind}`), c('text'), 1.5, ''];
+  let [fill, stroke, text, width, dash] = [c('surface'), c('node-stroke'), c('text'), 1.5, ''];
   if (n.status === 'has') fill = c(kind === 'breach' ? 'bad-fill' : 'good-fill');
   else if (n.status === 'maybe') fill = c('maybe-fill');
-  else if (n.status === 'lost') [fill, stroke, width] = [c('bad-fill'), c('bad-stroke'), 2.5];
+  else if (n.status === 'lost') fill = c('bad-fill');
   else if (n.status === 'gone') [fill, stroke, text, dash] = [c('gone-fill'), c('gone-stroke'), c('gone-text'), '4 3'];
   else if (n.status === 'start') [fill, stroke, text] = [c('start-fill'), c('start-stroke'), c('start-text')];
   if (n.root) width = 3;
@@ -33,19 +43,9 @@ function look(n: VNode, kind: string, c: Colors) {
  */
 export function toSvg(view: View, placed: Placed, kind: string, vertical: boolean, c: Colors) {
   const box = (id: string) => placed.nodes.get(id)!;
-  // A chevron's glyph reaches about 20px beyond its node.
   const corners = view.nodes.flatMap((n) => {
     const b = box(n.id);
-    const [before, after] = [n.more ? 20 : 0, n.moreOut ? 20 : 0];
-    return vertical
-      ? [
-          { x: b.x, y: b.y - before },
-          { x: b.x + b.w, y: b.y + b.h + after },
-        ]
-      : [
-          { x: b.x - before, y: b.y },
-          { x: b.x + b.w + after, y: b.y + b.h },
-        ];
+    return [b, { x: b.x + b.w, y: b.y + b.h }];
   });
   const pts = [...corners, ...view.edges.flatMap((e) => placed.edges.get(e.id) ?? [])];
   const x0 = Math.min(...pts.map((p) => p.x)) - PAD;
@@ -85,31 +85,32 @@ export function toSvg(view: View, placed: Placed, kind: string, vertical: boolea
     }
     const s = look(n, kind, c);
     const dash = s.dash ? ` stroke-dasharray="${s.dash}"` : '';
-    const right = w - (n.kind === 'account' ? 12 : 7);
-    const mark = n.row
-      ? `<text x="${right}" y="${h / 2}" text-anchor="end" dominant-baseline="central" font-weight="700" fill="${c('danger')}">!</text>`
+    const cy = h / 2;
+    const icon =
+      `<svg x="${END}" y="${(h - ICON_SIZE) / 2}" width="${ICON_SIZE}" height="${ICON_SIZE}" viewBox="0 0 24 24" fill="none" stroke="${s.text}"` +
+      ` color="${s.text}" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">${KIND_ICONS[n.kind]}</svg>`;
+    // After the name, as ThingNode lays it out: a gap, the status glyph, then the flag.
+    const glyph = verdict(n, kind)?.mark;
+    const slot = w - END - statusWidth(!!glyph, !!n.row) + 4;
+    const status = glyph
+      ? `<text x="${slot + GLYPH / 2}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-weight="700" fill="${s.text}">${glyph}</text>`
       : '';
-    // The chevrons pointing out, where there's more to show; the ones that hide are only for a selected node.
+    const flag = n.row
+      ? `<text x="${slot + (glyph ? GLYPH : 0) + FLAG / 2}" y="${cy}" text-anchor="middle" dominant-baseline="central" font-weight="700" fill="${c('danger')}">!</text>`
+      : '';
+    // The chevrons pointing out, in the ends with more to show; the ones that hide are only for a selected node.
     const chevron = (back: boolean) => {
-      const [cx, cy] = vertical ? [w / 2, back ? -CHEVRON : h + CHEVRON] : [back ? -CHEVRON : w + CHEVRON, h / 2];
-      const s = back ? -1 : 1;
+      const cx = back ? END / 2 : w - END / 2;
+      const t = back ? -1 : 1;
       const pts = vertical
-        ? `${cx - 4},${cy - 2 * s} ${cx},${cy + 2 * s} ${cx + 4},${cy - 2 * s}`
-        : `${cx - 2 * s},${cy - 4} ${cx + 2 * s},${cy} ${cx - 2 * s},${cy + 4}`;
-      return (
-        `<circle cx="${cx}" cy="${cy}" r="7" fill="${c('bg')}"/>` +
-        `<polyline points="${pts}" fill="none" stroke="${c('muted')}" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>`
-      );
+        ? `${cx - 3},${cy - 1.5 * t} ${cx},${cy + 1.5 * t} ${cx + 3},${cy - 1.5 * t}`
+        : `${cx - 1.5 * t},${cy - 3} ${cx + 1.5 * t},${cy} ${cx - 1.5 * t},${cy + 3}`;
+      return `<polyline points="${pts}" fill="none" stroke="${s.text}" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"/>`;
     };
     const chevrons = (n.more ? chevron(true) : '') + (n.moreOut ? chevron(false) : '');
-    const left = LEFT[n.kind] ?? 12;
-    const glyph = verdict(n, kind)?.mark;
-    const status = glyph
-      ? `<text x="${left + 6}" y="${h / 2}" text-anchor="middle" dominant-baseline="central" font-weight="700" fill="${s.text}">${glyph}</text>`
-      : '';
     return (
-      `<g transform="translate(${x},${y})"><path d="${shapePath(n.kind, w, h)}" fill="${s.fill}" stroke="${s.stroke}" stroke-width="${s.width}"${dash}/>` +
-      `${status}<text x="${left + (n.status ? STATUS_SLOT : 0)}" y="${h / 2}" dominant-baseline="central" fill="${s.text}">${esc(n.label)}</text>${mark}${chevrons}</g>`
+      `<g transform="translate(${x},${y})"><path d="${outline(w, h)}" fill="${s.fill}" stroke="${s.stroke}" stroke-width="${s.width}"${dash}/>` +
+      `${icon}<text x="${END + ICON}" y="${cy}" dominant-baseline="central" fill="${s.text}">${esc(n.label)}</text>${status}${flag}${chevrons}</g>`
     );
   });
 
