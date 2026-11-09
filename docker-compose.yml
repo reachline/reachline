@@ -1,22 +1,26 @@
-# ReachLine behind a TLS reverse proxy on the same host. See the README for
-# the settings, and .env.template for what each one does.
+# ReachLine behind a TLS reverse proxy on the same host. Copy .env.template to
+# .env beside this file, set PUBLIC_URL in it, then:
 #
 #   docker compose up -d
-#   docker compose exec reachline reset-password <username>
+#
+# docs/self-hosting/ covers installing, auth and maintenance.
 
 services:
   reachline:
-    build: .
+    image: ghcr.io/reachline/reachline:main
     restart: unless-stopped
     ports:
-      - 5199:5199
+      - 127.0.0.1:5199:5199 # for the proxy only, never around it
+    # Only these settings pass from .env to the container. The image sets HOST,
+    # PORT and DATA_DIR, and the template's empty values would override them.
     environment:
-      AUTH_REGISTRATION: "1"
-      # Single sign-on; see the README.
-      # AUTH_METHODS: password,oidc
-      # AUTH_OIDC_ISSUER: https://auth.example.com/application/o/reachline/
-      # AUTH_OIDC_CLIENT_ID: ...
-      # AUTH_OIDC_CLIENT_SECRET: ...
+      PUBLIC_URL: ${PUBLIC_URL:?set PUBLIC_URL in .env}
+      AUTH_REGISTRATION: ${AUTH_REGISTRATION:-}
+      AUTH_METHODS: ${AUTH_METHODS:-}
+      AUTH_OIDC_ISSUER: ${AUTH_OIDC_ISSUER:-}
+      AUTH_OIDC_CLIENT_ID: ${AUTH_OIDC_CLIENT_ID:-}
+      AUTH_OIDC_CLIENT_SECRET: ${AUTH_OIDC_CLIENT_SECRET:-}
+      AUTH_OIDC_LABEL: ${AUTH_OIDC_LABEL:-}
     volumes:
       - reachline-data:/data
 

@@ -58,3 +58,7 @@ CLAUDE.md
 opencode.json
 .superpowers/
 .windsurfrules
+
+# Docs site build
+site/
+.cache/

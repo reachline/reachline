@@ -1,0 +1,54 @@
+[project]
+site_name = "ReachLine"
+site_description = "Map everything that grants access in your digital life, and see what you'd lose, or an attacker would reach, when something goes."
+site_url = "https://reachline.github.io/reachline/"
+repo_url = "https://github.com/reachline/reachline"
+repo_name = "reachline/reachline"
+# Each top-level section is a tab.
+nav = [
+  { "Guide" = [
+    "index.md",
+    { "Concepts" = "concepts.md" },
+    { "Modelling your setup" = "modelling.md" },
+    { "Reading the results" = "results.md" },
+    { "Plans" = "plans.md" },
+    { "Templates" = "templates.md" },
+    { "Reference" = "reference.md" },
+  ] },
+  { "Self-hosting" = [
+    "self-hosting/index.md",
+    { "Auth" = "self-hosting/auth.md" },
+    { "Maintenance" = "self-hosting/maintenance.md" },
+  ] },
+]
+
+[project.theme]
+# A copy of app/public/favicon.svg
+favicon = "assets/favicon.svg"
+logo = "assets/favicon.svg"
+# System fonts, so visiting the docs makes no requests to Google
+font = false
+features = [
+  "navigation.instant",
+  "navigation.tabs",
+  "navigation.indexes",
+  "navigation.footer",
+  "content.code.copy",
+]
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme)"
+toggle.icon = "lucide/sun-moon"
+toggle.name = "Switch to light mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: light)"
+scheme = "default"
+toggle.icon = "lucide/sun"
+toggle.name = "Switch to dark mode"
+
+[[project.theme.palette]]
+media = "(prefers-color-scheme: dark)"
+scheme = "slate"
+toggle.icon = "lucide/moon"
+toggle.name = "Switch to system preference"

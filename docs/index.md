@@ -5,7 +5,7 @@ ReachLine maps everything that grants access in your digital life, and answers t
 - **Lockout:** if I lose these things (a phone, a house fire, a forgotten password), what can I no longer get back?
 - **Breach:** if someone takes these things (a stolen laptop, a SIM swap, a burglary), what else can they reach?
 
-You describe your setup as a **model**: one YAML document listing your things and how each one is reached. The app's forms edit the same document, field for field, so these docs give each field's YAML name with its form label beside it.
+You describe your setup as a **model**: one YAML document listing your things and how each one is reached. Write your model through the structured UI, or edit the YAML directly.
 
 ## Reading order
 
@@ -16,4 +16,4 @@ You describe your setup as a **model**: one YAML document listing your things an
 5. [Templates](templates.md): adding a common service in one go, and writing a template.
 6. [Reference](reference.md): every field, in one place.
 
-The examples come from [`examples/model.yml`](../examples/model.yml), a made-up person's setup that uses every part of the format.
+The examples come from [`examples/model.yml`](https://github.com/reachline/reachline/blob/main/examples/model.yml), a made-up person's setup that uses every part of the format.

@@ -33,32 +33,14 @@ The [docs](docs/index.md) explain how ReachLine thinks, how to model your setup,
 
 ## Your server, your data
 
-Your model is a map of your weak points, so ReachLine is self-hosted: you run it on a server you own, for yourself or a few people you trust. There is no central instance, no telemetry, and the page makes no requests anywhere but your server (its Content Security Policy enforces that). The engine runs in your browser. The server stores each model as YAML text, keeps every saved revision, and never interprets it.
+Your model is a map of your weak points, so ReachLine is self-hosted: you run it on a server you own, for yourself or a few people you trust. There is no central instance, no telemetry, and the page makes no requests anywhere but your server (its Content Security Policy enforces that). [Self-hosting](docs/self-hosting/index.md) covers installing it with Docker, signing in with single sign-on, backups and upgrades.
 
-Models aren't encrypted on the server, so whoever controls the server and its backups can read them. Treat the server and its data volume as you would your password manager's backups.
+## How it fits together
 
-## Signing in
-
-Users sign in with a username and password, with an OpenID Connect provider (single sign-on), or either; `AUTH_METHODS` chooses. `.env.template` describes every setting. An account made at its first sign-in with the provider gets a username from the provider's, and is linked to the provider's identity (issuer and subject), never matched by email or name. Anyone can link or unlink the provider, or add or remove a password, on their account page, as long as one way in remains. A forgotten password is reset on the server: `docker compose exec reachline reset-password <username>`.
-
-ReachLine doesn't check groups: who may sign in is the provider's decision, so limit the application to the right people there. With registration on, anyone the provider lets through gets an account.
-
-### Example: Authentik
-
-1. In Authentik, create an application with an OAuth2/OpenID provider. Make it a confidential client, with the redirect URI `https://reach.example.com/api/auth/oidc/callback` (your `PUBLIC_URL`, then `/api/auth/oidc/callback`), and choose a signing key.
-2. To sign people out of ReachLine when their Authentik session ends, set the provider's logout URI to `https://reach.example.com/api/auth/oidc/logout`, with the back-channel method (Authentik 2025.8 or newer). Authentik's server has to be able to reach that address.
-3. Bind the users or groups who may use ReachLine to the application.
-4. Give ReachLine the provider's details:
-
-   ```sh
-   AUTH_METHODS=password,oidc
-   AUTH_OIDC_ISSUER=https://auth.example.com/application/o/reachline/   # the provider's issuer, trailing slash and all
-   AUTH_OIDC_CLIENT_ID=...
-   AUTH_OIDC_CLIENT_SECRET=...
-   AUTH_OIDC_LABEL=Sign in with Authentik
-   ```
-
-ReachLine's server has to be able to reach the issuer's address too. To use only the provider, set `AUTH_METHODS=oidc`, but first have everyone link their account, since an account with only a password can no longer sign in.
+- `engine/` computes everything: it parses a model and follows every path for each scenario. Its only dependency is `yaml`. The UI runs it in the browser, and `reach.ts` runs it on the command line.
+- `app/` is the UI: Svelte, with Svelte Flow drawing the graph and ELK laying it out in a worker.
+- `server/` signs people in and stores each model as YAML text in SQLite, with every saved revision. It never interprets a model.
+- `templates/` and `examples/` are models and pieces of models; `docs/` is the user and self-hosting documentation.
 
 ## Development Instructions
 

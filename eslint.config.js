@@ -6,7 +6,7 @@ import tseslint from 'typescript-eslint';
 import svelteConfig from './app/svelte.config.js';
 
 export default defineConfig(
-  { ignores: ['**/dist/', '**/node_modules/', 'data/'] },
+  { ignores: ['**/dist/', '**/node_modules/', 'data/', 'site/'] },
   js.configs.recommended,
   tseslint.configs.strictTypeChecked,
   tseslint.configs.stylisticTypeChecked,

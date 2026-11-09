@@ -1,6 +1,6 @@
-# Modelling your setup
+# Modelling Your Setup
 
-Start small. The starter model (one of the ways to start a new model in the app, and [`examples/starter.yml`](../examples/starter.yml)) has the usual places, a phone, a laptop, a password manager and a mail account. Grow it one account at a time and run the scenarios as you go. A model that's honest about a few accounts beats a detailed one you never finish.
+Start small, and think carefully. The starter model (one of the ways to start a new model in the app, and [`examples/starter.yml`](https://github.com/reachline/reachline/blob/main/examples/starter.yml)) has the usual things: a phone, a laptop, a password manager and a mail account. Grow it one account at a time and always check the source of truth to make sure you're capturing all the login, 2FA, recovery conditions, and any other relevant relations.
 
 ## Start from places
 
@@ -15,7 +15,7 @@ A place you don't have on a normal day, such as a safe deposit box, stays out of
 
 ## `in` or `access`?
 
-This is the question that comes up most. Ask two things about the container:
+Ask two things about the container:
 
 - If someone gets it, do they get this too?
 - If it's destroyed, is this gone too?
@@ -35,11 +35,9 @@ vault:
   access: (laptop_unlocked and pm_master) or (phone_unlocked and pm_master)
 ```
 
-`in` works for digital places as well as physical ones: a password in the vault, a file on the NAS, a copy in cloud storage.
-
 ## Things that never disappear
 
-A thing with no `in` and no `needs` always exists. That's right for most online things: your mail provider doesn't burn down with your house. It also means such a thing is reached only through `access`, `recovery` or `me`. Give it one of them, or nothing ever reaches it.
+A thing with no `in` and no `needs` always exists. That's right for most cloud-based things: your mail provider doesn't burn down with your house. It also means such a thing is reached only through `access`, `recovery` or `me`. Give it one of them, or nothing ever reaches it.
 
 When an online thing does depend on something, say so with `needs`:
 
@@ -91,22 +89,14 @@ What isn't checked still shows up in the app, under "Also affected" in the Scena
 
 ## Say what you don't know
 
-When you're not sure, write `unknown` rather than guessing, and add a `todo` saying what to find out. `./reach.ts --todo` lists the todos.
+When you're not sure, write `unknown` rather than guessing, and add a `todo` saying what to find out.
 
 ```yaml
-code_host:
+gmail:
   kind: account
-  access: code_pw and (code_totp or (hw_key and key_pin))
+  access: gmail_pw and (gmail_totp or (yubikey and yubiky_pin))
   recovery: unknown
   todo: what does support ask for once the 2FA is gone?
-storage:
-  kind: account
-  access: storage_pw and hw_key
-  recovery: mail and unknown   # a reset by email, if it gets past the key
-old_drive:
-  kind: device
-  in: unknown
-  todo: find it; either in the attic or at my parents'
 ```
 
 In `in`, `unknown` is a place you don't know. It's never lost, and it's reached only by assuming it. `in: [home, unknown]` is reached outright through home, and becomes UNSURE once home is gone.
@@ -137,7 +127,7 @@ A handful covers most setups:
 | --- | --- |
 | You lose what you carry | `{kind: lockout, lost: carried}` |
 | A house fire, at night | `{kind: lockout, lost: [home, carried]}` |
-| You forget the master password | `{kind: lockout, lost: pm_master}` |
+| You forget your master password | `{kind: lockout, lost: pm_master}` |
 | A device dies | `{kind: lockout, lost: nas}` |
 | A thief takes what you carry | `{kind: breach, attacker: carried}` |
 | A burglary | `{kind: breach, attacker: home}` |
