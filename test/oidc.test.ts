@@ -125,10 +125,10 @@ const staleSessions = (store: ReturnType<typeof server>['store']) =>
   store.db.prepare('update sessions set created = ?').run(new Date(Date.now() - 3600_000).toISOString());
 
 test('the first sign-in with the provider makes an account; later ones find it by issuer and subject', async () => {
-  const { app, idp } = await setup();
+  const { app, idp } = await setup({ AUTH_OIDC_LINK_USERNAME: '0' });
   await as(app, 'alice');
 
-  // Same name as a local account, so a new one alongside it, never the same one.
+  // Same name as a local account, but not linking by username, so a new one alongside it.
   const b = new Browser(app);
   const r = await viaProvider(b, idp, { sub: 's1', email: 'alice@idp.test', preferred_username: 'Alice' });
   assert.equal(r.status, 302);
@@ -142,6 +142,27 @@ test('the first sign-in with the provider makes an account; later ones find it b
 
   const elsewhere = await viaProvider(new Browser(app), idp, { sub: 's2' }, '/api/auth/oidc?next=https://evil.test/');
   assert.equal(elsewhere.headers.get('location'), '/');
+});
+
+test("a first sign-in claims the unlinked account of exactly the provider's username, and no other", async () => {
+  const { app, idp, store } = await setup({ AUTH_REGISTRATION: '0' });
+  store.createUser('alice', 'a hash');
+  store.createUser('bob', 'a hash');
+
+  // Linking isn't registering, so it works with registration closed.
+  const alice = new Browser(app);
+  await viaProvider(alice, idp, { sub: 's1', email: 'alice@idp.test', preferred_username: 'Alice' });
+  assert.deepEqual(await me(alice), { username: 'alice', password: true, linked: 'alice@idp.test' });
+
+  // Not by the names a new account would start from, nor an account linked to someone else.
+  const closed = (person: Person) => viaProvider(new Browser(app), idp, person);
+  for (const person of [
+    { sub: 's2', email: 'bob@evil.test' },
+    { sub: 's2', name: 'bob' },
+    { sub: 's2', preferred_username: 'böb' },
+    { sub: 's2', preferred_username: 'alice' },
+  ])
+    assert.equal((await closed(person)).headers.get('location'), '/login?sso=closed', JSON.stringify(person));
 });
 
 test('with registration closed, only an identity that is already linked signs in', async () => {
@@ -266,6 +287,10 @@ test('AUTH_METHODS and the provider settings must agree', () => {
   assert.throws(() => loadConfig({ ...base, AUTH_METHODS: 'oidc' }), /AUTH_OIDC_ISSUER is required/);
   assert.throws(() => loadConfig({ ...base, AUTH_OIDC_ISSUER: ISSUER }), /AUTH_METHODS doesn't include oidc/);
   assert.throws(() => loadConfig({ ...base, AUTH_METHODS: 'basic' }), /not basic/);
-  assert.throws(() => loadConfig({ ...base, ...OIDC, AUTH_OIDC_ISSUER: 'http://idp.lan/' }), /https/);
+  assert.throws(() => loadConfig({ ...base, AUTH_OIDC_LINK_USERNAME: '0' }), /AUTH_METHODS doesn't include oidc/);
+  assert.match(
+    loadConfig({ ...base, ...OIDC, AUTH_OIDC_ISSUER: 'http://idp.lan/' }).warnings.join(),
+    /AUTH_OIDC_ISSUER is plain http/,
+  );
   assert.equal(loadConfig({ ...base, ...OIDC }).password, true);
 });

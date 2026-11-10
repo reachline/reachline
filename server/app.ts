@@ -400,6 +400,14 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     }
 
     let userId = owner?.userId;
+    if (userId === undefined && config.oidc!.linkUsername && signIn.claimedUsername) {
+      // Never by the fallbacks a new account's name comes from: alice@evil.test isn't alice.
+      const named = store.userByName(signIn.claimedUsername);
+      if (named && !linkedAs(named.id)) {
+        store.link(named.id, oidc.issuer, signIn.subject, signIn.label);
+        userId = named.id;
+      }
+    }
     if (userId === undefined) {
       if (!canRegister()) return back('closed');
       userId = store.createLinkedUser(signIn.username, oidc.issuer, signIn.subject, signIn.label).id;

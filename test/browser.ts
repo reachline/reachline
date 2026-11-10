@@ -5,7 +5,7 @@ import { loadConfig } from '../server/config.ts';
 import { openDb, Store } from '../server/db.ts';
 import type { Fetch } from '../server/oidc.ts';
 
-export const ORIGIN = 'http://127.0.0.1:5199';
+export const ORIGIN = 'http://127.0.0.1:6060';
 
 export function server(env: Record<string, string> = {}, fetch?: Fetch) {
   const store = new Store(openDb(':memory:'));

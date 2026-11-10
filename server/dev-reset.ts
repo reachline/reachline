@@ -1,12 +1,12 @@
-// Recreates .dev/ with a `dev` user and the example model. It ignores DATA_DIR
-// on purpose: a reset must never reach a real database.
+// Recreates data/ with a `dev` user and the example model. It ignores DATA_DIR
+// on purpose: a reset must never reach a database elsewhere.
 import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { hashPassword } from './auth.ts';
 import { ROOT } from './config.ts';
 import { openStore } from './db.ts';
 
-const DIR = join(ROOT, '.dev');
+const DIR = join(ROOT, 'data');
 const USER = 'dev';
 const PASSWORD = 'dev-password';
 

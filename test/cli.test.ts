@@ -1,5 +1,4 @@
-// The CLI end to end: exit codes and error paths, not its exact output. Every
-// run names a model, so data/ is never read.
+// The CLI end to end: exit codes and error paths, not its exact output.
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
 import { mkdtempSync, writeFileSync } from 'node:fs';

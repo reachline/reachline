@@ -4,12 +4,12 @@ ReachLine runs on a server you own, for yourself or a few people you trust. Ther
 
 ## What the server holds
 
-A model is a map of someone's weak points, and models aren't encrypted on the server. Whoever controls the server, its data volume or its backups can read every model on it. Treat them as you would your password manager's backups.
+A model is a map of someone's weak points, and models aren't encrypted on the server. Whoever controls the server, its data volume or its backups can read every model on it.
 
 ## Requirements
 
 - Docker with Compose.
-- A domain name, and a reverse proxy in front of ReachLine that serves it over HTTPS. ReachLine refuses to start with a plain `http://` address other than `127.0.0.1` or `localhost`. The proxy also owns HSTS.
+- Ideally, a domain name and a reverse proxy in front of ReachLine that serves it over HTTPS, and owns HSTS. Plain `http://` works too, but then passwords and sessions cross the network unencrypted, unless the network itself is (a VPN such as Tailscale); ReachLine warns about it when it starts.
 
 ## Installing
 
@@ -20,24 +20,25 @@ A model is a map of someone's weak points, and models aren't encrypted on the se
    curl -o .env https://raw.githubusercontent.com/reachline/reachline/main/.env.template
    ```
 
-2. In `.env`, set `PUBLIC_URL` to the address people will use, such as `https://reach.example.com`.
-3. Start it:
+2. In `.env`, set `PUBLIC_URL` to the address people will use, such as `https://reachline.example.com`. The container runs as uid and gid 1000; to run it as someone else, set `PUID` and `PGID` there too.
+3. Create the data directory, as the user the container runs as, and start it:
 
    ```sh
+   mkdir reachline-data
    docker compose up -d
    ```
 
-4. Point your reverse proxy at `127.0.0.1:5199`.
+4. Point your reverse proxy, if you have one, at port 6060.
 5. Open the address and create your account. The first account can always be created.
 
-The image is `ghcr.io/reachline/reachline:main`, built from the latest commit on `main`. The database lives in the `reachline-data` volume, mounted at `/data`.
+The image is `ghcr.io/reachline/reachline:main`, built from the latest commit on `main`. The database lives in `reachline-data`, mounted at `/data`. If Docker creates that directory itself, root owns it and ReachLine can't write to it; `chown` it to `PUID:PGID`.
 
-The compose file publishes the port on `127.0.0.1` only, so ReachLine can't be reached around the proxy. If your proxy runs in Docker too, put both containers on one network and remove the `ports` section instead.
+Docker's published ports bypass host firewalls such as ufw. With a reverse proxy on the same host, publish the port as `127.0.0.1:6060:6060`, so ReachLine can't be reached around it. If your proxy runs in Docker too, put both containers on one network and remove the `ports` section instead.
 
 ## Settings
 
-Settings go in `.env`, and the comments there describe each one. After changing one, run `docker compose up -d` again. The image sets `HOST`, `PORT` and `DATA_DIR`, and the compose file doesn't pass them on, so leave them empty.
+Settings go in `.env`, and the comments there describe each one. After changing one, run `docker compose up -d` again.
 
-Registration is open until you close it, so anyone who reaches the page can create an account. Once your accounts exist, set `AUTH_REGISTRATION=0`.
+Registration is open by default, so anyone who reaches the page can create an account. Set `AUTH_REGISTRATION=0` to disable registration, for both password and OIDC login.
 
 Next: [auth](auth.md), with passwords or single sign-on, and [maintenance](maintenance.md): backups, upgrades and lost passwords.

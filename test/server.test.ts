@@ -182,7 +182,7 @@ test('a hash made with other settings still verifies, and is redone at login', a
   assert.match(store.userByName('alice')!.password!, /^\$argon2id\$v=19\$m=19456,t=2,p=1\$/);
 });
 
-test('PUBLIC_URL picks the cookie, and plain http only on loopback', async () => {
+test('PUBLIC_URL is required, and picks the cookie; plain http beyond loopback is allowed with a warning', async () => {
   const set = async (url: string) => {
     const r = await new Browser(server({ PUBLIC_URL: url }).app).call('POST', '/api/auth/register', {
       username: 'alice',
@@ -193,8 +193,11 @@ test('PUBLIC_URL picks the cookie, and plain http only on loopback', async () =>
   const https = await set('https://reach.example.com');
   assert.match(https, /^__Host-session=/);
   assert.match(https, /; Secure/);
-  assert.doesNotMatch(await set('http://localhost:5199'), /Secure|__Host-/);
-  assert.throws(() => loadConfig({ PUBLIC_URL: 'http://reach.lan' }), /https/);
+  assert.doesNotMatch(await set('http://localhost:6060'), /Secure|__Host-/);
+  assert.doesNotMatch(await set('http://reach.lan'), /Secure|__Host-/);
+  assert.deepEqual(loadConfig({ PUBLIC_URL: 'http://localhost:6060' }).warnings, []);
+  assert.match(loadConfig({ PUBLIC_URL: 'http://reach.lan' }).warnings.join(), /PUBLIC_URL is plain http/);
+  assert.throws(() => loadConfig({}), /PUBLIC_URL is required/);
 });
 
 test('every response carries the strict CSP', async () => {

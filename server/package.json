@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "PORT=5200 PUBLIC_URL=http://127.0.0.1:5199 node --watch --env-file-if-exists=../.env main.ts"
+    "dev": "PORT=6061 PUBLIC_URL=http://127.0.0.1:6060 node --watch --env-file-if-exists=../.env main.ts"
   },
   "engines": {
     "node": ">=24.7"

@@ -32,7 +32,7 @@ const MIGRATIONS = [
      created text not null
    );
    create index revisions_model on revisions (model_id, id);`,
-  `create table identities ( -- an account at an OpenID provider, linked by issuer and subject, never by email
+  `create table identities ( -- an account at an OpenID provider, linked by issuer and subject
      issuer text not null,
      subject text not null,
      user_id integer not null references users on delete cascade,

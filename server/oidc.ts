@@ -3,6 +3,7 @@
 // use, and again after a failure, so the server starts while it's down.
 import { createRemoteJWKSet, customFetch as joseFetch, jwtVerify } from 'jose';
 import * as client from 'openid-client';
+import { USERNAME } from './auth.ts';
 import type { OidcConfig } from './config.ts';
 
 /** How requests reach the provider: openid-client's and jose's fetch options both fit. */
@@ -26,6 +27,8 @@ export interface SignIn {
   label: string;
   /** A username to start a new account from. */
   username: string;
+  /** Their username at the provider, if it's exactly one here too: what linking by username matches. */
+  claimedUsername?: string;
 }
 
 /** Whom a back-channel logout signs out: a provider session, a user, or both. */
@@ -56,7 +59,6 @@ export class Oidc {
     const { issuer, clientId, clientSecret } = this.#settings;
     this.#config ??= client
       .discovery(issuer, clientId, clientSecret, clientSecret ? undefined : client.None(), {
-        // Config only allows http for a provider on loopback.
         // eslint-disable-next-line @typescript-eslint/no-deprecated -- deprecated only to stand out
         execute: issuer.protocol === 'http:' ? [client.allowInsecureRequests] : [],
         ...(this.#fetch && { [client.customFetch]: this.#fetch }),
@@ -100,11 +102,13 @@ export class Oidc {
     const claims = tokens.claims()!;
     const text = (key: string) => (typeof claims[key] === 'string' && claims[key]) || undefined;
     const email = text('email');
+    const claimed = text('preferred_username')?.toLowerCase();
     return {
       subject: claims.sub,
       sid: text('sid'),
       label: email ?? text('preferred_username') ?? text('name') ?? claims.sub,
       username: usernameFrom(text('preferred_username'), email?.split('@')[0], text('name')),
+      claimedUsername: claimed && USERNAME.test(claimed) ? claimed : undefined,
     };
   }
 

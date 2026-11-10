@@ -1,7 +1,6 @@
 #!/usr/bin/env node
 /*
-Run the scenarios in a model: data/model.yml, or examples/model.yml if there's
-no data/ (or whichever --model names).
+Run the scenarios in a model: examples/model.yml, or whichever --model names.
 
     ./reach.ts                      every scenario
     ./reach.ts house_fire           one scenario
@@ -14,7 +13,7 @@ no data/ (or whichever --model names).
     ./reach.ts --mermaid mail               every way into one thing (AND/OR)
     ./reach.ts --mermaid mail --scenario house_fire   ...colored, with dead ends faded
     ./reach.ts --mermaid burglary           the one path a scenario uses to each item
-    ./reach.ts --mermaid all > data/views.md   where + every scenario, as Markdown
+    ./reach.ts --mermaid all > views.md        where + every scenario, as Markdown
 
 --plan names a plan under the model's `plans:` and may repeat; plans apply in
 order on top of the model, and combine with the other forms (a scenario name,
@@ -28,17 +27,14 @@ What the model's fields and the verdicts mean: docs/ (start at docs/index.md).
 The engine itself is in engine/ and has no file access, so the UI in app/
 runs it in the browser.
 */
-import { existsSync, readFileSync } from 'node:fs';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { Model, ReachError, type Source } from './engine/model.ts';
 import { mermaidAll, mermaidScenario, mermaidWaysIn, mermaidWhere } from './engine/mermaid.ts';
 import { diff, explain, report, todo } from './engine/report.ts';
 
-// The model is personal, so it lives in data/ (gitignored). Without one, the
-// synthetic example stands in.
 const ROOT = dirname(fileURLToPath(import.meta.url));
-const DATA_MODEL = join(ROOT, 'data', 'model.yml');
 const EXAMPLE_MODEL = join(ROOT, 'examples', 'model.yml');
 
 function read(path: string): Source {
@@ -72,11 +68,7 @@ function mermaid(m: Model, what: string, opts: Map<string, string>, plans: strin
 }
 
 function main(argv: string[]): string[] {
-  let model = take(argv, '--model');
-  if (model === undefined) {
-    model = existsSync(DATA_MODEL) ? DATA_MODEL : EXAMPLE_MODEL;
-    if (model === EXAMPLE_MODEL) process.stderr.write('no data/model.yml; using examples/model.yml\n');
-  }
+  const model = take(argv, '--model') ?? EXAMPLE_MODEL;
   const plans: string[] = [];
   for (let p; (p = take(argv, '--plan')) !== undefined;) plans.push(p);
   const opts = new Map<string, string>();

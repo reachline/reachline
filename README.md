@@ -57,14 +57,14 @@ pnpm install
 ### Running
 
 ```sh
-pnpm dev:reset                      # a fresh .dev/ database: user dev, password dev-password, and the example model
-pnpm dev                            # the server and the UI, at http://127.0.0.1:5199
+pnpm dev:reset                      # a fresh database in data/: user dev, password dev-password, and the example model
+pnpm dev                            # the server and the UI, at http://127.0.0.1:6060
 pnpm build && pnpm start            # what the Docker image runs
 ```
 
-Settings come from `.env` (copy `.env.template`). In development the database lives in `.dev/`, which is gitignored and holds example data only. See `app/README.md` for the UI's URL parameters.
+Settings come from `.env` (copy `.env.template`). Three more apply when running from source, which the Docker image sets for itself: `HOST` (default `127.0.0.1`), `PORT` (default 6060) and `DATA_DIR`, where the database lives (default `data/`, relative to the repository; `pnpm dev:reset` replaces the database there with example data). `pnpm dev` ignores `PORT` and `PUBLIC_URL`. See `app/README.md` for the UI's URL parameters.
 
-The command line runs the engine on a local file: `data/model.yml`, or the synthetic example in `examples/` when there's no `data/`.
+The command line runs the engine on a model file: the synthetic example in `examples/`, or whichever `--model` names.
 
 ```sh
 ./reach.ts                          # every scenario
@@ -75,7 +75,7 @@ The command line runs the engine on a local file: `data/model.yml`, or the synth
 ./reach.ts --mermaid mail --scenario house_fire       # a Mermaid chart
 ```
 
-To model your own setup, create `data/model.yml`, starting from `examples/model.yml` (see [The model](#the-model)). `data/` is gitignored. Pass `--model examples/model.yml` to see the example again. See the top of `reach.ts` for every command-line option.
+See the top of `reach.ts` for every command-line option.
 
 ### Checking
 

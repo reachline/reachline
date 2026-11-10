@@ -1,6 +1,5 @@
-# The personal model and local settings must never reach an image.
+# The local database and settings must never reach an image.
 data/
-.dev/
 .env
 .env.*
 

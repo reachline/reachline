@@ -1,5 +1,5 @@
 // Server settings from the environment. .env.template documents each one.
-import { isAbsolute, join } from 'node:path';
+import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 export const ROOT = fileURLToPath(new URL('..', import.meta.url));
@@ -17,6 +17,8 @@ export interface Config {
   oidc?: OidcConfig;
   /** The built app; it may not exist in development, where Vite serves it. */
   appDir: string;
+  /** Allowed, but worth saying at startup. */
+  warnings: string[];
 }
 
 export interface OidcConfig {
@@ -26,38 +28,56 @@ export interface OidcConfig {
   clientSecret?: string;
   /** What the sign-in button says. */
   label: string;
+  /** Whether a first sign-in claims the account of the same name, trusting the provider's usernames. */
+  linkUsername: boolean;
 }
 
 const LOOPBACK = new Set(['127.0.0.1', 'localhost', '[::1]']);
 
 export function loadConfig(env: NodeJS.ProcessEnv): Config {
   const host = setting(env, 'HOST') ?? '127.0.0.1';
-  const port = Number(setting(env, 'PORT') ?? 5199);
+  const port = Number(setting(env, 'PORT') ?? 6060);
   if (!Number.isInteger(port) || port < 1 || port > 65535)
     throw new Error(`PORT must be a port number, not ${env.PORT}`);
 
-  const publicUrl = new URL(setting(env, 'PUBLIC_URL') ?? `http://127.0.0.1:${port}`);
+  const url = setting(env, 'PUBLIC_URL');
+  if (url === undefined) throw new Error('PUBLIC_URL is required, such as https://reachline.example.com');
+  const publicUrl = new URL(url);
   if (publicUrl.protocol !== 'https:' && publicUrl.protocol !== 'http:') throw new Error('PUBLIC_URL must be http(s)');
   if (publicUrl.pathname !== '/' || publicUrl.search || publicUrl.hash)
-    throw new Error('PUBLIC_URL must be an origin only, such as https://reach.example.com');
-  if (publicUrl.protocol === 'http:' && !LOOPBACK.has(publicUrl.hostname))
-    throw new Error('PUBLIC_URL must be https unless it is 127.0.0.1 or localhost; put a TLS reverse proxy in front');
+    throw new Error('PUBLIC_URL must be an origin only, such as https://reachline.example.com');
+
+  const auth = methods(env);
+  const warnings: string[] = [];
+  if (plainHttp(publicUrl))
+    warnings.push('PUBLIC_URL is plain http, so passwords and sessions cross the network unencrypted');
+  if (auth.oidc && plainHttp(auth.oidc.issuer))
+    warnings.push('AUTH_OIDC_ISSUER is plain http, so sign-ins with the provider cross the network unencrypted');
 
   const dataDir = setting(env, 'DATA_DIR');
   return {
     host,
     port,
     publicUrl,
-    // Relative to the repository, so `DATA_DIR=data` means the same from any directory.
-    dataDir: dataDir ? (isAbsolute(dataDir) ? dataDir : join(ROOT, dataDir)) : join(ROOT, '.dev'),
+    // Relative to the repository, so a relative path means the same from any directory.
+    dataDir: resolve(ROOT, dataDir ?? 'data'),
     registration: flag(env, 'AUTH_REGISTRATION', true),
-    ...methods(env),
+    ...auth,
     appDir: join(ROOT, 'app/dist'),
+    warnings,
   };
 }
 
+const plainHttp = (url: URL) => url.protocol === 'http:' && !LOOPBACK.has(url.hostname);
+
 const METHODS = ['password', 'oidc'];
-const OIDC_SETTINGS = ['AUTH_OIDC_ISSUER', 'AUTH_OIDC_CLIENT_ID', 'AUTH_OIDC_CLIENT_SECRET', 'AUTH_OIDC_LABEL'];
+const OIDC_SETTINGS = [
+  'AUTH_OIDC_ISSUER',
+  'AUTH_OIDC_CLIENT_ID',
+  'AUTH_OIDC_CLIENT_SECRET',
+  'AUTH_OIDC_LABEL',
+  'AUTH_OIDC_LINK_USERNAME',
+];
 
 function methods(env: NodeJS.ProcessEnv): Pick<Config, 'password' | 'oidc'> {
   const list = (setting(env, 'AUTH_METHODS') ?? 'password').split(',').map((m) => m.trim());
@@ -71,8 +91,7 @@ function methods(env: NodeJS.ProcessEnv): Pick<Config, 'password' | 'oidc'> {
   }
 
   const issuer = new URL(required(env, 'AUTH_OIDC_ISSUER'));
-  if (issuer.protocol !== 'https:' && !(issuer.protocol === 'http:' && LOOPBACK.has(issuer.hostname)))
-    throw new Error('AUTH_OIDC_ISSUER must be https unless it is 127.0.0.1 or localhost');
+  if (issuer.protocol !== 'https:' && issuer.protocol !== 'http:') throw new Error('AUTH_OIDC_ISSUER must be http(s)');
   return {
     password: list.includes('password'),
     oidc: {
@@ -80,6 +99,7 @@ function methods(env: NodeJS.ProcessEnv): Pick<Config, 'password' | 'oidc'> {
       clientId: required(env, 'AUTH_OIDC_CLIENT_ID'),
       clientSecret: setting(env, 'AUTH_OIDC_CLIENT_SECRET'),
       label: setting(env, 'AUTH_OIDC_LABEL') ?? 'Sign in with SSO',
+      linkUsername: flag(env, 'AUTH_OIDC_LINK_USERNAME', true),
     },
   };
 }

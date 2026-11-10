@@ -3,8 +3,8 @@
 **Svelte Flow** drawing an **ELK** layout of a model loaded from the server
 (`../server/`). Pages: `/login`, `/` (your models) and `/m/:id` (one model).
 
-    pnpm dev                 # from the root: the server, and Vite at http://127.0.0.1:5199
-    pnpm dev:reset           # from the root: a fresh .dev/ (sign in as dev / dev-password)
+    pnpm dev                 # from the root: the server, and Vite at http://127.0.0.1:6060
+    pnpm dev:reset           # from the root: a fresh database in data/ (sign in as dev / dev-password)
     node bench.ts            # ELK timings and expand-on-click stability, on examples/
     pnpm check               # svelte-check
 
