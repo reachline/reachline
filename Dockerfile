@@ -5,9 +5,10 @@
 
 FROM node:26-alpine AS build
 WORKDIR /src
-RUN npm install -g pnpm@12.15.0
 # Manifests first, so the install is cached until dependencies change.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+# The pnpm that package.json's packageManager names (less any +sha hash), as in CI.
+RUN npm install -g "pnpm@$(node -p 'require("./package.json").packageManager.split("@")[1].split("+")[0]')"
 COPY app/package.json app/
 COPY server/package.json server/
 RUN pnpm install --frozen-lockfile

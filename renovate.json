@@ -10,10 +10,30 @@
   "minimumReleaseAge": "7 days",
   "schedule": ["before 6am on monday"],
   "platformAutomerge": false,
+  "gitlabci": { "enabled": false },
   "packageRules": [
     {
       "matchUpdateTypes": ["pin", "pinDigest", "digest", "lockFileMaintenance"],
       "automerge": true
+    },
+    {
+      "description": "A week of what ships, in one PR. Fixes, so they're released. 0.x stays apart, to be merged by hand",
+      "matchDepTypes": ["dependencies"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchCurrentVersion": "!/^0/",
+      "groupName": "dependencies",
+      "semanticCommitType": "fix"
+    },
+    {
+      "matchDepTypes": ["devDependencies", "packageManager"],
+      "matchUpdateTypes": ["minor", "patch"],
+      "matchCurrentVersion": "!/^0/",
+      "groupName": "dev tooling"
+    },
+    {
+      "description": "One PR for them all, and another for their majors",
+      "matchManagers": ["github-actions"],
+      "groupName": "GitHub Actions"
     },
     {
       "description": "The base image ships, so pin it, and make its updates fixes so they're released",
