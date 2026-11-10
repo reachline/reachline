@@ -1,6 +1,6 @@
 services:
   reachline:
-    image: ghcr.io/reachline/reachline:main
+    image: ghcr.io/reachline/reachline:latest
     user: '${PUID:-1000}:${PGID:-1000}'
     ports:
       - '6060:6060'

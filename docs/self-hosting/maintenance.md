@@ -14,6 +14,8 @@ A backup can read every model, so keep it as carefully as the server. To restore
 
 ## Upgrading
 
+A release comes out on the first of each month when there's something new, and at once for a security fix. Read its [notes](https://github.com/reachline/reachline/releases) first: anything you need to do, such as changing a setting, is under **Breaking changes**. Until 1.0, any release may have some.
+
 ```sh
 docker compose pull
 docker compose up -d

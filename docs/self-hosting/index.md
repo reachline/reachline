@@ -31,7 +31,7 @@ A model is a map of someone's weak points, and models aren't encrypted on the se
 4. Point your reverse proxy, if you have one, at port 6060.
 5. Open the address and create your account. The first account can always be created.
 
-The image is `ghcr.io/reachline/reachline:main`, built from the latest commit on `main`. The database lives in `reachline-data`, mounted at `/data`. If Docker creates that directory itself, root owns it and ReachLine can't write to it; `chown` it to `PUID:PGID`.
+The image is `ghcr.io/reachline/reachline:latest`, the latest release. To choose when you upgrade, pin a version instead, such as `:0.1.0`; `:main` is built from every commit to `main`, for trying what's next. The database lives in `reachline-data`, mounted at `/data`. If Docker creates that directory itself, root owns it and ReachLine can't write to it; `chown` it to `PUID:PGID`.
 
 Docker's published ports bypass host firewalls such as ufw. With a reverse proxy on the same host, publish the port as `127.0.0.1:6060:6060`, so ReachLine can't be reached around it. If your proxy runs in Docker too, put both containers on one network and remove the `ports` section instead.
 

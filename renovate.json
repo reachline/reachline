@@ -1,5 +1,29 @@
 {
   "$schema": "https://docs.renovatebot.com/renovate-schema.json",
-  "extends": ["config:recommended", "helpers:pinGitHubActionDigests"],
-  "minimumReleaseAge": "7 days"
+  "extends": [
+    "config:recommended",
+    "helpers:pinGitHubActionDigests",
+    ":semanticCommits",
+    ":automergeStableNonMajor",
+    ":maintainLockFilesMonthly"
+  ],
+  "minimumReleaseAge": "7 days",
+  "schedule": ["before 6am on monday"],
+  "platformAutomerge": false,
+  "packageRules": [
+    {
+      "matchUpdateTypes": ["pin", "pinDigest", "digest", "lockFileMaintenance"],
+      "automerge": true
+    },
+    {
+      "description": "The base image ships, so pin it, and make its updates fixes so they're released",
+      "matchManagers": ["dockerfile"],
+      "pinDigests": true,
+      "semanticCommitType": "fix"
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "automerge": true,
+    "labels": ["security"]
+  }
 }

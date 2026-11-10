@@ -1,0 +1,110 @@
+name: Release
+
+# A release is a tag, a GitHub Release with git-cliff's notes, and the image tagged
+# X.Y.Z, X.Y, X (from 1.0) and latest. The commits since the last tag set the version.
+on:
+  schedule:
+    - cron: '0 6 1 * *' # monthly, whatever main holds
+  push:
+    branches: [main] # at once, only for a security fix to what ships
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version, such as 1.0.0 (default: from the commits)'
+        required: false
+
+permissions:
+  contents: read
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.next.outputs.version }}
+      notes: ${{ steps.next.outputs.notes }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      # Renovate marks a vulnerability fix [SECURITY], and types it fix only for what ships.
+      - id: due
+        run: |
+          if [ "$GITHUB_EVENT_NAME" != push ]; then echo due=true >> "$GITHUB_OUTPUT"; exit 0; fi
+          last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null) || exit 0
+          if git log --format=%s "$last..HEAD" | grep -qiE '^fix(\([^()]+\))?!?: .*\[security\]'; then
+            echo due=true >> "$GITHUB_OUTPUT"
+          fi
+      - if: steps.due.outputs.due
+        uses: pnpm/action-setup@v6
+      - if: steps.due.outputs.due
+        uses: actions/setup-node@v7
+        with:
+          node-version: 26
+          cache: pnpm
+      - if: steps.due.outputs.due
+        run: pnpm install --frozen-lockfile
+      - if: steps.due.outputs.due
+        id: next
+        env:
+          REQUESTED: ${{ inputs.version }}
+        run: |
+          last=$(git describe --tags --abbrev=0 --match 'v[0-9]*' 2>/dev/null || true)
+          next=${REQUESTED:+v${REQUESTED#v}}
+          next=${next:-$(pnpm exec git-cliff --bumped-version)}
+          if [ "$next" = "$last" ]; then
+            echo "Nothing to release since $last." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          if ! echo "$next" | grep -qE '^v[0-9]+\.[0-9]+\.[0-9]+$'; then
+            echo "::error::Not a version: $next"
+            exit 1
+          fi
+          notes=$(pnpm exec git-cliff --unreleased --tag "$next" --strip all)
+          delim=$(openssl rand -hex 16)
+          { echo "version=${next#v}"; echo "notes<<$delim"; echo "$notes"; echo "$delim"; } >> "$GITHUB_OUTPUT"
+          { echo "## $next"; echo "$notes"; } >> "$GITHUB_STEP_SUMMARY"
+
+  verify:
+    needs: plan
+    if: needs.plan.outputs.version
+    uses: ./.github/workflows/verify.yml
+
+  # The image first, so the Release never announces one that isn't there.
+  release:
+    needs: [plan, verify]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    env:
+      VERSION: ${{ needs.plan.outputs.version }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - id: tags
+        run: |
+          image=ghcr.io/$GITHUB_REPOSITORY
+          tags="$image:$VERSION,$image:${VERSION%.*},$image:latest"
+          case $VERSION in 0.*) ;; *) tags="$tags,$image:${VERSION%%.*}" ;; esac
+          echo "tags=$tags" >> "$GITHUB_OUTPUT"
+      - uses: docker/setup-buildx-action@v3
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - uses: docker/build-push-action@v6
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.tags.outputs.tags }}
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          NOTES: ${{ needs.plan.outputs.notes }}
+        run: gh release create "v$VERSION" --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --title "v$VERSION" --notes "$NOTES"

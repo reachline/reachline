@@ -1,0 +1,22 @@
+name: PR title
+
+# Pull requests are squash-merged, so the title becomes the commit on main, and must
+# be a Conventional Commit like any other.
+on:
+  pull_request:
+    types: [opened, edited, reopened, synchronize]
+
+permissions:
+  contents: read
+
+jobs:
+  title:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+          sparse-checkout: .githooks
+      - env:
+          TITLE: ${{ github.event.pull_request.title }}
+        run: printf '%s\n' "$TITLE" > "$RUNNER_TEMP/msg" && .githooks/commit-msg "$RUNNER_TEMP/msg"

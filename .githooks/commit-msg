@@ -1,0 +1,8 @@
+#!/bin/sh
+# Conventional Commits, which set the next version and the release notes (see CONTRIBUTING.md).
+# CI runs this on pull request titles too. Skip once with --no-verify.
+types='feat|fix|perf|refactor|docs|test|build|ci|chore|style|revert'
+head -n 1 "$1" | grep -qE "^(($types)(\([^()]+\))?!?: .+|(fixup|squash|amend)! |Merge |Revert \")" && exit 0
+echo "Commit message should be Conventional Commits, such as 'fix(server): reject expired sessions'." >&2
+echo "Types: ${types}. Add ! before the colon for a breaking change." >&2
+exit 1

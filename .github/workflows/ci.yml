@@ -10,21 +10,7 @@ permissions:
 
 jobs:
   verify:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-        with:
-          persist-credentials: false
-      - uses: pnpm/action-setup@v6 # the version in package.json's packageManager
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 26
-          cache: pnpm
-      - run: pnpm install --frozen-lockfile
-      - run: pnpm verify
-      - run: pnpm build
-      - run: pnpm exec playwright install --with-deps chromium-headless-shell
-      - run: pnpm test:e2e
+    uses: ./.github/workflows/verify.yml
 
   # ghcr.io/reachline/reachline:main, only from a main that passed.
   image:
