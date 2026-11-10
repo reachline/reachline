@@ -2,7 +2,7 @@
   "name": "reachline",
   "private": true,
   "type": "module",
-  "packageManager": "pnpm@12.15.0",
+  "packageManager": "pnpm@12.17.0",
   "scripts": {
     "prepare": "git config core.hooksPath .githooks || true",
     "dev": "pnpm -r --parallel dev",
