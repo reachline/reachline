@@ -5,6 +5,7 @@ import { createRemoteJWKSet, customFetch as joseFetch, jwtVerify } from 'jose';
 import * as client from 'openid-client';
 import { USERNAME } from './auth.ts';
 import type { OidcConfig } from './config.ts';
+import { log } from './log.ts';
 
 /** How requests reach the provider: openid-client's and jose's fetch options both fit. */
 export type Fetch = (
@@ -62,6 +63,10 @@ export class Oidc {
         // eslint-disable-next-line @typescript-eslint/no-deprecated -- deprecated only to stand out
         execute: issuer.protocol === 'http:' ? [client.allowInsecureRequests] : [],
         ...(this.#fetch && { [client.customFetch]: this.#fetch }),
+      })
+      .then((config) => {
+        log.debug('found the OpenID provider', { issuer: this.issuer });
+        return config;
       })
       .catch((e: unknown) => {
         this.#config = undefined;

@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
 import type { ModelDoc, ModelSummary, RevisionSummary } from './api.ts';
+import { log } from './log.ts';
 
 // Append only: each entry runs once, in order, and pragma user_version counts them.
 const MIGRATIONS = [
@@ -62,6 +63,8 @@ export function openDb(file: string): DatabaseSync {
       db.exec(`pragma user_version = ${user_version + i + 1}`);
     }),
   );
+  if (user_version < MIGRATIONS.length && file !== ':memory:')
+    log.info('migrated the database', { from: user_version, to: MIGRATIONS.length });
   return db;
 }
 
@@ -204,20 +207,22 @@ export class Store {
     this.db.prepare('delete from sessions where user_id = ? and id != ?').run(userId, keep);
   }
 
-  /** Ends the sessions started with the provider's session `sid`, or else all of the user's from the provider. */
-  endProviderSessions(target: { userId?: number; sid?: string }): void {
+  /** Ends the sessions started with the provider's session `sid`, or else all of the user's from the provider; how many. */
+  endProviderSessions(target: { userId?: number; sid?: string }): number {
     const { userId = null, sid = null } = target;
-    if (userId === null && sid === null) return;
-    this.db
+    if (userId === null && sid === null) return 0;
+    const { changes } = this.db
       .prepare(
         `delete from sessions where method = 'oidc'
          and (?1 is null or user_id = ?1) and (?2 is null or provider_sid = ?2)`,
       )
       .run(userId, sid);
+    return Number(changes);
   }
 
   deleteExpiredSessions(): void {
-    this.db.prepare('delete from sessions where expires <= ?').run(now());
+    const { changes } = this.db.prepare('delete from sessions where expires <= ?').run(now());
+    if (changes) log.debug('deleted expired sessions', { count: Number(changes) });
   }
 
   listModels(userId: number): ModelSummary[] {

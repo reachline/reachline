@@ -101,12 +101,14 @@ export class Throttle {
     return Math.max(0, (this.#fails.get(username)?.until ?? 0) - Date.now());
   }
 
-  fail(username: string): void {
+  /** Milliseconds this username must now wait. */
+  fail(username: string): number {
     const n = (this.#fails.get(username)?.n ?? 0) + 1;
-    const until = n < FREE_FAILURES ? 0 : Date.now() + Math.min(1000 * 2 ** (n - FREE_FAILURES), MAX_DELAY);
+    const delay = n < FREE_FAILURES ? 0 : Math.min(1000 * 2 ** (n - FREE_FAILURES), MAX_DELAY);
     this.#fails.delete(username); // re-inserted last, so the oldest go first when full
-    this.#fails.set(username, { n, until });
+    this.#fails.set(username, { n, until: Date.now() + delay });
     if (this.#fails.size > MAX_TRACKED) this.#fails.delete(this.#fails.keys().next().value!);
+    return delay;
   }
 
   succeed(username: string): void {

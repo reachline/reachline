@@ -6,6 +6,7 @@ import { test } from 'node:test';
 import { exportJWK, generateKeyPair, SignJWT, type CryptoKey, type GenerateKeyPairResult, type JWTPayload } from 'jose';
 import type { AuthOptions, Me, Redirect } from '../server/api.ts';
 import { loadConfig } from '../server/config.ts';
+import { setLevel } from '../server/log.ts';
 import type { Fetch } from '../server/oidc.ts';
 import { as, Browser, ORIGIN, server } from './browser.ts';
 
@@ -280,6 +281,60 @@ test("a back-channel logout ends the provider's sessions here, and nothing else"
   // Only the subject: every session the provider started for them, but not their password sessions.
   assert.equal(await idp.logout(app, { sub: 's1' }), 200);
   assert.deepEqual([await signedIn(two), await signedIn(a)], [false, true]);
+});
+
+test('even at debug, the log names users but never their secrets, their models, or the sign-in in flight', async (t) => {
+  const out: string[] = [];
+  // The test runner reports on stdout too, so only log lines are taken.
+  for (const stream of [process.stdout, process.stderr]) {
+    const write = stream.write.bind(stream) as (chunk: unknown) => boolean;
+    t.mock.method(stream, 'write', (chunk: unknown) =>
+      typeof chunk === 'string' && /^\d{4}-\d\d-\d\dT/.test(chunk) ? out.push(chunk) > 0 : write(chunk),
+    );
+  }
+  setLevel('debug');
+  t.after(() => setLevel('error'));
+
+  const { app, idp } = await setup({ AUTH_OIDC_CLIENT_SECRET: 'the-client-secret' });
+  const secrets = new Set(['the-client-secret', 'password1', 'wrong-password', 'pass word typed as a name']);
+  const keep = (b: Browser) => b.cookies.forEach((v) => secrets.add(v));
+
+  const a = await as(app, 'alice');
+  keep(a);
+  await a.call('POST', '/api/auth/login', { username: 'alice', password: 'wrong-password' });
+  await a.call('POST', '/api/auth/login', { username: 'pass word typed as a name', password: 'password1' });
+  await a.call('POST', '/api/models', { name: 'weak-point-name', text: 'weak point text' });
+  await a.call('POST', '/api/auth/password', { current: 'wrong-password', next: 'password2' });
+  secrets.add('weak-point-name').add('weak point text').add('password2');
+
+  // A sign-in with the provider, start to finish, and another browser's callback replayed.
+  const b = new Browser(app);
+  const start = await b.call('GET', '/api/auth/oidc?next=/m/1%3Fsecret-next', undefined, { 'sec-fetch-site': 'none' });
+  keep(b);
+  const person = { sub: 'subject-at-idp', sid: 'sid-at-idp', email: 'zoe@idp.test', preferred_username: 'zoe' };
+  const path = idp.authorize(start.headers.get('location')!, person);
+  const query = new URL(path, ORIGIN).searchParams;
+  for (const v of [...query.values(), 'secret-next', person.sub, person.sid, person.email]) secrets.add(v);
+  await callback(b, path);
+  keep(b);
+  await callback(new Browser(app), path);
+
+  const token = await idp.logoutToken({ sid: 'sid-at-idp' });
+  secrets.add(token);
+  const body = new URLSearchParams({ logout_token: token });
+  const form = { 'content-type': 'application/x-www-form-urlencoded' };
+  await app.request('/api/auth/oidc/logout', { method: 'POST', headers: form, body });
+  await app.request('/api/auth/oidc/logout', {
+    method: 'POST',
+    headers: form,
+    body: 'logout_token=forged.token.value',
+  });
+  secrets.add('forged.token.value');
+
+  const log = out.join('');
+  assert.match(log, /alice/);
+  assert.match(log, /zoe/);
+  for (const secret of secrets) assert.ok(!log.includes(secret), `the log includes ${secret}`);
 });
 
 test('AUTH_METHODS and the provider settings must agree', () => {

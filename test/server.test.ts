@@ -200,6 +200,12 @@ test('PUBLIC_URL is required, and picks the cookie; plain http beyond loopback i
   assert.throws(() => loadConfig({}), /PUBLIC_URL is required/);
 });
 
+test('LOG_LEVEL is one of the levels, and defaults to info', () => {
+  assert.equal(loadConfig({ PUBLIC_URL: ORIGIN }).logLevel, 'info');
+  assert.equal(loadConfig({ PUBLIC_URL: ORIGIN, LOG_LEVEL: 'DEBUG' }).logLevel, 'debug');
+  assert.throws(() => loadConfig({ PUBLIC_URL: ORIGIN, LOG_LEVEL: 'verbose' }), /LOG_LEVEL/);
+});
+
 test('every response carries the strict CSP', async () => {
   const r = await new Browser(server().app).call('GET', '/api/health');
   assert.match(r.headers.get('content-security-policy') ?? '', /default-src 'none'.*script-src 'self'/);

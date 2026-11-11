@@ -1,6 +1,7 @@
 // Server settings from the environment. .env.template documents each one.
 import { join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { LEVELS, type Level } from './log.ts';
 
 export const ROOT = fileURLToPath(new URL('..', import.meta.url));
 
@@ -17,6 +18,7 @@ export interface Config {
   oidc?: OidcConfig;
   /** The built app; it may not exist in development, where Vite serves it. */
   appDir: string;
+  logLevel: Level;
   /** Allowed, but worth saying at startup. */
   warnings: string[];
 }
@@ -54,6 +56,9 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
   if (auth.oidc && plainHttp(auth.oidc.issuer))
     warnings.push('AUTH_OIDC_ISSUER is plain http, so sign-ins with the provider cross the network unencrypted');
 
+  const logLevel = (setting(env, 'LOG_LEVEL')?.toLowerCase() ?? 'info') as Level;
+  if (!LEVELS.includes(logLevel)) throw new Error(`LOG_LEVEL is one of ${LEVELS.join(', ')}, not ${env.LOG_LEVEL}`);
+
   const dataDir = setting(env, 'DATA_DIR');
   return {
     host,
@@ -64,6 +69,7 @@ export function loadConfig(env: NodeJS.ProcessEnv): Config {
     registration: flag(env, 'AUTH_REGISTRATION', true),
     ...auth,
     appDir: join(ROOT, 'app/dist'),
+    logLevel,
     warnings,
   };
 }

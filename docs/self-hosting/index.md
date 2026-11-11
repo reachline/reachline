@@ -41,4 +41,4 @@ Settings go in `.env`, and the comments there describe each one. After changing 
 
 Registration is open by default, so anyone who reaches the page can create an account. Set `AUTH_REGISTRATION=0` to disable registration, for both password and OIDC login.
 
-Next: [auth](auth.md), with passwords or single sign-on, and [maintenance](maintenance.md): backups, upgrades and lost passwords.
+Next: [auth](auth.md), with passwords or single sign-on, and [maintenance](maintenance.md): backups, upgrades, and lost passwords.

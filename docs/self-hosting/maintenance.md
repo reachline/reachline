@@ -2,15 +2,7 @@
 
 ## Backups
 
-Everything ReachLine keeps is in `reachline-data`. Copying it while the server runs can catch the database mid-write, so stop it first:
-
-```sh
-docker compose stop
-tar czf reachline-$(date +%F).tar.gz reachline-data
-docker compose start
-```
-
-A backup can read every model, so keep it as carefully as the server. To restore one, stop the server, replace `reachline-data` with the backup's, and start it again.
+Copying ReachLine's data directory while the server runs can catch the database mid-write, so stop it first.
 
 ## Upgrading
 
@@ -23,7 +15,7 @@ docker compose up -d
 
 The server upgrades the database when it starts. Downgrade is not supported; to go back to an older version, restore the backup you took before upgrading.
 
-## A forgotten password
+## Forgotten Passwords
 
 Give the user a new random password, which also signs them out everywhere:
 

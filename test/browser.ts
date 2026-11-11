@@ -3,9 +3,13 @@ import assert from 'node:assert/strict';
 import { createApp } from '../server/app.ts';
 import { loadConfig } from '../server/config.ts';
 import { openDb, Store } from '../server/db.ts';
+import { setLevel } from '../server/log.ts';
 import type { Fetch } from '../server/oidc.ts';
 
 export const ORIGIN = 'http://127.0.0.1:6060';
+
+// Tests that read the log set their own level.
+setLevel('error');
 
 export function server(env: Record<string, string> = {}, fetch?: Fetch) {
   const store = new Store(openDb(':memory:'));

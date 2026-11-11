@@ -38,6 +38,7 @@ import {
 } from './auth.ts';
 import type { Config } from './config.ts';
 import type { NewSession, SessionUser, Store } from './db.ts';
+import { log } from './log.ts';
 import { Oidc, type Fetch, type Flow } from './oidc.ts';
 
 const DAY = 86_400_000;
@@ -98,6 +99,21 @@ function id(c: Context, param: string): number {
   return Number(v);
 }
 
+/** A name someone typed, if it could be a username: what doesn't might be a password typed in the wrong box. */
+const typed = (name: string) => (USERNAME.test(name) ? name : '(not a username)');
+
+/**
+ * What went wrong with the provider. openid-client's messages are generic; the OAuth error
+ * is in fields. Never the whole error: its cause can hold the callback's query string.
+ */
+function oidcProblem(e: unknown): Record<string, string | undefined> {
+  const { message, error, error_description, cause } = e as Error & { error?: unknown; error_description?: unknown };
+  const str = (v: unknown) => (typeof v === 'string' ? v : undefined);
+  // Such as ECONNREFUSED behind fetch's own "fetch failed".
+  const why = cause instanceof Error ? (str((cause as Error & { code?: unknown }).code) ?? cause.message) : undefined;
+  return { error: message, oauth: str(error), description: str(error_description), cause: why };
+}
+
 /** A sign-in with the provider in progress: linking to `link`'s account, or signing in and going to `next`. */
 interface FlowCookie extends Flow {
   link?: number;
@@ -121,9 +137,20 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
       if (res.headers.get('content-type')?.startsWith('application/json')) return res;
       return c.json<ApiError>({ error: e.message || (await res.text()) }, e.status);
     }
-    if (e instanceof Busy) return c.json<ApiError>({ error: 'Busy; try again shortly' }, 503, { 'Retry-After': '5' });
-    console.error(e);
+    if (e instanceof Busy) {
+      log.warn('too many password checks at once; answered 503', { path: c.req.path });
+      return c.json<ApiError>({ error: 'Busy; try again shortly' }, 503, { 'Retry-After': '5' });
+    }
+    log.error('unexpected error', { method: c.req.method, path: c.req.path }, e);
     return c.json<ApiError>({ error: 'Internal error' }, 500);
+  });
+
+  // The path only: a query string can carry the provider's code and state.
+  app.use(async (c, next) => {
+    const start = performance.now();
+    await next();
+    const ms = Math.round(performance.now() - start);
+    log.debug('request', { method: c.req.method, path: c.req.path, status: c.res.status, ms });
   });
 
   app.use(
@@ -212,7 +239,9 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     if (wait) fail(429, 'Too many attempts; try again later', { 'Retry-After': String(Math.ceil(wait / 1000)) });
     const ok = password.length <= PASSWORD.max && (await verifyPassword(password, hash ?? (await decoyHash())));
     if (!hash || !ok) {
-      throttle.fail(name);
+      log.info(status === 401 ? 'sign-in failed' : 'wrong current password', { user: typed(name) });
+      const delay = throttle.fail(name);
+      if (delay) log.warn('repeated wrong passwords; this username must wait', { user: typed(name), s: delay / 1000 });
       fail(status, error);
     }
     throttle.succeed(name);
@@ -280,6 +309,7 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     if (!canRegister()) fail(403, 'Registration is closed');
     if (store.userByName(name)) fail(409, 'That username is taken');
     const userId = store.createUser(name, hash);
+    log.info('account created', { user: name, method: 'password' });
     startSession(c, userId, 'password');
     return c.json<Me>(me(userId), 201);
   });
@@ -295,6 +325,7 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     if (needsRehash(hash)) store.setPassword(id, await hashPassword(password));
     store.deleteExpiredSessions();
     startSession(c, id, 'password');
+    log.info('signed in', { user: name, method: 'password' });
     return c.json<Me>(me(id));
   });
 
@@ -310,6 +341,7 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
   app.delete('/api/auth/me', authed, (c) => {
     requireRecentSignIn(c);
     store.deleteUser(c.var.user.userId);
+    log.info('account deleted', { user: c.var.user.username });
     deleteCookie(c, COOKIE, { path: '/', secure });
     return c.body(null, 204);
   });
@@ -324,18 +356,21 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     if (!user.password) {
       requireRecentSignIn(c);
       store.setPassword(userId, await hashPassword(next));
+      log.info('password added', { user: name });
       return c.body(null, 204);
     }
     await checkPassword(name, str(b, 'current'), user.password, 403, 'Wrong current password');
     store.setPassword(userId, await hashPassword(next));
     store.deleteSessions(userId, sessionId(getCookie(c, COOKIE)!));
+    log.info('password changed', { user: name });
     return c.body(null, 204);
   });
 
   app.delete('/api/auth/password', authed, (c) => {
-    const { userId } = c.var.user;
+    const { userId, username: name } = c.var.user;
     if (!linkedAs(userId)) fail(409, 'Link your account with the provider first, or you could no longer sign in');
     store.setPassword(userId, null);
+    log.info('password removed', { user: name });
     return c.body(null, 204);
   });
 
@@ -346,7 +381,7 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     try {
       return c.redirect(await toProvider(c, { next: localPath(c.req.query('next')) }));
     } catch (e) {
-      console.error(`OIDC: can't reach the provider: ${(e as Error).message}`);
+      log.warn("can't reach the OpenID provider", oidcProblem(e));
       return back('failed');
     }
   });
@@ -357,7 +392,7 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     requireRecentSignIn(c);
     if (linkedAs(c.var.user.userId)) fail(409, 'Already linked');
     const url = await toProvider(c, { link: c.var.user.userId }).catch((e: unknown) => {
-      console.error(`OIDC: can't reach the provider: ${(e as Error).message}`);
+      log.warn("can't reach the OpenID provider", oidcProblem(e));
       fail(502, "Can't reach the provider");
     });
     return c.json<Redirect>({ url });
@@ -365,10 +400,11 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
 
   app.delete('/api/auth/oidc', authed, (c) => {
     if (!oidc) fail(404, 'Not found');
-    const { userId } = c.var.user;
+    const { userId, username: name } = c.var.user;
     if (!config.password || !store.userById(userId)!.password)
       fail(409, 'Add a password first, or you could no longer sign in');
     store.unlink(userId, oidc.issuer);
+    log.info('unlinked the provider', { user: name });
     return c.body(null, 204);
   });
 
@@ -377,14 +413,20 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     const linking = flow?.link !== undefined;
     const back = (problem?: SsoError) =>
       c.redirect(linking ? `/account${problem ? `?sso=${problem}` : ''}` : `/login?sso=${problem}`);
-    if (!oidc || !flow) return back('failed');
+    if (!oidc) return back('failed');
+    if (!flow) {
+      log.debug('provider sign-in returned without one in progress here (expired, or another browser)');
+      return back('failed');
+    }
 
     let signIn;
     try {
       signIn = await oidc.finish(new URL(c.req.url).search, flow);
     } catch (e) {
-      // Also how a sign-in cancelled at the provider ends up.
-      console.error(`OIDC: sign-in failed: ${(e as Error).message}`);
+      const problem = oidcProblem(e);
+      // Cancelled at the provider, or refused there.
+      if (problem.oauth === 'access_denied') log.info('provider sign-in cancelled or refused', problem);
+      else log.warn('provider sign-in failed', problem);
       return back('failed');
     }
     const owner = store.identity(oidc.issuer, signIn.subject);
@@ -393,9 +435,14 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
       // Still signed in as whoever started it.
       const user = sessionUser(c);
       if (!user || user.userId !== flow.link) return back('failed');
-      if (owner) return back(owner.userId === user.userId ? undefined : 'taken');
+      if (owner?.userId === user.userId) return back();
+      if (owner) {
+        log.info('provider identity already linked to another account', { user: user.username });
+        return back('taken');
+      }
       if (linkedAs(user.userId)) return back('failed');
       store.link(user.userId, oidc.issuer, signIn.subject, signIn.label);
+      log.info('linked the provider', { user: user.username });
       return back();
     }
 
@@ -405,15 +452,22 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
       const named = store.userByName(signIn.claimedUsername);
       if (named && !linkedAs(named.id)) {
         store.link(named.id, oidc.issuer, signIn.subject, signIn.label);
+        log.info('linked the provider, by username', { user: named.username });
         userId = named.id;
       }
     }
     if (userId === undefined) {
-      if (!canRegister()) return back('closed');
-      userId = store.createLinkedUser(signIn.username, oidc.issuer, signIn.subject, signIn.label).id;
+      if (!canRegister()) {
+        log.info('provider sign-in refused: no account, and registration is closed');
+        return back('closed');
+      }
+      const user = store.createLinkedUser(signIn.username, oidc.issuer, signIn.subject, signIn.label);
+      log.info('account created', { user: user.username, method: 'oidc' });
+      userId = user.id;
     }
     store.deleteExpiredSessions();
     startSession(c, userId, 'oidc', signIn.sid);
+    log.info('signed in', { user: store.userById(userId)!.username, method: 'oidc' });
     return c.redirect(localPath(flow.next));
   });
 
@@ -424,12 +478,17 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     const token = (await c.req.parseBody().catch(() => undefined))?.logout_token;
     if (typeof token !== 'string') fail(400, 'Expected a logout_token');
     const logout = await oidc.verifyLogout(token).catch((e: unknown) => {
-      console.error(`OIDC: refused a back-channel logout: ${(e as Error).message}`);
+      log.warn('refused a back-channel logout', oidcProblem(e));
       fail(400, 'Invalid logout token');
     });
     const userId = logout.sub === undefined ? undefined : store.identity(oidc.issuer, logout.sub)?.userId;
     // A subject with no account here has no sessions to end.
-    if (logout.sub === undefined || userId !== undefined) store.endProviderSessions({ userId, sid: logout.sid });
+    const ended =
+      logout.sub === undefined || userId !== undefined ? store.endProviderSessions({ userId, sid: logout.sid }) : 0;
+    log.info('back-channel logout', {
+      user: userId === undefined ? undefined : store.userById(userId)?.username,
+      sessions: ended,
+    });
     return c.body(null, 200);
   });
 
