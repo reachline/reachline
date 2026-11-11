@@ -31,6 +31,11 @@
       "groupName": "dev tooling"
     },
     {
+      "description": "svelte-check and typescript-eslint need TypeScript's JavaScript API, which 7 (in Go) lacks. Lift this once both support 7",
+      "matchPackageNames": ["typescript"],
+      "allowedVersions": "<7"
+    },
+    {
       "description": "One PR for them all, and another for their majors",
       "matchManagers": ["github-actions"],
       "groupName": "GitHub Actions"

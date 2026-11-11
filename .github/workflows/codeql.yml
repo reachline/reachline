@@ -1,0 +1,42 @@
+name: CodeQL
+
+# Only when our code or workflows change, since a dependency bump gives CodeQL nothing
+# new to read; and weekly, so main always has a recent scan with the latest queries.
+on:
+  push:
+    branches: [main]
+    paths: [app/**, engine/**, server/**, reach.ts, .github/workflows/**, '!**/package.json']
+  pull_request:
+    paths: [app/**, engine/**, server/**, reach.ts, .github/workflows/**, '!**/package.json']
+  schedule:
+    - cron: '30 5 * * 3'
+
+permissions:
+  contents: read
+
+# Only the newest scan of a branch counts, so a new one cancels the one in progress.
+concurrency:
+  group: codeql-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  analyze:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    strategy:
+      fail-fast: false
+      matrix:
+        language: [javascript-typescript, actions]
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: github/codeql-action/init@v4
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+      - uses: github/codeql-action/analyze@v4
+        with:
+          category: /language:${{ matrix.language }}
