@@ -17,7 +17,7 @@ The server upgrades the database when it starts. Downgrade is not supported; to 
 
 ## Forgotten Passwords
 
-Give the user a new random password, which also signs them out everywhere:
+Give the user a new random password, which also signs them out everywhere and revokes their command-line tokens:
 
 ```sh
 docker compose exec reachline reset-password <username>

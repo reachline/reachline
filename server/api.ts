@@ -95,8 +95,35 @@ export interface Rename {
 export interface RevisionSummary {
   id: number;
   created: string;
+  /** The name of the token that saved it, from the command line; null when saved in the app. */
+  by: string | null;
 }
 
 export interface Revision {
   text: string;
+}
+
+/** A token for the command line. Its secret is shown once, when it's made. */
+export interface TokenSummary {
+  id: number;
+  name: string;
+  created: string;
+  /** Null until it's first used. */
+  used: string | null;
+}
+
+export interface NewToken {
+  name: string;
+}
+
+export interface CreatedToken extends TokenSummary {
+  /** The secret, which can't be shown again. */
+  token: string;
+}
+
+/** Who a token belongs to, as the command line sees it. */
+export interface TokenOwner {
+  username: string;
+  /** The token's name. */
+  name: string;
 }

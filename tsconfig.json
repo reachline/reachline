@@ -11,5 +11,13 @@
     "skipLibCheck": true,
     "types": ["node"]
   },
-  "include": ["reach.ts", "engine/**/*.ts", "server/**/*.ts", "e2e/**/*.ts", "test/**/*.ts"]
+  "include": [
+    "reachline.ts",
+    "cli/**/*.ts",
+    "app/cli.vite.config.ts",
+    "engine/**/*.ts",
+    "server/**/*.ts",
+    "e2e/**/*.ts",
+    "test/**/*.ts"
+  ]
 }

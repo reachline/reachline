@@ -7,12 +7,15 @@ import type {
   AuthOptions,
   Conflict,
   Created,
+  CreatedToken,
   Me,
   ModelDoc,
   ModelSummary,
   Revision,
   RevisionSummary,
   Saved,
+  TokenOwner,
+  TokenSummary,
 } from '../server/api.ts';
 import { loadConfig } from '../server/config.ts';
 import { as, Browser, ORIGIN, server } from './browser.ts';
@@ -153,17 +156,20 @@ test('repeated failed logins make that username wait', async () => {
   assert.equal((await a.call('POST', '/api/auth/login', { username: 'bob', password: 'password1' })).status, 200);
 });
 
-test('changing your password ends your other sessions', async () => {
+test('changing your password ends your other sessions and revokes your tokens', async () => {
   const { app } = server();
   const a = await as(app, 'alice');
   const other = new Browser(app);
   await other.call('POST', '/api/auth/login', { username: 'alice', password: 'password1' });
+  const { token } = (await other.call<CreatedToken>('POST', '/api/auth/tokens', { name: 'theirs' })).body;
+  const cli = { authorization: `Bearer ${token}` };
 
   const wrong = await a.call('POST', '/api/auth/password', { current: 'wrong-one', next: 'password2' });
   assert.equal(wrong.status, 403);
   assert.equal((await a.call('POST', '/api/auth/password', { current: 'password1', next: 'password2' })).status, 204);
   assert.equal((await a.call('GET', '/api/auth/me')).status, 200);
   assert.equal((await other.call('GET', '/api/auth/me')).status, 401);
+  assert.equal((await new Browser(app).call('GET', '/api/models', undefined, cli)).status, 401);
   const login = await other.call('POST', '/api/auth/login', { username: 'alice', password: 'password2' });
   assert.equal(login.status, 200);
 });
@@ -209,4 +215,76 @@ test('LOG_LEVEL is one of the levels, and defaults to info', () => {
 test('every response carries the strict CSP', async () => {
   const r = await new Browser(server().app).call('GET', '/api/health');
   assert.match(r.headers.get('content-security-policy') ?? '', /default-src 'none'.*script-src 'self'/);
+});
+
+test('a token reaches its owner’s models and nothing else, until it’s revoked', async () => {
+  const { app } = server();
+  const a = await as(app, 'alice');
+  const { id, revision } = (await a.call<Created>('POST', '/api/models', { name: 'm', text: 'one' })).body;
+  const made = await a.call<CreatedToken>('POST', '/api/auth/tokens', { name: 'laptop' });
+  assert.equal(made.status, 201);
+  assert.match(made.body.token, /^rl_/);
+  const listed = (await a.call<TokenSummary[]>('GET', '/api/auth/tokens')).body;
+  assert.deepEqual(
+    listed.map((t) => t.name),
+    ['laptop'],
+  );
+  assert.ok(!JSON.stringify(listed).includes(made.body.token), 'the secret is shown only once');
+
+  // No cookies, and no Sec-Fetch-Site or Origin: the command line sends neither.
+  const cli = new Browser(app);
+  const auth = { authorization: `Bearer ${made.body.token}`, 'sec-fetch-site': '' };
+  assert.deepEqual((await cli.call<TokenOwner>('GET', '/api/token', undefined, auth)).body, {
+    username: 'alice',
+    name: 'laptop',
+  });
+  assert.equal((await cli.call<ModelDoc>('GET', `/api/models/${id}`, undefined, auth)).body.text, 'one');
+  assert.equal((await cli.call('PUT', `/api/models/${id}`, { text: 'two', base: revision }, auth)).status, 200);
+  const revs = (await a.call<RevisionSummary[]>('GET', `/api/models/${id}/revisions`)).body;
+  assert.deepEqual(
+    revs.map((r) => r.by),
+    ['laptop', null],
+    'a revision says which token saved it',
+  );
+
+  // Not the account: no password, no tokens, no deleting it.
+  for (const [method, path] of [
+    ['GET', '/api/auth/me'],
+    ['DELETE', '/api/auth/me'],
+    ['GET', '/api/auth/tokens'],
+    ['POST', '/api/auth/tokens'],
+  ] as const) {
+    const { status } = await cli.call(method, path, method === 'POST' ? { name: 'x' } : undefined, auth);
+    assert.ok(status === 401 || status === 403, `${method} ${path}: ${status}`);
+  }
+  assert.equal((await cli.call('GET', '/api/token')).status, 401);
+
+  assert.equal((await a.call('DELETE', `/api/auth/tokens/${made.body.id}`)).status, 204);
+  assert.equal((await cli.call('GET', '/api/models', undefined, auth)).status, 401);
+  // The name stays on what it saved.
+  assert.equal((await a.call<RevisionSummary[]>('GET', `/api/models/${id}/revisions`)).body[0].by, 'laptop');
+});
+
+test('a token can revoke itself, which is how the command line signs out', async () => {
+  const { app } = server();
+  const a = await as(app, 'alice');
+  const { token } = (await a.call<CreatedToken>('POST', '/api/auth/tokens', { name: 'laptop' })).body;
+  const auth = { authorization: `Bearer ${token}`, 'sec-fetch-site': '' };
+  const cli = new Browser(app);
+  assert.equal((await cli.call('DELETE', '/api/token', undefined, auth)).status, 204);
+  assert.equal((await cli.call('GET', '/api/token', undefined, auth)).status, 401);
+  assert.deepEqual((await a.call<TokenSummary[]>('GET', '/api/auth/tokens')).body, []);
+});
+
+test('a token is a way in, so making one needs a recent sign-in', async () => {
+  const { app, store } = server();
+  const a = await as(app, 'alice');
+  store.db.prepare('update sessions set created = ?').run(new Date(Date.now() - 3600_000).toISOString());
+  const stale = await a.call('POST', '/api/auth/tokens', { name: 'laptop' });
+  assert.equal(stale.status, 403);
+  assert.deepEqual(stale.body, { error: 'Sign in again to do this', reauth: true });
+
+  const b = await as(app, 'bob');
+  assert.equal((await b.call('POST', '/api/auth/tokens', { name: 'laptop' })).status, 201);
+  assert.equal((await b.call('POST', '/api/auth/tokens', { name: 'laptop' })).status, 409);
 });

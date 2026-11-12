@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ArrowLeft } from '@lucide/svelte';
-  import type { AuthOptions, Me } from '../../../server/api.ts';
+  import type { AuthOptions, CreatedToken, Me, TokenSummary } from '../../../server/api.ts';
   import { api, message, needsReauth, takeSsoProblem } from '../lib/api';
   import { follow, go } from '../lib/route.svelte.ts';
   import Confirm from '../dialogs/Confirm.svelte';
@@ -9,10 +9,11 @@
 
   let { user, onsignout }: { user: string; onsignout: () => void } = $props();
 
-  type Section = 'password' | 'sso' | 'delete';
+  type Section = 'password' | 'sso' | 'cli' | 'delete';
 
   let me = $state<Me>();
   let options = $state<AuthOptions>();
+  let tokens = $state<TokenSummary[]>([]);
   let loadError = $state('');
   let busy = $state(false);
 
@@ -27,8 +28,28 @@
 
   let asking = $state<Question & { section: Section; run: () => Promise<void> }>();
 
+  // `reachline login` links here with ?new-token=NAME, the computer's name; taken out of the URL.
+  function takeTokenName(): string {
+    // eslint-disable-next-line svelte/prefer-svelte-reactivity -- read once, never kept as state
+    const params = new URLSearchParams(location.search);
+    const name = params.get('new-token');
+    if (name === null) return '';
+    params.delete('new-token');
+    go(location.pathname + (params.size ? `?${params}` : ''), true);
+    return name;
+  }
+  let tokenName = $state(takeTokenName());
+  // Its secret is shown once, until the page is left.
+  let created = $state<CreatedToken>();
+  const setup = [
+    `mkdir -p ~/.local/bin && curl -fsSL ${location.origin}/reachline.mjs -o ~/.local/bin/reachline`,
+    'chmod +x ~/.local/bin/reachline',
+    `reachline login ${location.origin}`,
+  ].join('\n');
+  const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { dateStyle: 'medium' });
+
   async function load() {
-    [me, options] = await Promise.all([api.me(), api.options()]);
+    [me, options, tokens] = await Promise.all([api.me(), api.options(), api.tokens()]);
   }
   load().catch((e: unknown) => (loadError = message(e)));
 
@@ -59,8 +80,17 @@
         current = next = again = '';
         await load();
       },
-      adding ? 'Password added.' : 'Password changed. Your other sessions are signed out.',
+      adding ? 'Password added.' : 'Password changed. Your other sessions are signed out, and your tokens revoked.',
     );
+  }
+
+  function createToken(e: SubmitEvent) {
+    e.preventDefault();
+    void act('cli', async () => {
+      created = await api.createToken(tokenName.trim());
+      tokenName = '';
+      tokens = await api.tokens();
+    });
   }
 
   const link = () =>
@@ -113,7 +143,7 @@
         <h2>{me.password ? 'Change password' : 'Add a password'}</h2>
         <p class="muted">
           {me.password
-            ? 'Changing it signs you out everywhere else.'
+            ? 'Changing it signs you out everywhere else, and revokes your command-line tokens.'
             : `To sign in as ${me.username} with a password as well.`}
         </p>
         <input class="hidden" autocomplete="username" value={user} readonly aria-hidden="true" tabindex="-1" />
@@ -202,6 +232,81 @@
     {/if}
 
     <section class="card section">
+      <h2>Command line and agents</h2>
+      <p class="muted">
+        The <code>reachline</code> command reads and changes your models from a terminal, so an AI agent can work on
+        them too. It runs on macOS and Linux (on Windows, in WSL), and needs Node.js 22 or newer, and
+        <code>~/.local/bin</code> on your <code>PATH</code>.
+      </p>
+      <pre>{setup}</pre>
+      <p class="muted">
+        Then <code>reachline help</code> lists what it does, and <code>reachline skill</code> gives an agent its instructions.
+        An agent passes what it reads to whoever runs it, so give it only models you'd share with them.
+      </p>
+
+      <form class="token-form" onsubmit={createToken}>
+        <div class="field">
+          <label for="token-name">Token name</label>
+          <input
+            id="token-name"
+            bind:value={tokenName}
+            maxlength="100"
+            autocomplete="off"
+            aria-describedby="token-name-hint"
+            required
+          />
+          <span class="hint" id="token-name-hint">Usually the computer it's for. A token reaches your models only.</span
+          >
+        </div>
+        <div class="buttons"><button disabled={busy}>Create token</button></div>
+      </form>
+      {#if created}
+        <div class="created">
+          <label class="field"
+            >Token for {created.name}
+            <input class="mono" readonly value={created.token} onfocus={(e) => e.currentTarget.select()} />
+          </label>
+          <p class="notice" role="status">
+            Copy it now, and paste it where <code>reachline login</code> asks: it can't be shown again.
+          </p>
+        </div>
+      {/if}
+      {@render feedback('cli')}
+
+      {#if tokens.length}
+        <ul class="tokens">
+          {#each tokens as t (t.id)}
+            <li>
+              <div>
+                <strong>{t.name}</strong>
+                <span class="muted">Made {day(t.created)}; {t.used ? `last used ${day(t.used)}` : 'never used'}</span>
+              </div>
+              <button
+                class="quiet danger"
+                aria-label="Revoke {t.name}"
+                disabled={busy}
+                onclick={() =>
+                  (asking = {
+                    section: 'cli',
+                    title: `Revoke ${t.name}?`,
+                    text: 'Whatever uses it is signed out. Revisions it saved keep its name.',
+                    action: 'Revoke',
+                    run: async () => {
+                      await api.revokeToken(t.id);
+                      if (created?.id === t.id) created = undefined;
+                      tokens = await api.tokens();
+                    },
+                  })}>Revoke</button
+              >
+            </li>
+          {/each}
+        </ul>
+      {:else}
+        <p class="muted">No tokens yet.</p>
+      {/if}
+    </section>
+
+    <section class="card section">
       <h2>Delete account</h2>
       <p class="muted">Deletes your account and all of your models, with their history.</p>
       {@render feedback('delete')}
@@ -269,5 +374,39 @@
   }
   .hidden {
     display: none;
+  }
+  .token-form {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: start;
+    gap: var(--space-3) var(--space-4);
+  }
+  .token-form .field {
+    flex: 1 1 16rem;
+  }
+  .token-form .buttons {
+    padding-top: var(--space-5);
+  }
+  .created {
+    display: grid;
+    gap: var(--space-2);
+  }
+  .tokens {
+    display: grid;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+  .tokens li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--space-2) var(--space-4);
+    padding: var(--space-2) 0;
+    border-top: 1px solid var(--border);
+  }
+  .tokens li > div {
+    display: grid;
   }
 </style>

@@ -1,5 +1,5 @@
-// Views of the model as plain nodes and edges, for the app to draw and the
-// CLI to write as Mermaid. Junction ids come from their position in the model
+// Views of the model as plain nodes and edges, for the app to draw and to
+// export as Mermaid. Junction ids come from their position in the model
 // (not a counter), so a junction keeps its id as the view expands.
 import { refs, split, UNKNOWN, type Cond, type Op } from './cond.ts';
 import { availability, REFS, type Best, type Kind, type Model, type Row, type Scenario, type Spec } from './model.ts';
@@ -234,43 +234,6 @@ export function waysInView(
     n.expandedOut = forward.has(tid) && outs.length > 0;
   }
   for (const r of roots) b.nodes.get(r)!.root = true;
-  return b.view();
-}
-
-/**
- * The path a scenario takes to each thing it checks (for a breach, those it
- * reports): one way into each, through an AND where it takes several things.
- */
-export function pathView(m: Model, sc: Outcome): View {
-  const b = new Builder(m, sc);
-  const done = new Set<string>();
-  const walk = (tid: string): void => {
-    if (done.has(tid)) return;
-    done.add(tid);
-    b.node(tid);
-    const { why } = sc.best.get(tid)!;
-    if (why.kind === 'start' || why.kind === 'state') return;
-    const kind: EdgeKind = why.kind;
-    const picks = (why.kind === 'in' ? [why.via] : why.uses).map((x, i) => {
-      if (x === UNKNOWN) return b.junction(`${tid}/${kind}?${i}`, 'unknown');
-      walk(x);
-      return x;
-    });
-    if (picks.length === 1) b.edge(picks[0], tid, kind);
-    else {
-      const j = b.junction(`${tid}/${kind}`, 'and');
-      for (const p of picks) b.edge(p, j, 'part');
-      b.edge(j, tid, kind);
-    }
-  };
-  const kind = sc.sc.kind;
-  const targets = [...m.things]
-    .filter(([t, s]) => s.check.includes(kind) && (kind === 'lockout' || sc.rows.has(t)))
-    .map(([t]) => t);
-  for (const t of targets) {
-    if (sc.best.has(t)) walk(t);
-    else b.node(t);
-  }
   return b.view();
 }
 

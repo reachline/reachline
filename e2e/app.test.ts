@@ -5,8 +5,8 @@
 //
 //   pnpm build && pnpm exec playwright install chromium-headless-shell && pnpm test:e2e
 import assert from 'node:assert/strict';
-import { spawn } from 'node:child_process';
-import { existsSync, mkdtempSync, rmSync, statSync } from 'node:fs';
+import { spawn, spawnSync } from 'node:child_process';
+import { existsSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { after, before, test } from 'node:test';
@@ -517,6 +517,47 @@ test('the pages pass axe', async () => {
     await page.getByRole('button', { name: 'Cancel' }).click();
     await ctx.close();
   }
+});
+
+// What the Account page says to do, done: a token from the link `reachline login`
+// prints, then the command line the server hands out, signed in with it.
+test('the Account page makes a token that the served command line signs in with', async () => {
+  const { page, problems } = await openExample({ viewport: PHONE });
+  await page.goto(`${ORIGIN}/account?new-token=e2e-laptop`);
+  await page.getByRole('heading', { name: 'Command line and agents' }).waitFor();
+  assert.equal(await page.getByLabel('Token name').inputValue(), 'e2e-laptop');
+  await page.getByRole('button', { name: 'Create token' }).click();
+  const token = await page.getByLabel('Token for e2e-laptop').inputValue();
+  await page.getByRole('button', { name: 'Revoke e2e-laptop' }).waitFor();
+  assert.equal(await scrollsSideways(page), false);
+  await passesAxe(page, 'account, with a token, on a phone');
+  assert.deepEqual(problems, []);
+
+  const dir = mkdtempSync(join(tmpdir(), 'reachline-e2e-cli-'));
+  const cli = join(dir, 'reachline.mjs');
+  writeFileSync(cli, await (await fetch(`${ORIGIN}/reachline.mjs`)).text(), { mode: 0o755 });
+  const run = (args: string[], input = '') =>
+    spawnSync(process.execPath, [cli, ...args], {
+      cwd: dir,
+      input,
+      encoding: 'utf8',
+      env: { ...process.env, XDG_CONFIG_HOME: dir, REACHLINE_SERVER: '', REACHLINE_TOKEN: '' },
+    });
+  const login = run(['login', ORIGIN], `${token}\n`);
+  assert.equal(login.status, 0, login.stderr);
+  const models = run(['models']);
+  assert.match(models.stdout, /^example\b/m);
+  assert.doesNotMatch(models.stderr, /different version/, 'the server knows the CLI it hands out');
+  assert.equal(run(['pull', 'example']).status, 0);
+  assert.equal(run(['check', 'example.yml']).status, 0);
+
+  // An older copy says so, and update brings it in line.
+  writeFileSync(cli, `${readFileSync(cli, 'utf8')}// older\n`);
+  assert.match(run(['models']).stderr, /different version/);
+  assert.equal(run(['update']).status, 0);
+  assert.doesNotMatch(run(['models']).stderr, /different version/);
+  assert.match(run(['update']).stdout, /Already/);
+  rmSync(dir, { recursive: true, force: true });
 });
 
 // Phones have a layout of their own: the toolbar and where edits go take rows

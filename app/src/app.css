@@ -605,6 +605,21 @@ button.tip {
   font-size: 0.9em;
   overflow-wrap: anywhere;
 }
+code {
+  font-family: var(--code-font);
+  font-size: 0.9em;
+}
+/* Commands to copy into a terminal. They wrap, rather than scroll out of a keyboard's reach. */
+pre {
+  margin: 0;
+  padding: var(--space-3);
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--field);
+  font: var(--text-sm) / 1.6 var(--code-font);
+}
 .error {
   color: var(--danger);
 }

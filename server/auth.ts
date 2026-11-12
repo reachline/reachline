@@ -84,6 +84,13 @@ export function newSessionToken(): { token: string; id: string } {
   return { token, id: sessionId(token) };
 }
 
+/** A new token for the command line, and the hash the database keeps. `rl_` lets secret scanners spot a leaked one. */
+export function newApiToken(): { token: string; hash: string } {
+  const token = `rl_${randomBytes(32).toString('base64url')}`;
+  return { token, hash: sessionId(token) };
+}
+
+/** The SHA-256 of a session's or a token's secret, which is what the database keeps. */
 export function sessionId(token: string): string {
   return createHash('sha256').update(token).digest('hex');
 }

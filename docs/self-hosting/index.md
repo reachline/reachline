@@ -35,6 +35,10 @@ The image is `ghcr.io/reachline/reachline:latest`, the latest release. To choose
 
 Docker's published ports bypass host firewalls such as ufw. With a reverse proxy on the same host, publish the port as `127.0.0.1:6060:6060`, so ReachLine can't be reached around it. If your proxy runs in Docker too, put both containers on one network and remove the `ports` section instead.
 
+## The command line
+
+The server hands out the `reachline` command at `/reachline.mjs`, always the version that matches it; each user's Account page shows how to set it up. It signs in with a token, sent as an `Authorization` header, which most reverse proxies pass on untouched. A token reaches its owner's models and nothing else, and is revoked on the Account page.
+
 ## Settings
 
 Settings go in `.env`, and the comments there describe each one. After changing one, run `docker compose up -d` again.

@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-// Gives a user a new random password, prints it, and ends their sessions.
+// Gives a user a new random password, prints it, and ends their sessions and
+// revokes their tokens.
 //
 //   docker exec <container> reset-password <username>
 //   pnpm reset-password <username>          outside Docker, with .env's DATA_DIR
@@ -23,6 +24,7 @@ if (!user) {
 const password = randomPassword();
 store.setPassword(user.id, await hashPassword(password));
 store.deleteSessions(user.id);
+store.deleteTokens(user.id);
 console.log(`New password for ${name}: ${password}`);
 if (!config.password)
   console.log('Signing in with a password is off (AUTH_METHODS), so it works only once that is on.');

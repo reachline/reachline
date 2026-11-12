@@ -37,7 +37,7 @@ Plans apply in order, and a later plan's field replaces an earlier one's. On the
 ## Running a plan
 
 ```text
-$ ./reach.ts --plan spare_key
+$ reachline --model model.yml --plan spare_key
 house_fire  (lockout: lost home, carried)
   # at night, everything is home
   documents      LOST  →  ok
@@ -51,7 +51,7 @@ nas_dies  (lockout: lost nas)
   (no change)
 ```
 
-Each changed verdict reads before → after. `still` lists the problems the plan leaves as they were. A plan combines with everything else on the command line, such as a scenario, an explanation or `--mermaid`, which then run against the model with the plan applied.
+Each changed verdict reads before → after. `still` lists the problems the plan leaves as they were. A plan combines with everything else on the command line, such as a scenario or an explanation, which then run against the model with the plan applied.
 
 In the app, the Plans tab turns plans on and off, and shows what the plans that are on change, scenario by scenario. **Edit** sends the forms' changes into a plan instead of the model; editing a field copies its current value into the plan first, since the plan replaces the whole field. **Apply** merges a plan into the model and deletes it.
 

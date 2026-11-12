@@ -4,6 +4,7 @@ import type {
   ApiError,
   AuthOptions,
   Created,
+  CreatedToken,
   Credentials,
   Me,
   ModelDoc,
@@ -17,6 +18,7 @@ import type {
   Save,
   Saved,
   SsoError,
+  TokenSummary,
 } from '../../../server/api.ts';
 import { go, toLogin } from './route.svelte.ts';
 
@@ -57,6 +59,9 @@ export const api = {
   link: () => call('POST', '/auth/oidc/link') as Promise<Redirect>,
   unlink: () => call('DELETE', '/auth/oidc') as Promise<void>,
   deleteAccount: () => call('DELETE', '/auth/me') as Promise<void>,
+  tokens: () => call('GET', '/auth/tokens') as Promise<TokenSummary[]>,
+  createToken: (name: string) => call('POST', '/auth/tokens', { name }) as Promise<CreatedToken>,
+  revokeToken: (id: number) => call('DELETE', `/auth/tokens/${id}`) as Promise<void>,
 
   models: () => call('GET', '/models') as Promise<ModelSummary[]>,
   model: (id: number) => call('GET', `/models/${id}`) as Promise<ModelDoc>,

@@ -17,6 +17,10 @@ COPY app app
 COPY engine engine
 COPY examples examples
 COPY server server
+# The command line, bundled with its docs into app/dist/reachline.mjs.
+COPY cli cli
+COPY docs docs
+COPY reachline.ts tsconfig.json ./
 RUN pnpm build && pnpm --filter reachline-server --prod deploy /out/server
 
 FROM node:26-alpine

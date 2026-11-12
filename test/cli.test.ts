@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { test } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-const CLI = fileURLToPath(new URL('../reach.ts', import.meta.url));
+const CLI = fileURLToPath(new URL('../reachline.ts', import.meta.url));
 const EXAMPLE = fileURLToPath(new URL('../examples/model.yml', import.meta.url));
 
 function run(...args: string[]) {
@@ -37,8 +37,6 @@ test('every form runs on the example', () => {
   ok('--todo');
   ok('--plan', 'spare_key', '--plan', 'backup');
   ok('--plan', 'spare_key', 'keys_lost');
-  for (const what of ['where', 'all', 'burglary', 'mail']) ok('--mermaid', what);
-  ok('--mermaid', 'mail', '--scenario', 'house_fire', '--depth', 'all');
 });
 
 test('a plan shows only what it changes', () => {
@@ -51,11 +49,22 @@ test('errors exit 1 with a message and no output', () => {
   fails([...m, 'no_such_scenario'], /no_such_scenario/);
   fails([...m, 'house_fire', 'no_such_thing'], /no_such_thing/);
   fails([...m, '--plan', 'no_such_plan'], /no_such_plan/);
-  fails([...m, '--mermaid', 'nothing'], /nothing/);
-  fails([...m, '--mermaid', 'mail', '--depth', 'deep'], /--depth/);
-  fails([...m, '--mermaid'], /--mermaid needs a value/);
-  fails([...m, '--mermaid', 'mail', '--scenario', 'nope'], /nope/);
+  fails([...m, '--plan'], /--plan needs a value/);
   fails(['--model', 'no_such_model.yml'], /no such file/);
+});
+
+test('the docs and the skill come with it, and check says a model has no errors', () => {
+  for (const args of [['help'], ['docs'], ['docs', 'concepts'], ['check', EXAMPLE]]) {
+    const r = run(...args);
+    assert.equal(r.code, 0, r.err);
+    assert.ok(r.out.length > 0);
+  }
+  assert.match(run('skill').out, /^---\nname: reachline\n/);
+  fails(['docs', 'nothing'], /concepts/);
+});
+
+test('a command goes first, so a scenario named like one needs --', () => {
+  fails(['--model', EXAMPLE, 'check'], /--/);
 });
 
 test('a broken model exits 1 and says where', () => {
@@ -71,4 +80,8 @@ test('a broken model exits 1 and says where', () => {
   fails(['--model', write('baseline.yml', 'scenarios: {baseline: {kind: lockout}}\n')], /baseline.*built in/);
   fails(['--model', write('cond.yml', 'things: {a: {kind: device, access: a and b or c}}\n')], /bracket/);
   fails(['--model', write('sections.yml', 'devices: {a: {}}\n')], /devices/);
+
+  const broken = run('check', write('check.yml', 'things: {a: {kind: device, in: [nowhere]}}\n'));
+  assert.equal(broken.code, 1);
+  assert.match(broken.out, /nowhere/);
 });

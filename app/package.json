@@ -4,7 +4,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 127.0.0.1",
-    "build": "vite build",
+    "build": "vite build && vite build -c cli.vite.config.ts",
     "check": "svelte-check"
   },
   "devDependencies": {

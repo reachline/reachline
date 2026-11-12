@@ -5,9 +5,9 @@ name: CodeQL
 on:
   push:
     branches: [main]
-    paths: [app/**, engine/**, server/**, reach.ts, .github/workflows/**, '!**/package.json']
+    paths: [app/**, engine/**, server/**, reachline.ts, cli/**, .github/workflows/**, '!**/package.json']
   pull_request:
-    paths: [app/**, engine/**, server/**, reach.ts, .github/workflows/**, '!**/package.json']
+    paths: [app/**, engine/**, server/**, reachline.ts, cli/**, .github/workflows/**, '!**/package.json']
   schedule:
     - cron: '30 5 * * 3'
 

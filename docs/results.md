@@ -40,7 +40,7 @@ A verdict on its own would blame the scenario for problems you already have, so 
 Each line of a breach says how the attacker got in: `via in docs_nas`, `via recovery phone_number`, or `via access` and the part of the condition that worked. To follow the whole path, give the scenario and the thing:
 
 ```text
-$ ./reach.ts thief_carried mail
+$ reachline --model model.yml thief_carried mail
 mail  [recovery phone_number]
   phone_number  [access phone]
     phone  [in carried]
@@ -52,7 +52,7 @@ Each line is a thing and how it was reached, with what that used indented beneat
 When the thing can't be reached, you get its ways in instead, with where each part stands: `yes`, `no`, or `if` and the assumptions.
 
 ```text
-$ ./reach.ts house_fire mail
+$ reachline --model model.yml house_fire mail
 mail not reachable in house_fire. Its ways in:
   access mail_pw and (mail_totp or hw_key)
       hw_key: no

@@ -35,7 +35,7 @@ A list of one can go without brackets: `in: home` = `in: [home]`. A list of mult
 | `access` (Accessed with) | condition | It's reached when this holds. |
 | `recovery` (Recovered with) | condition | The same as `access`, reported as recovery. |
 | `mirrors` (Mirrors) | `{of, by}` | A synced copy of `of`, kept in step by `by`. It's gone once `of` is, while `by` still exists. |
-| `note`, `todo` | text | Free text. `./reach.ts --todo` lists the todos. |
+| `note`, `todo` | text | Free text. `reachline --model FILE --todo` lists the todos. |
 
 A thing with no `in` and no `needs` always exists. Apart from a state, a thing with no `in`, `access` or `recovery` is reached only from where a scenario starts.
 

@@ -14,6 +14,7 @@ nav = [
     { "Plans" = "plans.md" },
     { "Templates" = "templates.md" },
     { "Reference" = "reference.md" },
+    { "CLI and agents" = "cli.md" },
   ] },
   { "Self-hosting" = [
     "self-hosting/index.md",

@@ -37,7 +37,8 @@ Your model is a map of your weak points, so ReachLine is self-hosted: you run it
 
 ## How it fits together
 
-- `engine/` computes everything: it parses a model and follows every path for each scenario. Its only dependency is `yaml`. The UI runs it in the browser, and `reach.ts` runs it on the command line.
+- `engine/` computes everything: it parses a model and follows every path for each scenario. Its only dependency is `yaml`. The UI runs it in the browser, and `reachline.ts` runs it on the command line.
+- `cli/` is the rest of the command line: signing in to your server, pulling and pushing a model, and the docs it carries. The server hands out a bundle of it, `reachline.mjs`, so your agent can work on your models ([CLI and agents](docs/cli.md)).
 - `app/` is the UI: Svelte, with Svelte Flow drawing the graph and ELK laying it out in a worker.
 - `server/` signs people in and stores each model as YAML text in SQLite, with every saved revision. It never interprets a model.
 - `templates/` and `examples/` are models and pieces of models; `docs/` is the user and self-hosting documentation.
@@ -64,18 +65,16 @@ pnpm build && pnpm start            # what the Docker image runs
 
 Settings come from `.env` (copy `.env.template`). Three more apply when running from source, which the Docker image sets for itself: `HOST` (default `127.0.0.1`), `PORT` (default 6060) and `DATA_DIR`, where the database lives (default `data/`, relative to the repository; `pnpm dev:reset` replaces the database there with example data). `pnpm dev` ignores `PORT` and `PUBLIC_URL`. See `app/README.md` for the UI's URL parameters.
 
-The command line runs the engine on a model file: the synthetic example in `examples/`, or whichever `--model` names.
+The command line runs the engine on a model file: the synthetic example in `examples/`, or whichever `--model` names. From the repository it runs as `./reachline.ts`; `pnpm build` also bundles it into `app/dist/reachline.mjs`, which the server hands out.
 
 ```sh
-./reach.ts                          # every scenario
-./reach.ts house_fire               # one scenario
-./reach.ts thief_carried mail       # how a scenario reaches one thing
-./reach.ts --todo                   # open questions in the model
-./reach.ts --plan spare_key                           # before/after a plan
-./reach.ts --mermaid mail --scenario house_fire       # a Mermaid chart
+./reachline.ts                          # every scenario
+./reachline.ts house_fire               # one scenario
+./reachline.ts thief_carried mail       # how a scenario reaches one thing
+./reachline.ts --todo                   # open questions in the model
+./reachline.ts --plan spare_key                           # before/after a plan
+./reachline.ts help                     # everything else: login, pull, check, push, docs
 ```
-
-See the top of `reach.ts` for every command-line option.
 
 ### Checking
 

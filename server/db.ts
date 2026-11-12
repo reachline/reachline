@@ -3,7 +3,7 @@
 import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { DatabaseSync } from 'node:sqlite';
-import type { ModelDoc, ModelSummary, RevisionSummary } from './api.ts';
+import type { ModelDoc, ModelSummary, RevisionSummary, TokenSummary } from './api.ts';
 import { log } from './log.ts';
 
 // Append only: each entry runs once, in order, and pragma user_version counts them.
@@ -45,6 +45,17 @@ const MIGRATIONS = [
    alter table sessions add column created text not null default ''; -- '' for sessions from before
    alter table sessions add column method text not null default 'password'; -- or 'oidc'
    alter table sessions add column provider_sid text; -- the provider's session (its sid), for back-channel logout`,
+  `create table tokens ( -- for the command line
+     id integer primary key,
+     user_id integer not null references users on delete cascade,
+     name text not null,
+     hash text not null unique, -- SHA-256 of the token
+     created text not null,
+     used text, -- when it was last used, to the minute
+     unique (user_id, name)
+   );
+   -- The name of the token that saved it, kept after the token is revoked; null when saved in the app.
+   alter table revisions add column saved_by text;`,
 ];
 
 /** The store in `dataDir`, created if it's new. */
@@ -98,6 +109,14 @@ export interface SessionUser {
 export interface Identity {
   userId: number;
   label: string;
+}
+
+/** Who a token belongs to; `name` is the token's. */
+export interface TokenUser {
+  userId: number;
+  username: string;
+  tokenId: number;
+  name: string;
 }
 
 export interface NewSession {
@@ -225,6 +244,45 @@ export class Store {
     if (changes) log.debug('deleted expired sessions', { count: Number(changes) });
   }
 
+  /** The new token, or undefined if the user has one of that name. */
+  createToken(userId: number, name: string, hash: string): TokenSummary | undefined {
+    const created = now();
+    const r = this.db
+      .prepare('insert into tokens (user_id, name, hash, created) values (?, ?, ?, ?) on conflict do nothing')
+      .run(userId, name, hash, created);
+    return r.changes ? { id: Number(r.lastInsertRowid), name, created, used: null } : undefined;
+  }
+
+  listTokens(userId: number): TokenSummary[] {
+    return this.db
+      .prepare('select id, name, created, used from tokens where user_id = ? order by created desc')
+      .all(userId) as unknown as TokenSummary[];
+  }
+
+  /** The token's user, noting that it's been used. */
+  tokenUser(hash: string): TokenUser | undefined {
+    const user = this.db
+      .prepare(
+        `select t.user_id as userId, u.username, t.id as tokenId, t.name
+         from tokens t join users u on u.id = t.user_id where t.hash = ?`,
+      )
+      .get(hash) as TokenUser | undefined;
+    if (user) {
+      // To the minute, so a burst of requests writes once.
+      const minute = `${now().slice(0, 16)}:00Z`;
+      this.db.prepare('update tokens set used = ? where id = ? and used is not ?').run(minute, user.tokenId, minute);
+    }
+    return user;
+  }
+
+  deleteTokens(userId: number): void {
+    this.db.prepare('delete from tokens where user_id = ?').run(userId);
+  }
+
+  deleteToken(userId: number, id: number): boolean {
+    return this.db.prepare('delete from tokens where user_id = ? and id = ?').run(userId, id).changes > 0;
+  }
+
   listModels(userId: number): ModelSummary[] {
     return this.db
       .prepare('select id, name, updated from models where user_id = ? order by updated desc')
@@ -263,6 +321,7 @@ export class Store {
     id: number,
     text: string,
     base: number,
+    savedBy: string | null = null,
   ): { saved: number } | { latest: number } | undefined {
     return tx(this.db, () => {
       const latest = this.latestRevision(userId, id);
@@ -270,7 +329,7 @@ export class Store {
       if (latest !== base) return { latest };
       const t = now();
       this.db.prepare('update models set updated = ? where id = ?').run(t, id);
-      return { saved: this.addRevision(id, text, t) };
+      return { saved: this.addRevision(id, text, t, savedBy) };
     });
   }
 
@@ -286,7 +345,7 @@ export class Store {
   listRevisions(userId: number, id: number): RevisionSummary[] | undefined {
     if (this.latestRevision(userId, id) === undefined) return undefined;
     return this.db
-      .prepare('select id, created from revisions where model_id = ? order by id desc')
+      .prepare('select id, created, saved_by as by from revisions where model_id = ? order by id desc')
       .all(id) as unknown as RevisionSummary[];
   }
 
@@ -310,10 +369,10 @@ export class Store {
     return row.rev ?? undefined;
   }
 
-  private addRevision(modelId: number, text: string, created: string): number {
+  private addRevision(modelId: number, text: string, created: string, savedBy: string | null = null): number {
     const r = this.db
-      .prepare('insert into revisions (model_id, text, created) values (?, ?, ?)')
-      .run(modelId, text, created);
+      .prepare('insert into revisions (model_id, text, created, saved_by) values (?, ?, ?, ?)')
+      .run(modelId, text, created, savedBy);
     return Number(r.lastInsertRowid);
   }
 }

@@ -1,4 +1,7 @@
 // The HTTP app: the JSON API under /api, and the built UI for everything else.
+import { createHash } from 'node:crypto';
+import { existsSync, readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { serveStatic } from '@hono/node-server/serve-static';
 import { Hono, type Context } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
@@ -14,6 +17,7 @@ import type {
   AuthOptions,
   Conflict,
   Created,
+  CreatedToken,
   Me,
   ModelDoc,
   ModelSummary,
@@ -23,12 +27,15 @@ import type {
   RevisionSummary,
   Saved,
   SsoError,
+  TokenOwner,
+  TokenSummary,
 } from './api.ts';
 import {
   Busy,
   decoyHash,
   hashPassword,
   needsRehash,
+  newApiToken,
   newSessionToken,
   PASSWORD,
   sessionId,
@@ -37,7 +44,7 @@ import {
   verifyPassword,
 } from './auth.ts';
 import type { Config } from './config.ts';
-import type { NewSession, SessionUser, Store } from './db.ts';
+import type { NewSession, SessionUser, Store, TokenUser } from './db.ts';
 import { log } from './log.ts';
 import { Oidc, type Fetch, type Flow } from './oidc.ts';
 
@@ -53,8 +60,12 @@ const FLOW_SECONDS = 10 * 60;
 const BACKCHANNEL = '/api/auth/oidc/logout';
 
 interface Env {
-  Variables: { user: SessionUser };
+  // A token's user has no session: its times are empty, so a sign-in never counts as recent.
+  Variables: { user: SessionUser; token?: TokenUser };
 }
+
+/** The secret from an `Authorization: Bearer` header. */
+const bearer = (c: Context) => /^Bearer (\S+)$/i.exec(c.req.header('authorization') ?? '')?.[1];
 
 function fail(status: ContentfulStatusCode, error: string, headers?: Record<string, string>): never {
   throw new HTTPException(status, { res: Response.json({ error } satisfies ApiError, { status, headers }) });
@@ -188,7 +199,13 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
       ),
     }),
   );
-  app.use('/api/*', except(BACKCHANNEL, csrf({ origin: config.publicUrl.origin })), bodyLimit({ maxSize: MAX_BODY }));
+  // A token's requests can't be forged by another site: a browser won't add the header without CORS, which isn't offered.
+  const tokenRequest = (c: Context) => !c.req.path.startsWith('/api/auth/') && bearer(c) !== undefined;
+  app.use(
+    '/api/*',
+    except([BACKCHANNEL, tokenRequest], csrf({ origin: config.publicUrl.origin })),
+    bodyLimit({ maxSize: MAX_BODY }),
+  );
 
   const cookie = { path: '/', httpOnly: true, secure, sameSite: 'Lax', maxAge: (SESSION_DAYS * DAY) / 1000 } as const;
   const expires = () => new Date(Date.now() + SESSION_DAYS * DAY).toISOString();
@@ -216,6 +233,26 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     c.set('user', user);
     await next();
   });
+
+  // The CLI the server hands out, so that one from elsewhere can tell it's out of date.
+  const cliFile = join(config.appDir, 'reachline.mjs');
+  const cliHash = existsSync(cliFile) ? createHash('sha256').update(readFileSync(cliFile)).digest('hex') : undefined;
+
+  /** Signed in with a token, which reaches models and nothing else. */
+  const tokenAuthed = createMiddleware<Env>(async (c, next) => {
+    const secret = bearer(c);
+    const token = secret === undefined ? undefined : store.tokenUser(sessionId(secret));
+    if (!token) fail(401, secret === undefined ? 'Not signed in' : 'That token is revoked or wrong');
+    c.set('user', { userId: token.userId, username: token.username, expires: '', created: '' });
+    c.set('token', token);
+    if (cliHash) c.header('ReachLine-CLI', cliHash);
+    await next();
+  });
+
+  /** A token if the request has one, or else the session. */
+  const tokenOrSession = createMiddleware<Env>((c, next) =>
+    bearer(c) === undefined ? authed(c, next) : tokenAuthed(c, next),
+  );
 
   function requireRecentSignIn(c: Context<Env>) {
     // Sessions from before this was tracked have no time, and never count as recent.
@@ -361,7 +398,9 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     }
     await checkPassword(name, str(b, 'current'), user.password, 403, 'Wrong current password');
     store.setPassword(userId, await hashPassword(next));
+    // Whoever knew the old password keeps no way in: not a session, and not a token they made with it.
     store.deleteSessions(userId, sessionId(getCookie(c, COOKIE)!));
+    store.deleteTokens(userId);
     log.info('password changed', { user: name });
     return c.body(null, 204);
   });
@@ -492,8 +531,40 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     return c.body(null, 200);
   });
 
-  app.use('/api/models', authed);
-  app.use('/api/models/*', authed);
+  // Tokens for the command line are made and revoked in the app, never with a token.
+  app.get('/api/auth/tokens', authed, (c) => c.json<TokenSummary[]>(store.listTokens(c.var.user.userId)));
+
+  app.post('/api/auth/tokens', authed, async (c) => {
+    requireRecentSignIn(c); // a token is a way in
+    const name = modelName(await body(c));
+    const { userId, username: user } = c.var.user;
+    const { token, hash } = newApiToken();
+    const created = store.createToken(userId, name, hash);
+    if (!created) fail(409, 'You already have a token with that name');
+    log.info('token created', { user, token: name });
+    return c.json<CreatedToken>({ ...created, token }, 201);
+  });
+
+  app.delete('/api/auth/tokens/:id', authed, (c) => {
+    if (!store.deleteToken(c.var.user.userId, id(c, 'id'))) fail(404, 'Not found');
+    log.info('token revoked', { user: c.var.user.username });
+    return c.body(null, 204);
+  });
+
+  app.get('/api/token', tokenAuthed, (c) =>
+    c.json<TokenOwner>({ username: c.var.user.username, name: c.var.token!.name }),
+  );
+
+  // Signing out of the command line revokes its token.
+  app.delete('/api/token', tokenAuthed, (c) => {
+    const { userId, tokenId, name, username: user } = c.var.token!;
+    store.deleteToken(userId, tokenId);
+    log.info('token revoked', { user, token: name });
+    return c.body(null, 204);
+  });
+
+  app.use('/api/models', tokenOrSession);
+  app.use('/api/models/*', tokenOrSession);
 
   app.get('/api/models', (c) => c.json<ModelSummary[]>(store.listModels(c.var.user.userId)));
 
@@ -518,7 +589,7 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     const text = str(b, 'text');
     const base = b.base;
     if (typeof base !== 'number' || !Number.isInteger(base)) fail(400, 'base must be a revision id');
-    const r = store.saveModel(c.var.user.userId, modelId, text, base);
+    const r = store.saveModel(c.var.user.userId, modelId, text, base, c.var.token?.name);
     if (!r) fail(404, 'Not found');
     if ('latest' in r) return c.json<Conflict>({ error: 'Changed since you opened it', revision: r.latest }, 409);
     return c.json<Saved>({ revision: r.saved });

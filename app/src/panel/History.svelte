@@ -72,7 +72,7 @@
     {#each revisions ?? [] as r, i (r.id)}
       <li>
         <button class="quiet" aria-pressed={r.id === chosen} onclick={() => (chosen = r.id)}>
-          {when(r.created)}{i === 0 ? ' (latest)' : ''}
+          {when(r.created)}{r.by ? `, by ${r.by}` : ''}{i === 0 ? ' (latest)' : ''}
         </button>
       </li>
     {/each}
