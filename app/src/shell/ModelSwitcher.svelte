@@ -1,6 +1,6 @@
 <script lang="ts">
   // The model's name, opening a menu of the user's other models.
-  import { ChevronsUpDown } from '@lucide/svelte';
+  import { ChevronsUpDown, Waypoints } from '@lucide/svelte';
   import type { ModelSummary } from '../../../server/api.ts';
   import { api, message } from '../lib/api';
   import { follow } from '../lib/route.svelte.ts';
@@ -25,7 +25,12 @@
   }
 </script>
 
-<h1><button class="quiet" popovertarget="models-menu"><span class="name">{name}</span><ChevronsUpDown /></button></h1>
+<!-- On phones, the icon stands for the name. -->
+<h1>
+  <button class="quiet" popovertarget="models-menu" title={name}
+    ><Waypoints /><span class="name wide-only">{name}</span><ChevronsUpDown /></button
+  >
+</h1>
 <div id="models-menu" class="menu" popover bind:this={menu} {ontoggle}>
   {#if error}
     <p class="error" role="alert">{error}</p>

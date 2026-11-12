@@ -25,7 +25,9 @@
   /* eslint-enable @typescript-eslint/no-useless-default-assignment */
 </script>
 
-<button class="quiet" popovertarget="layout"><SlidersHorizontal />Layout</button>
+<button class="quiet" popovertarget="layout" title="Layout"
+  ><SlidersHorizontal /><span class="wide-only">Layout</span></button
+>
 <div id="layout" class="popup" popover>
   <h2>Layout</h2>
   <label class="field"

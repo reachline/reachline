@@ -1,5 +1,7 @@
 <script lang="ts">
   import {
+    ChevronDown,
+    ChevronUp,
     Download,
     FileClock,
     FileCode,
@@ -8,6 +10,7 @@
     LogIn,
     MapPin,
     Network,
+    Pencil,
     Plus,
     Redo2,
     RotateCcw,
@@ -137,6 +140,10 @@
   const maxWidth = $derived(Math.max(PANEL.min, Math.round(innerWidth * 0.7)));
   $effect(() => keep('panel.tab', tab));
   $effect(() => keep('panel.width', width));
+  // On phones, what the graph shows folds into one row, open or not as this device last had it.
+  const phone = $derived(innerWidth <= 760);
+  let lensOpen = $state(load('lens.open') === true);
+  $effect(() => keep('lens.open', lensOpen));
   // Once opened, the editor stays mounted (hidden when closed) to keep its undo history.
   let editorOpened = $state(untrack(() => tab) === 'text');
   let editor = $state<{ undo: () => void; redo: () => void }>();
@@ -754,6 +761,13 @@
     ['where', 'Where things live', MapPin],
     ['all', 'Everything', Network],
   ] as const;
+  const viewing = $derived(MODES.find(([m]) => m === mode) ?? MODES[0]);
+  // What the folded row says is chosen. The plan edits go into is on, and said after.
+  const chosen = $derived([
+    ...(mode === 'ways' && target ? [['Thing', target]] : []),
+    ...(scenarioName ? [['Scenario', scenarioName]] : []),
+    ...plans.filter((p) => p !== layer).map((p) => ['Plan', p]),
+  ]);
 </script>
 
 <svelte:window {onkeydown} {onbeforeunload} bind:innerWidth />
@@ -773,20 +787,7 @@
       >
     {/if}
     <span class="spacer"></span>
-    {#if planList.length}
-      <!-- Add and every form write here, so it shows whenever there's a choice. -->
-      <label class="field inline layer"
-        >Edits go into
-        <select
-          value={layer ?? ''}
-          onchange={(e) => setLayer(e.currentTarget.value || null)}
-          class:plan={layer !== null}
-        >
-          <option value="">the model</option>
-          {#each planList as p (p.name)}<option value={p.name}>plan {p.name}</option>{/each}
-        </select>
-      </label>
-    {/if}
+    {#if planList.length && !phone}{@render layerField()}{/if}
     <button class="quiet" popovertarget="add-menu" disabled={!editing}
       ><Plus /><span class="wide-only">Add</span></button
     >
@@ -866,9 +867,34 @@
     </div>
   {/if}
 
-  <!-- What the graph shows: over its top-left corner, or on phones a row of its own. -->
+  <!--
+    What the graph shows: over its top-left corner, or on phones a row of its
+    own, folded to say what's chosen and where edits go.
+  -->
   <div class="lens shrinks wide">
-    <div class="tools">
+    {#if phone}
+      {@const Icon = viewing[2]}
+      <button
+        class="quiet fold"
+        aria-expanded={lensOpen}
+        aria-controls="lens-tools"
+        onclick={() => (lensOpen = !lensOpen)}
+      >
+        <Icon /><span class:visually-hidden={chosen.length > 0}>{viewing[1]}</span>
+        <span class="chosen">
+          {#each chosen as [what, id], i (what + id)}
+            {#if i}<span class="sep" aria-hidden="true">·</span>{/if}<span class="visually-hidden">{what}</span><span
+              class="mono">{id}</span
+            >
+          {/each}
+        </span>
+        {#if layer !== null}
+          <span class="into"><Pencil /><span class="visually-hidden">Edits go into plan</span>{layer}</span>
+        {/if}
+        {#if lensOpen}<ChevronUp />{:else}<ChevronDown />{/if}
+      </button>
+    {/if}
+    <div id="lens-tools" class="tools" class:hidden={phone && !lensOpen}>
       <div class="segmented" role="group" aria-label="View">
         {#each MODES as [m, label, Icon] (m)}
           <button class="quiet" aria-pressed={mode === m} title={label} onclick={() => setMode(m)}
@@ -897,6 +923,7 @@
       {#if planList.length}
         <Picker label="Plans" groups={planGroups} chosen={plans} multiple onchoose={turn} />
       {/if}
+      {#if planList.length && phone}{@render layerField()}{/if}
     </div>
     {#if shown && (invalid || lost)}
       <p class="notice badge" role="status">
@@ -946,10 +973,12 @@
         {#snippet tools()}
           {#if mode === 'ways'}
             <button class="quiet" onclick={() => waysInto(target)} title="Back to the first steps into {target}"
-              ><RotateCcw />Reset</button
+              ><RotateCcw /><span class="wide-only">Reset</span></button
             >
           {/if}
-          <button class="quiet" onclick={tidy} title="Lay the whole graph out again"><WandSparkles />Tidy</button>
+          <button class="quiet" onclick={tidy} title="Lay the whole graph out again"
+            ><WandSparkles /><span class="wide-only">Tidy</span></button
+          >
           <LayoutMenu
             bind:direction
             bind:routing
@@ -1084,6 +1113,17 @@
 />
 <ConfirmEdit {asking} onconfirm={confirmed} onclose={() => (asking = null)} />
 
+<!-- Add and every form write here, so it shows whenever there's a choice: in the header, or on phones the folded row. -->
+{#snippet layerField()}
+  <label class="field inline"
+    >Edits go into
+    <select value={layer ?? ''} onchange={(e) => setLayer(e.currentTarget.value || null)} class:plan={layer !== null}>
+      <option value="">the model</option>
+      {#each planList as p (p.name)}<option value={p.name}>plan {p.name}</option>{/each}
+    </select>
+  </label>
+{/snippet}
+
 <style>
   /*
    * The document's header across the top, and under it the graph, with what
@@ -1170,6 +1210,31 @@
     padding: 0;
     border: none;
   }
+  /* On phones, the toolbar folded: what's chosen, giving way at its end, and where edits go. */
+  .fold {
+    justify-self: stretch;
+    justify-content: flex-start;
+    min-width: 0;
+    padding: 0 var(--space-2);
+  }
+  .chosen {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .sep {
+    margin-inline: 0.5ch;
+  }
+  .into {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--space-1);
+    color: var(--accent);
+    font-family: var(--code-font);
+  }
+  .fold > :global(.lucide:last-child) {
+    margin-left: auto;
+  }
   .tabs {
     grid-area: tabs;
     min-width: 0;
@@ -1232,7 +1297,7 @@
     display: none;
   }
 
-  /* Phones: the panel, open, covers the graph, and where edits go has a row of its own. */
+  /* Phones: the panel, open, covers the graph. */
   @media (max-width: 760px) {
     .head {
       flex-wrap: wrap;
@@ -1244,27 +1309,27 @@
     .spacer {
       display: none;
     }
-    .layer {
-      order: 1;
-      width: 100%;
+    .app {
+      grid-template:
+        'head' auto
+        'banner' auto
+        'lens' auto
+        'canvas' minmax(0, 1fr)
+        / minmax(0, 1fr);
     }
-    .app,
     .app.open {
       grid-template:
         'head' auto
         'banner' auto
         'lens' auto
         'tabs' auto
-        'canvas' minmax(0, 1fr)
+        'panel' minmax(0, 1fr)
         / minmax(0, 1fr);
-    }
-    .app.open {
-      grid-template-areas: 'head' 'banner' 'lens' 'tabs' 'panel';
     }
     .app.open .canvas {
       display: none;
     }
-    /* What the graph shows, and the tabs, are rows of their own: the open panel covers the graph. */
+    /* What the graph shows is a row of its own, and so are the tabs while the panel's open, as its header. */
     .lens,
     .app:not(.open) .lens {
       grid-area: lens;
@@ -1278,19 +1343,8 @@
       border: none;
       box-shadow: none;
     }
-    .tabs,
-    .app:not(.open) .tabs {
-      grid-area: tabs;
-      margin: 0;
-      padding: var(--space-2) var(--space-3);
-      border-bottom: 1px solid var(--border);
+    .tabs {
       border-left: none;
-      background: var(--surface);
-      justify-self: stretch;
-    }
-    .app:not(.open) .tabs .segmented {
-      width: 100%;
-      box-shadow: none;
     }
     .panel {
       border-left: none;

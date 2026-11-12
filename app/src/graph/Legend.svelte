@@ -23,7 +23,7 @@
   ] as const;
 </script>
 
-<button class="quiet" popovertarget="legend"><Shapes />Legend</button>
+<button class="quiet" popovertarget="legend" title="Legend"><Shapes /><span class="wide-only">Legend</span></button>
 <div id="legend" class="popup" popover>
   <h2>Legend</h2>
   <div class="grid">

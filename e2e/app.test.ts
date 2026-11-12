@@ -560,14 +560,19 @@ test('the Account page makes a token that the served command line signs in with'
   rmSync(dir, { recursive: true, force: true });
 });
 
-// Phones have a layout of their own: the toolbar and where edits go take rows
-// of their own, and the panel, open, covers the graph.
+// Phones have a layout of their own: the toolbar, with where edits go, takes a
+// row of its own, folded until it's opened, and the panel, open, covers the graph.
 test('on a phone, nothing scrolls sideways and the model page passes axe', async () => {
   const { page, problems } = await openExample({ viewport: PHONE });
-  // The example has plans, so where edits go is shown.
+  // The graph clips its controls, so the page wouldn't scroll: they have to fit.
+  const controls = await page.getByRole('group', { name: 'Graph controls' }).boundingBox();
+  assert.ok(controls && controls.x + controls.width <= PHONE.width, 'the graph controls fit');
+  await passesAxe(page, 'model, on a phone');
+  // The example has plans, so where edits go is in the toolbar.
+  await page.getByRole('button', { name: /^Ways in/, expanded: false }).click();
   await page.getByRole('combobox', { name: 'Edits go into' }).waitFor();
   assert.equal(await scrollsSideways(page), false);
-  await passesAxe(page, 'model, on a phone');
+  await passesAxe(page, 'model, the toolbar open, on a phone');
   await page.getByRole('button', { name: 'Details', exact: true }).click();
   await page.locator('#panel').waitFor();
   assert.equal(await scrollsSideways(page), false);
