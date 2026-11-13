@@ -18,6 +18,8 @@
     kind: string;
     selected: string | null;
     fitKey: number;
+    /** How much of the graph's right side is under the panel, in px; fitting keeps clear of it. */
+    cover: number;
     /** A node was chosen, by a click or with Enter or Space. */
     onnode: (id: string) => void;
     /** Shows or hides a node's ways in, or what it's a way into; without it, nodes have no arrows. */
@@ -29,7 +31,8 @@
     /** More controls, after the zoom buttons. */
     tools?: Snippet;
   }
-  let { view, placed, vertical, kind, selected, fitKey, onnode, onopen, onedit, ondeselect, tools }: Props = $props();
+  let { view, placed, vertical, kind, selected, fitKey, cover, onnode, onopen, onedit, ondeselect, tools }: Props =
+    $props();
 
   // Svelte Flow's own description talks of deleting and moving nodes.
   const ariaLabelConfig = {
@@ -153,7 +156,7 @@
   >
     <Background />
     <Panel position="bottom-left" class="segmented floating" role="group" aria-label="Graph controls">
-      <Zoom {fitKey} />
+      <Zoom {fitKey} {cover} />
       {@render tools?.()}
     </Panel>
   </SvelteFlow>

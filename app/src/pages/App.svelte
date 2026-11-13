@@ -959,9 +959,9 @@
   </div>
 
   <!--
-    Open, the panel's header, as wide as the panel, giving their words up to fit
-    it; closed, a strip of icons over the graph's top-right corner. One element
-    either way, so the button pressed keeps the focus.
+    Closed, a strip of icons over the graph's top-right corner; open, the
+    panel's first row, as wide as it, giving their words up to fit it. One
+    element either way, so the button pressed keeps the focus.
   -->
   <div class="tabs" class:shrinks={tab !== null}>
     <div class="segmented" role="group" aria-label="Panel">
@@ -987,6 +987,7 @@
         kind={scenario?.sc.kind ?? ''}
         {selected}
         {fitKey}
+        cover={tab !== null && !phone ? Math.min(width, maxWidth) : 0}
         onnode={select}
         onedit={editNode}
         onopen={mode === 'ways' ? setOpen : undefined}
@@ -1156,8 +1157,8 @@
 <style>
   /*
    * The document's header across the top, and under it the graph, with what
-   * it shows floating over it. Open, the panel is beside it, under its tabs;
-   * closed, the tabs float over the graph too.
+   * it shows floating over it. Open, the panel is beside it, under its tabs
+   * (on phones, in its place); closed, the tabs float over the graph too.
    */
   .app {
     display: grid;
@@ -1265,7 +1266,6 @@
     min-width: 0;
     padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--border);
-    border-left: 1px solid var(--border);
     background: var(--surface);
   }
   /* Open, the tabs fill the panel's width. */
@@ -1317,7 +1317,6 @@
     position: relative;
     min-width: 0;
     min-height: 0;
-    border-left: 1px solid var(--border);
     background: var(--surface);
   }
   .tab {
@@ -1325,6 +1324,64 @@
   }
   .hidden {
     display: none;
+  }
+
+  /*
+   * Wide, the open panel is a card floating over the graph's right side, its
+   * tabs the card's first row, where they float when it's closed. The card's
+   * surface and shadow are drawn behind both, so no shadow falls across the
+   * seam between them.
+   */
+  @media (min-width: 761px) {
+    .app.open::before,
+    .app.open .tabs,
+    .app.open .panel {
+      position: relative;
+      z-index: 1;
+    }
+    .app.open::before {
+      content: '';
+      grid-column: 2;
+      grid-row: tabs-start / panel-end;
+      margin: var(--space-2);
+      border-radius: var(--radius-lg);
+      background: var(--surface);
+      box-shadow: var(--shadow);
+    }
+    .app.open .tabs {
+      margin: var(--space-2) var(--space-2) 0;
+      padding: 0;
+      border: 1px solid var(--border);
+      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
+      background: none;
+    }
+    .app.open .tabs .segmented {
+      padding: calc(var(--space-1) + 3px);
+      border: none;
+      background: none;
+    }
+    .app.open .panel {
+      margin: 0 var(--space-2) var(--space-2);
+      border: 1px solid var(--border);
+      border-top: none;
+      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
+      background: none;
+    }
+    /* What fills the card, rounded at its foot to fit. */
+    .app.open .panel > :global(*) {
+      border-bottom-right-radius: calc(var(--radius-lg) - 1px);
+      border-bottom-left-radius: calc(var(--radius-lg) - 1px);
+    }
+    .app.open .tab {
+      overflow: hidden;
+    }
+    /* The graph runs on under the card. */
+    .app.open .canvas {
+      grid-column: 1 / -1;
+    }
+    .app.open .canvas > .status {
+      padding-right: var(--panel-w);
+    }
   }
 
   /* Phones: the panel, open, covers the graph. */
@@ -1372,12 +1429,6 @@
       padding: 0;
       border: none;
       box-shadow: none;
-    }
-    .tabs {
-      border-left: none;
-    }
-    .panel {
-      border-left: none;
     }
     .panel :global(.resizer) {
       display: none;

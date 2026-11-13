@@ -5,7 +5,7 @@
   import { useSvelteFlow } from '@xyflow/svelte';
   import { tick } from 'svelte';
 
-  let { fitKey }: { fitKey: number } = $props();
+  let { fitKey, cover }: { fitKey: number; cover: number } = $props();
   const { fitView, zoomIn, zoomOut } = useSvelteFlow();
 
   const duration = () => (matchMedia('(prefers-reduced-motion: reduce)').matches ? 0 : 250);
@@ -13,9 +13,9 @@
   // fitView reports false until the nodes are initialized; retry a few frames.
   async function fit(tries = 20) {
     await tick();
-    // Clear of the bars that float over the graph's top and bottom.
+    // Clear of the bars that float over the graph's top and bottom, and the panel over its right.
     const ok = await fitView({
-      padding: { top: '64px', bottom: '56px', x: '6%' },
+      padding: { top: '64px', bottom: '56px', left: '6%', right: cover ? `${cover + 24}px` : '6%' },
       maxZoom: 1.2,
       duration: duration(),
     });
