@@ -3,7 +3,7 @@
 #   docker build -t reachline .
 #   docker run -p 6060:6060 -v reachline-data:/data -e PUBLIC_URL=https://reachline.example.com reachline
 
-FROM node:26-alpine AS build
+FROM node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5 AS build
 WORKDIR /src
 # Manifests first, so the install is cached until dependencies change.
 COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
@@ -23,7 +23,7 @@ COPY docs docs
 COPY reachline.ts tsconfig.json ./
 RUN pnpm build && pnpm --filter reachline-server --prod deploy /out/server
 
-FROM node:26-alpine
+FROM node:26-alpine@sha256:6bd9ab43c0ec0190ca7b2d193906cb8b7edf6e7f4afa43ddeccd6452710bffb5
 ENV NODE_ENV=production HOST=0.0.0.0 PORT=6060 DATA_DIR=/data
 WORKDIR /app
 COPY --from=build /out/server server
