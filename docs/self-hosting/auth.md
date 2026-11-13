@@ -26,5 +26,6 @@ To use only the provider, set `AUTH_METHODS=oidc`. Accounts whose username match
    AUTH_OIDC_ISSUER=https://auth.example.com/application/o/reachline/   # the provider's issuer, trailing slash and all
    AUTH_OIDC_CLIENT_ID=...
    AUTH_OIDC_CLIENT_SECRET=...
-   AUTH_OIDC_LABEL=Sign in with Authentik
+   AUTH_OIDC_LABEL=Authentik   # the provider's name: the button says Sign in with Authentik
+   AUTH_OIDC_ICON=https://auth.example.com/static/dist/assets/icons/icon.png   # optional, beside the name
    ```

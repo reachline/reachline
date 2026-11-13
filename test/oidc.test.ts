@@ -236,10 +236,13 @@ test('an account always keeps a way to sign in', async () => {
 });
 
 test('with password sign-in off, the provider is the only way in', async () => {
-  const { app, idp } = await setup({ AUTH_METHODS: 'oidc', AUTH_OIDC_LABEL: 'Sign in with Authentik' });
+  const icon = 'https://auth.example.com/static/icon.png';
+  const { app, idp } = await setup({ AUTH_METHODS: 'oidc', AUTH_OIDC_LABEL: 'Authentik', AUTH_OIDC_ICON: icon });
   const b = new Browser(app);
-  const options = (await b.call<AuthOptions>('GET', '/api/auth/options')).body;
-  assert.deepEqual(options, { registration: true, password: false, oidc: 'Sign in with Authentik' });
+  const r = await b.call<AuthOptions>('GET', '/api/auth/options');
+  assert.deepEqual(r.body, { registration: true, password: false, oidc: { name: 'Authentik', icon } });
+  // The page may load the provider's icon, and nothing else from its host.
+  assert.match(r.headers.get('content-security-policy') ?? '', new RegExp(`img-src [^;]* ${icon}(;| )`));
   const login = { username: 'alice', password: 'password1' };
   assert.equal((await b.call('POST', '/api/auth/register', login)).status, 403);
   assert.equal((await b.call('POST', '/api/auth/login', login)).status, 403);
@@ -348,4 +351,7 @@ test('AUTH_METHODS and the provider settings must agree', () => {
     /AUTH_OIDC_ISSUER is plain http/,
   );
   assert.equal(loadConfig({ ...base, ...OIDC }).password, true);
+  // The icon goes into the CSP, so it has to be a URL the page could load.
+  for (const icon of ['icon.png', 'javascript:alert(1)'])
+    assert.throws(() => loadConfig({ ...base, ...OIDC, AUTH_OIDC_ICON: icon }), /AUTH_OIDC_ICON must be/);
 });

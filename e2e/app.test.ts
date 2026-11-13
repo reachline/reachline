@@ -54,15 +54,22 @@ async function openExample(options: BrowserContextOptions = {}) {
   await page.waitForURL(/\/login/);
   await page.getByRole('button', { name: 'Create an account' }).click();
   await page.getByLabel('Username').fill(`user${++users}`);
-  await page.getByLabel('Password').fill('password1');
+  await page.getByLabel('Password', { exact: true }).fill('password1');
   await page.getByRole('button', { name: 'Create account' }).click();
   await page.getByRole('heading', { name: 'Your models' }).waitFor();
   await page.getByRole('button', { name: 'New model' }).click();
   await page.getByLabel('Name', { exact: true }).fill('example');
   await page.getByRole('button', { name: 'Create', exact: true }).click();
   await page.waitForURL(/\/m\/\d+/);
-  await page.locator('.svelte-flow__node').first().waitFor();
+  await chooseThing(page, 'documents');
   return { page, problems };
+}
+
+/** Shows the ways into a thing, from the toolbar's Thing picker. */
+async function chooseThing(page: Page, id: string) {
+  await page.getByRole('button', { name: /^Thing / }).click();
+  await page.getByRole('button', { name: id, exact: true }).click();
+  await page.locator('.svelte-flow__node').first().waitFor();
 }
 
 /** WCAG 2.2 AA, as far as axe can tell. */
@@ -171,6 +178,17 @@ test('the graph, from the keyboard and the toolbar, and what a reload keeps', as
 
   await page.getByRole('button', { name: 'example' }).click();
   await page.getByRole('link', { name: 'All models' }).click();
+  // Opened from the list, with nothing in its link, the model comes back as it was left.
+  await page.getByRole('link', { name: 'example' }).click();
+  await page.locator('.svelte-flow__node').first().waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Where things live' }).getAttribute('aria-pressed'), 'true');
+  assert.match(page.url(), /target=mail_pw/);
+  // Every page's logo leads back to the models.
+  await page.getByRole('banner').getByRole('link', { name: 'Your models' }).click();
+  await page.getByRole('button', { name: /account menu/ }).click();
+  await page.getByRole('link', { name: 'Account settings' }).click();
+  await page.getByRole('heading', { name: 'Change password' }).waitFor();
+  await page.getByRole('banner').getByRole('link', { name: 'Your models' }).click();
   await page.getByRole('link', { name: 'example' }).waitFor();
   await page.getByRole('button', { name: /account menu/ }).click();
   await page.getByRole('button', { name: 'Sign out' }).click();
@@ -445,7 +463,12 @@ test('the pages pass axe', async () => {
     await page.getByRole('button', { name: 'Create an account' }).click();
     await check('create an account');
     await page.getByLabel('Username').fill(`axe-${colorScheme}`);
-    await page.getByLabel('Password').fill('password1');
+    await page.getByLabel('Password', { exact: true }).fill('password1');
+    // The eye shows what's typed, pressed until it's hidden again.
+    const reveal = page.getByRole('button', { name: 'Show password' });
+    await reveal.click();
+    assert.equal(await page.getByLabel('Password', { exact: true }).getAttribute('type'), 'text');
+    assert.equal(await reveal.getAttribute('aria-pressed'), 'true');
     await page.getByRole('button', { name: 'Create account' }).click();
     await page.getByRole('heading', { name: 'Your models' }).waitFor();
     await check('no models');
@@ -454,7 +477,9 @@ test('the pages pass axe', async () => {
     await check('new model');
     await page.getByRole('button', { name: 'Create', exact: true }).click();
     await page.waitForURL(/\/m\/\d+/);
-    await page.locator('.svelte-flow__node').first().waitFor();
+    await page.getByText('Choose a thing to see the ways into it.').waitFor();
+    await check('model, no thing chosen');
+    await chooseThing(page, 'documents');
     await check('model');
     // Selected, a node shows its arrows, and Details what they do.
     await page.locator('.svelte-flow__node-thing').first().click();

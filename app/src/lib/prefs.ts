@@ -1,7 +1,9 @@
 // Settings for this device, such as the theme and the panel, kept in the
-// browser. Never anything from a model: models are sensitive, and stay on the
-// server. Storage can be missing or refuse (private windows), so a setting
-// that can't be read is undefined, and one that can't be kept just isn't.
+// browser. From a model, only the view it was last left on (`view.<id>`: the
+// ids its URL's query holds, which the browser's history has anyway); nothing
+// else, since models are sensitive and stay on the server. Storage can be
+// missing or refuse (private windows), so a setting that can't be read is
+// undefined, and one that can't be kept just isn't.
 
 export function load(key: string): unknown {
   try {

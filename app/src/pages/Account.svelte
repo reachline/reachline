@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { ArrowLeft } from '@lucide/svelte';
   import type { AuthOptions, CreatedToken, Me, TokenSummary } from '../../../server/api.ts';
   import { api, message, needsReauth, takeSsoProblem } from '../lib/api';
-  import { follow, go } from '../lib/route.svelte.ts';
+  import { go } from '../lib/route.svelte.ts';
   import Confirm from '../dialogs/Confirm.svelte';
   import type { Question } from '../dialogs/confirm';
+  import PasswordInput from '../forms/PasswordInput.svelte';
+  import ProviderIcon from '../shell/ProviderIcon.svelte';
   import TopBar from '../shell/TopBar.svelte';
 
   let { user, onsignout }: { user: string; onsignout: () => void } = $props();
@@ -25,6 +26,8 @@
   let outcome = $state<{ section: Section; text: string; failed: boolean; reauth?: boolean }>();
   const ssoProblem = takeSsoProblem();
   if (ssoProblem) outcome = { section: 'sso', text: ssoProblem, failed: true };
+
+  const provider = $derived(options?.oidc?.name ?? 'your identity provider');
 
   let asking = $state<Question & { section: Section; run: () => Promise<void> }>();
 
@@ -129,7 +132,6 @@
 <TopBar {user} {onsignout} />
 
 <main class="page">
-  <a class="back" href="/" onclick={follow}><ArrowLeft />Your models</a>
   <div class="title">
     <h1>Account</h1>
     <p class="muted">Signed in as {user}</p>
@@ -149,29 +151,34 @@
         <input class="hidden" autocomplete="username" value={user} readonly aria-hidden="true" tabindex="-1" />
         <div class="fields">
           {#if me.password}
-            <label class="field"
-              >Current password
-              <input type="password" bind:value={current} autocomplete="current-password" required />
-            </label>
+            <div class="field">
+              <label for="current-password">Current password</label>
+              <PasswordInput id="current-password" bind:value={current} autocomplete="current-password" required />
+            </div>
           {/if}
           <div class="field">
             <label for="new-password">New password</label>
-            <input
+            <PasswordInput
               id="new-password"
-              type="password"
               bind:value={next}
               autocomplete="new-password"
-              minlength="8"
-              maxlength="128"
+              minlength={8}
+              maxlength={128}
               aria-describedby="new-password-hint"
               required
             />
             <span class="hint" id="new-password-hint">At least 8 characters.</span>
           </div>
-          <label class="field"
-            >Confirm new password
-            <input type="password" bind:value={again} autocomplete="new-password" maxlength="128" required />
-          </label>
+          <div class="field">
+            <label for="confirm-password">Confirm new password</label>
+            <PasswordInput
+              id="confirm-password"
+              bind:value={again}
+              autocomplete="new-password"
+              maxlength={128}
+              required
+            />
+          </div>
         </div>
         {@render feedback('password')}
         <div class="buttons">
@@ -185,7 +192,7 @@
                 (asking = {
                   section: 'password',
                   title: 'Remove your password?',
-                  text: `You'll be able to sign in only with your identity provider, as ${me!.linked}.`,
+                  text: `You'll be able to sign in only with ${provider}, as ${me!.linked}.`,
                   action: 'Remove password',
                   run: async () => {
                     await api.removePassword();
@@ -200,11 +207,11 @@
 
     {#if options.oidc}
       <section class="card section">
-        <h2>Single sign-on</h2>
+        <h2 class="with-icon"><ProviderIcon src={options.oidc.icon} />Single sign-on</h2>
         {#if me.linked}
-          <p>Linked to your identity provider as <strong>{me.linked}</strong>.</p>
+          <p>Linked to {provider} as <strong>{me.linked}</strong>.</p>
         {:else}
-          <p class="muted">Link an account at your identity provider to sign in with it.</p>
+          <p class="muted">Link an account at {provider} to sign in with it.</p>
         {/if}
         {@render feedback('sso')}
         {#if !me.linked}
@@ -217,7 +224,7 @@
               onclick={() =>
                 (asking = {
                   section: 'sso',
-                  title: 'Unlink your identity provider?',
+                  title: `Unlink ${provider}?`,
                   text: "You'll be able to sign in only with your password.",
                   action: 'Unlink',
                   run: async () => {
@@ -342,12 +349,6 @@
     margin: 0 auto;
     padding: var(--space-5) var(--space-4) var(--space-6);
   }
-  .back {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    justify-self: start;
-  }
   .title {
     display: grid;
     gap: var(--space-1);
@@ -356,6 +357,11 @@
     display: grid;
     gap: var(--space-4);
     padding: var(--space-5);
+  }
+  .with-icon {
+    display: flex;
+    align-items: center;
+    gap: var(--space-2);
   }
   .section h2 + p {
     margin-top: calc(-1 * var(--space-3));

@@ -1,5 +1,7 @@
 <script lang="ts">
-  // How the graph is laid out, and what the last layout took.
+  // How the graph is laid out, and what the last layout took. Each choice is
+  // made and acted on in one handler: with bind:value as well, the layout can
+  // run between the two and miss the restart (as it seemed to in Firefox on Android).
   import { SlidersHorizontal } from '@lucide/svelte';
   import type { Direction, Placement, Routing } from './layout';
 
@@ -32,14 +34,26 @@
   <h2>Layout</h2>
   <label class="field"
     >Direction
-    <select bind:value={direction} onchange={onrestart}>
+    <select
+      value={direction}
+      onchange={(e) => {
+        direction = e.currentTarget.value as Direction;
+        onrestart();
+      }}
+    >
       <option value="RIGHT">Left to right</option>
       <option value="DOWN">Top to bottom</option>
     </select>
   </label>
   <label class="field"
     >Edges
-    <select bind:value={routing} onchange={ontidy}>
+    <select
+      value={routing}
+      onchange={(e) => {
+        routing = e.currentTarget.value as Routing;
+        ontidy();
+      }}
+    >
       <option value="ORTHOGONAL">Right angles</option>
       <option value="SPLINES">Curves</option>
       <option value="POLYLINE">Straight segments</option>
@@ -47,7 +61,13 @@
   </label>
   <label class="field"
     >Placement
-    <select bind:value={placement} onchange={ontidy}>
+    <select
+      value={placement}
+      onchange={(e) => {
+        placement = e.currentTarget.value as Placement;
+        ontidy();
+      }}
+    >
       <option value="BRANDES_KOEPF">Brandes–Köpf (fast)</option>
       <option value="NETWORK_SIMPLEX">Network simplex</option>
     </select>

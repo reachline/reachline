@@ -6,7 +6,7 @@
 </script>
 
 <header class="top">
-  <Brand />
+  <Brand home />
   <UserMenu {user} {onsignout} />
 </header>
 

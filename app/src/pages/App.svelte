@@ -26,7 +26,7 @@
   import type { Question } from '../dialogs/confirm';
   import ConfirmEdit from '../dialogs/ConfirmEdit.svelte';
   import Details from '../panel/Details.svelte';
-  import Logo from '../shell/Logo.svelte';
+  import Home from '../shell/Home.svelte';
   import {
     addPlan,
     addScenario,
@@ -75,7 +75,7 @@
   import Picker, { type PickerGroup } from '../shell/Picker.svelte';
   import { keep, load } from '../lib/prefs';
   import Resizer from '../shell/Resizer.svelte';
-  import { beforeLeave, follow, setQuery } from '../lib/route.svelte.ts';
+  import { beforeLeave, setQuery } from '../lib/route.svelte.ts';
   import UserMenu from '../shell/UserMenu.svelte';
 
   let { id, user, onsignout }: { id: number; user: string; onsignout: () => void } = $props();
@@ -84,8 +84,19 @@
   const DEPTH = 2;
 
   // What the graph shows is kept in the URL, e.g. ?target=mail&scenario=nas_dies,
-  // so a reload or a link comes back to it. How it's laid out is this device's.
-  const q = new URLSearchParams(location.search);
+  // so a reload or a link comes back to it, and on this device, so that a link
+  // without one opens the model as it was last left. How it's laid out is this device's.
+  const VIEW = ['mode', 'target', 'scenario', 'plan', 'into', 'select'];
+  const viewKey = `view.${untrack(() => id)}`;
+  const given = new URLSearchParams(location.search);
+  const kept = load(viewKey);
+  const restored = !VIEW.some((k) => given.has(k)) && !!kept && typeof kept === 'object';
+  const q = new URLSearchParams([
+    ...given,
+    ...(restored
+      ? Object.entries(kept).flatMap(([k, v]) => (VIEW.includes(k) && typeof v === 'string' ? [[k, v]] : []))
+      : []),
+  ]);
   // A setting kept in a link or the browser may be out of date, so it's checked.
   const oneOf = <T extends string>(v: unknown, allowed: readonly T[], usual: T): T =>
     allowed.includes(v as T) ? (v as T) : usual;
@@ -186,6 +197,7 @@
     if (chosenLayer) view.into = chosenLayer;
     if (selected) view.select = selected;
     setQuery(view);
+    keep(viewKey, view);
   });
 
   let shown = $state.raw<{ view: View; placed: Placed } | null>(null);
@@ -344,8 +356,9 @@
   /** Show a model that loaded. The first one picks the starting view; later ones keep it. */
   function show(m: Model) {
     if (!untrack(() => model)) {
-      // Without ?target=, start on the first thing checked for lockouts.
-      target ||= [...m.things].find(([, t]) => t.check.includes('lockout'))?.[0] ?? [...m.things.keys()].at(0) ?? '';
+      // Without ?target=, the user chooses one: any guess would rarely be the thing they came for.
+      // One kept from last time that's gone since is dropped, rather than reported as a link's would be.
+      if (restored && !m.things.has(untrack(() => target))) target = '';
       const t = untrack(() => target);
       if (m.things.has(t)) [expanded, forward] = [expandToDepth(m, [t], DEPTH), new Set()];
     }
@@ -615,7 +628,8 @@
   const scenario = $derived(model?.scenarios.has(scenarioName) ? outcome(model, scenarioName) : undefined);
   const vertical = $derived(direction === 'DOWN');
 
-  const lost = $derived(mode === 'ways' && !!model && !model.things.has(target));
+  const choosing = $derived(mode === 'ways' && !target);
+  const lost = $derived(mode === 'ways' && !!model && !!target && !model.things.has(target));
   const view = $derived.by(() => {
     if (!model) return null;
     if (mode === 'where') return whereView(model, scenario);
@@ -656,7 +670,15 @@
   let seq = 0;
   $effect(() => {
     const v = view;
-    if (!v) return;
+    // A view that's gone stays, marked out of date, unless there's nothing chosen to show.
+    if (!v) {
+      if (choosing) {
+        seq++;
+        shown = null;
+        restarting = true;
+      }
+      return;
+    }
     void tidyKey;
     const opts = { direction, routing, placement };
     const prev = restarting ? null : untrack(() => shown?.placed);
@@ -774,7 +796,7 @@
 
 <div class="app" class:open={tab !== null} style:--panel-w="{Math.min(width, maxWidth)}px">
   <header class="head">
-    <a class="home" href="/" onclick={follow} aria-label="Your models" title="Your models"><Logo /></a>
+    <Home />
     <ModelSwitcher {id} {name} />
     <span class="state muted wide-only" role="status">{saving ? 'Saving…' : dirty ? 'Unsaved changes' : 'Saved'}</span>
     {#if dirty}
@@ -869,10 +891,10 @@
 
   <!--
     What the graph shows: over its top-left corner, or on phones a row of its
-    own, folded to say what's chosen and where edits go.
+    own, folded to say what's chosen and where edits go (open while there's no thing chosen).
   -->
   <div class="lens shrinks wide">
-    {#if phone}
+    {#if phone && !choosing}
       {@const Icon = viewing[2]}
       <button
         class="quiet fold"
@@ -894,7 +916,7 @@
         {#if lensOpen}<ChevronUp />{:else}<ChevronDown />{/if}
       </button>
     {/if}
-    <div id="lens-tools" class="tools" class:hidden={phone && !lensOpen}>
+    <div id="lens-tools" class="tools" class:hidden={phone && !lensOpen && !choosing}>
       <div class="segmented" role="group" aria-label="View">
         {#each MODES as [m, label, Icon] (m)}
           <button class="quiet" aria-pressed={mode === m} title={label} onclick={() => setMode(m)}
@@ -993,7 +1015,14 @@
         {/snippet}
       </FlowView>
     {:else}
-      <p class="status">{error || (model?.things.size === 0 ? 'This model has no things yet.' : 'Loading…')}</p>
+      <p class="status" role={error ? 'alert' : 'status'}>
+        {error ||
+          (model?.things.size === 0
+            ? 'This model has no things yet.'
+            : model && choosing
+              ? 'Choose a thing to see the ways into it.'
+              : 'Loading…')}
+      </p>
     {/if}
   </main>
 
@@ -1157,10 +1186,6 @@
     border-bottom: 1px solid var(--border);
     background: var(--surface);
   }
-  .home {
-    display: inline-flex;
-    padding: var(--space-1);
-  }
   .state {
     font-size: var(--text-sm);
     white-space: nowrap;
@@ -1272,6 +1297,11 @@
     position: relative;
     min-width: 0;
     min-height: 0;
+  }
+  /* Clear of the toolbar over the graph's top. */
+  .canvas > .status {
+    padding-top: 5rem;
+    text-align: center;
   }
   .outdated :global(.svelte-flow__viewport) {
     opacity: 0.4;

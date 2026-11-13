@@ -170,7 +170,8 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
         defaultSrc: ["'none'"],
         scriptSrc: ["'self'"],
         styleSrc: ["'self'"],
-        imgSrc: ["'self'", 'data:', 'blob:'],
+        // The provider's icon, that one URL alone.
+        imgSrc: ["'self'", 'data:', 'blob:', ...(config.oidc?.icon ? [config.oidc.icon.href] : [])],
         connectSrc: ["'self'"],
         workerSrc: ["'self'"],
         fontSrc: ["'self'"],
@@ -330,7 +331,7 @@ export function createApp(store: Store, config: Config, fetch?: Fetch): Hono<Env
     c.json<AuthOptions>({
       registration: canRegister(),
       password: config.password,
-      oidc: config.oidc?.label ?? null,
+      oidc: config.oidc ? { name: config.oidc.name, icon: config.oidc.icon?.href ?? null } : null,
     }),
   );
 

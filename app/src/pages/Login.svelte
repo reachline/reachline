@@ -2,8 +2,11 @@
   import type { AuthOptions } from '../../../server/api.ts';
   import { api, message, takeSsoProblem } from '../lib/api';
   import Brand from '../shell/Brand.svelte';
+  import PasswordInput from '../forms/PasswordInput.svelte';
+  import ProviderIcon from '../shell/ProviderIcon.svelte';
   import { afterLogin } from '../lib/route.svelte.ts';
   import ThemeSwitch from '../shell/ThemeSwitch.svelte';
+  import { keep, load } from '../lib/prefs';
 
   let { onsignin }: { onsignin: (username: string) => void } = $props();
 
@@ -13,6 +16,8 @@
   let creating = $state(false);
   let error = $state(takeSsoProblem());
   let busy = $state(false);
+  let passwordOpen = $state(load('login.password') === true);
+  $effect(() => keep('login.password', passwordOpen));
 
   void api.options().then(
     (o) => (options = o),
@@ -49,34 +54,21 @@
     <Brand />
     <div class="card">
       <h1>{creating ? 'Create an account' : 'Sign in'}</h1>
-      {#if options?.password}
-        <form onsubmit={submit}>
-          <label class="field"
-            >Username
-            <input bind:value={username} autocomplete="username" autocapitalize="none" spellcheck="false" required />
-          </label>
-          <div class="field">
-            <label for="password">Password</label>
-            <input
-              id="password"
-              type="password"
-              bind:value={password}
-              autocomplete={creating ? 'new-password' : 'current-password'}
-              minlength={creating ? 8 : undefined}
-              maxlength="128"
-              aria-describedby={creating ? 'password-hint' : undefined}
-              required
-            />
-            {#if creating}<span class="hint" id="password-hint">At least 8 characters.</span>{/if}
-          </div>
-          <button class="primary" disabled={busy}>
-            {#if creating}{busy ? 'Creating account…' : 'Create account'}{:else}{busy ? 'Signing in…' : 'Sign in'}{/if}
-          </button>
-        </form>
-      {/if}
+      <!-- With a provider too, it's the way in, and the password form is tucked away (open again, on this device, once used). -->
       {#if options?.oidc && !creating}
-        {#if options.password}<p class="or muted">or</p>{/if}
-        <button class={{ primary: !options.password }} disabled={busy} onclick={withProvider}>{options.oidc}</button>
+        <button class="primary" disabled={busy} onclick={withProvider}
+          ><ProviderIcon src={options.oidc.icon} />Sign in with {options.oidc.name ?? 'SSO'}</button
+        >
+      {/if}
+      {#if options?.password}
+        {#if options.oidc && !creating}
+          <details bind:open={passwordOpen}>
+            <summary>Use a username and password</summary>
+            {@render form()}
+          </details>
+        {:else}
+          {@render form()}
+        {/if}
       {/if}
       {#if error}<p class="error" role="alert">{error}</p>{/if}
     </div>
@@ -89,6 +81,31 @@
   </main>
   <footer><ThemeSwitch /></footer>
 </div>
+
+{#snippet form()}
+  <form onsubmit={submit}>
+    <label class="field"
+      >Username
+      <input bind:value={username} autocomplete="username" autocapitalize="none" spellcheck="false" required />
+    </label>
+    <div class="field">
+      <label for="password">Password</label>
+      <PasswordInput
+        id="password"
+        bind:value={password}
+        autocomplete={creating ? 'new-password' : 'current-password'}
+        minlength={creating ? 8 : undefined}
+        maxlength={128}
+        aria-describedby={creating ? 'password-hint' : undefined}
+        required
+      />
+      {#if creating}<span class="hint" id="password-hint">At least 8 characters.</span>{/if}
+    </div>
+    <button class={{ primary: !options?.oidc || creating }} disabled={busy}>
+      {#if creating}{busy ? 'Creating account…' : 'Create account'}{:else}{busy ? 'Signing in…' : 'Sign in'}{/if}
+    </button>
+  </form>
+{/snippet}
 
 <style>
   .screen {
@@ -113,9 +130,6 @@
   }
   .card {
     padding: var(--space-5);
-  }
-  .or {
-    text-align: center;
   }
   .switch {
     display: flex;

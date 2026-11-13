@@ -28,8 +28,10 @@ export interface OidcConfig {
   clientId: string;
   /** None for a public client, which PKCE alone protects. */
   clientSecret?: string;
-  /** What the sign-in button says. */
-  label: string;
+  /** The provider's name, as in "Sign in with Authentik", if it's given one. */
+  name: string | null;
+  /** The provider's icon, shown beside its name; the CSP lets the page load it. */
+  icon: URL | null;
   /** Whether a first sign-in claims the account of the same name, trusting the provider's usernames. */
   linkUsername: boolean;
 }
@@ -82,6 +84,7 @@ const OIDC_SETTINGS = [
   'AUTH_OIDC_CLIENT_ID',
   'AUTH_OIDC_CLIENT_SECRET',
   'AUTH_OIDC_LABEL',
+  'AUTH_OIDC_ICON',
   'AUTH_OIDC_LINK_USERNAME',
 ];
 
@@ -98,13 +101,18 @@ function methods(env: NodeJS.ProcessEnv): Pick<Config, 'password' | 'oidc'> {
 
   const issuer = new URL(required(env, 'AUTH_OIDC_ISSUER'));
   if (issuer.protocol !== 'https:' && issuer.protocol !== 'http:') throw new Error('AUTH_OIDC_ISSUER must be http(s)');
+  const iconUrl = setting(env, 'AUTH_OIDC_ICON');
+  const icon = iconUrl === undefined ? null : URL.parse(iconUrl);
+  if (iconUrl !== undefined && (!icon || (icon.protocol !== 'https:' && icon.protocol !== 'http:')))
+    throw new Error('AUTH_OIDC_ICON must be an http(s) URL, such as https://auth.example.com/icon.png');
   return {
     password: list.includes('password'),
     oidc: {
       issuer,
       clientId: required(env, 'AUTH_OIDC_CLIENT_ID'),
       clientSecret: setting(env, 'AUTH_OIDC_CLIENT_SECRET'),
-      label: setting(env, 'AUTH_OIDC_LABEL') ?? 'Sign in with SSO',
+      name: setting(env, 'AUTH_OIDC_LABEL') ?? null,
+      icon,
       linkUsername: flag(env, 'AUTH_OIDC_LINK_USERNAME', true),
     },
   };

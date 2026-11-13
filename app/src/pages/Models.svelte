@@ -5,6 +5,7 @@
   import type { ModelSummary } from '../../../server/api.ts';
   import { api, message } from '../lib/api';
   import { EMPTY } from '../lib/data';
+  import { keep } from '../lib/prefs';
   import { follow, go } from '../lib/route.svelte.ts';
   import Confirm from '../dialogs/Confirm.svelte';
   import TopBar from '../shell/TopBar.svelte';
@@ -70,6 +71,7 @@
   function remove(m: ModelSummary) {
     void attempt(async () => {
       await api.remove(m.id);
+      keep(`view.${m.id}`, undefined);
       await refresh();
     });
   }

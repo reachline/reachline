@@ -323,6 +323,22 @@ button.select:disabled {
 .listbox[popover] [role='option'] {
   font-family: inherit;
 }
+/* A field with an .icon button inside its end (PasswordInput's, to show what's typed). */
+.reveal {
+  position: relative;
+  display: grid;
+  font-weight: 400;
+}
+.reveal input {
+  padding-right: var(--control-h);
+}
+.reveal button {
+  position: absolute;
+  inset: 1px 1px 1px auto;
+  width: calc(var(--control-h) - 2px);
+  min-height: 0;
+  border-radius: calc(var(--radius) - 1px);
+}
 /* Its label beside it instead, in a toolbar. */
 .field.inline {
   display: flex;

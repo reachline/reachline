@@ -15,8 +15,8 @@ export interface AuthOptions {
   registration: boolean;
   /** Whether users may sign in with a password. */
   password: boolean;
-  /** The label of the button to sign in with the provider, if there is one. */
-  oidc: string | null;
+  /** The provider to sign in with, if there is one, and its name and icon, if it's given them. */
+  oidc: { name: string | null; icon: string | null } | null;
 }
 
 /**
