@@ -72,8 +72,10 @@ async function chooseThing(page: Page, id: string) {
   await page.locator('.svelte-flow__node').first().waitFor();
 }
 
-/** WCAG 2.2 AA, as far as axe can tell. */
+/** WCAG 2.2 AA, as far as axe can tell, once what's fading in has (it would judge the faded colours). */
 async function passesAxe(page: Page, where: string) {
+  // One cut short (a hover ending, say) rejects; it's settled all the same.
+  await page.evaluate(() => Promise.allSettled(document.getAnimations().map((a) => a.finished)));
   const { violations } = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze();
@@ -142,7 +144,7 @@ test('the graph, from the keyboard and the toolbar, and what a reload keeps', as
   await page.getByRole('button', { name: 'Where things live' }).click();
   await page.locator('.svelte-flow__node').first().waitFor();
   await page.getByRole('button', { name: 'Layout' }).click();
-  await page.getByLabel('Direction').selectOption('DOWN');
+  await page.getByRole('button', { name: 'Top to bottom' }).click();
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Legend' }).click();
   await page.keyboard.press('Escape');
@@ -165,7 +167,10 @@ test('the graph, from the keyboard and the toolbar, and what a reload keeps', as
   assert.equal(width, '400');
   // So does the view (kept in the URL) and the layout (kept by the browser).
   assert.equal(await page.getByRole('button', { name: 'Where things live' }).getAttribute('aria-pressed'), 'true');
-  assert.equal(await page.getByLabel('Direction').inputValue(), 'DOWN');
+  assert.equal(
+    await page.getByRole('button', { name: 'Top to bottom', includeHidden: true }).getAttribute('aria-pressed'),
+    'true',
+  );
 
   // History compares the first revision with the text now, and restores it.
   await page.getByRole('button', { name: 'History' }).click();

@@ -9,7 +9,7 @@
   import { keep, load } from '../lib/prefs';
   import LayerPicker from '../shell/LayerPicker.svelte';
   import Picker, { type PickerGroup } from '../shell/Picker.svelte';
-  import type { Mode } from './nodes';
+  import { plural, type Mode } from './nodes';
 
   interface Props {
     model: Model | null;
@@ -84,7 +84,6 @@
   });
   const scenarioGroups = $derived.by((): PickerGroup[] => {
     const all = [...(model?.scenarios ?? [])].map(([id, sc]) => ({ id, kind: sc.kind, summary: summary(id, sc) }));
-    const PLURAL = { lockout: 'lockouts', breach: 'breaches' };
     return [
       {
         rows: [
@@ -92,7 +91,7 @@
           ...all.filter((r) => r.id === BASELINE),
         ],
       },
-      ...SCENARIO_KINDS.map((k) => ({ name: PLURAL[k], rows: all.filter((r) => r.id !== BASELINE && r.kind === k) })),
+      ...SCENARIO_KINDS.map((k) => ({ name: plural(k), rows: all.filter((r) => r.id !== BASELINE && r.kind === k) })),
     ].filter((g) => g.rows.length);
   });
   const planGroups = $derived([{ rows: planList.map((p) => ({ id: p.name, summary: p.note || undefined })) }]);

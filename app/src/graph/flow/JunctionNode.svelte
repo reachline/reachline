@@ -18,7 +18,7 @@
 <style>
   .junction {
     width: 100%;
-    animation: appear 400ms ease-out;
+    animation: appear 250ms ease-out;
     height: 100%;
     border-radius: 50%;
     display: grid;

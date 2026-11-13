@@ -3,7 +3,7 @@
   // its form), and its status in the scenario.
   import { fmtWhy } from '../../../engine/model.ts';
   import { isJunction, type Outcome, type VNode } from '../../../engine/view.ts';
-  import type { Side } from '../graph/nodes';
+  import { plural, type Side } from '../graph/nodes';
   import type { Model } from '../lib/data';
   import type { Created, Editing, Off } from '../lib/edit';
   import FromPlan from '../forms/FromPlan.svelte';
@@ -77,7 +77,7 @@
           />
         {/key}
       {:else}
-        {#if thing.check.length}<p class="muted">Checked for {thing.check.map((c) => `${c}s`).join(' and ')}</p>{/if}
+        {#if thing.check.length}<p class="muted">Checked for {thing.check.map(plural).join(' and ')}</p>{/if}
         {#if thing.note}<p>{thing.note}</p>{/if}
         {#if thing.todo}<p class="todo">To do: {thing.todo}</p>{/if}
       {/if}

@@ -5,6 +5,11 @@ import { isJunction, type EdgeKind, type View, type VNode } from '../../../engin
 /** A node's ways in, or what it's a way into. */
 export type Side = 'in' | 'out';
 
+const PLURALS: Record<string, string | undefined> = { breach: 'breaches' };
+
+/** A check, or a scenario's kind, in the plural: "checked for breaches". */
+export const plural = (kind: string): string => PLURALS[kind] ?? `${kind}s`;
+
 /** What the graph shows: one thing's ways in, where things live, or everything. */
 export type Mode = 'ways' | 'where' | 'all';
 
@@ -42,7 +47,7 @@ const JUNCTIONS = { and: 'all of these (and)', or: 'any one of these (or)', unkn
 export function describe(n: VNode, scenarioKind: string): string {
   if (n.kind === 'and' || n.kind === 'or' || n.kind === 'unknown') return JUNCTIONS[n.kind];
   const parts = [n.label, n.kind];
-  if (n.flag) parts.push(`checked for ${scenarioKind}s`);
+  if (n.flag) parts.push(`checked for ${plural(scenarioKind)}`);
   const v = verdict(n, scenarioKind);
   if (v) parts.push(v.words);
   if (n.row) parts.push(`flagged: ${n.row.toLowerCase()}`);

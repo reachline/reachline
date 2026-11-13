@@ -25,6 +25,8 @@
     stats,
   }: Props = $props();
   /* eslint-enable @typescript-eslint/no-useless-default-assignment */
+
+  const uid = $props.id();
 </script>
 
 <button class="quiet" popovertarget="layout" title="Layout"
@@ -32,54 +34,76 @@
 >
 <div id="layout" class="popup" popover>
   <h2>Layout</h2>
-  <label class="field"
-    >Direction
-    <select
-      value={direction}
-      onchange={(e) => {
-        direction = e.currentTarget.value as Direction;
-        onrestart();
-      }}
-    >
-      <option value="RIGHT">Left to right</option>
-      <option value="DOWN">Top to bottom</option>
-    </select>
-  </label>
-  <label class="field"
-    >Edges
-    <select
-      value={routing}
-      onchange={(e) => {
-        routing = e.currentTarget.value as Routing;
-        ontidy();
-      }}
-    >
-      <option value="ORTHOGONAL">Right angles</option>
-      <option value="SPLINES">Curves</option>
-      <option value="POLYLINE">Straight segments</option>
-    </select>
-  </label>
-  <label class="field"
-    >Placement
-    <select
-      value={placement}
-      onchange={(e) => {
-        placement = e.currentTarget.value as Placement;
-        ontidy();
-      }}
-    >
-      <option value="BRANDES_KOEPF">Brandes–Köpf (fast)</option>
-      <option value="NETWORK_SIMPLEX">Network simplex</option>
-    </select>
-  </label>
+  {@render choice(
+    'Direction',
+    [
+      ['RIGHT', 'Left to right'],
+      ['DOWN', 'Top to bottom'],
+    ],
+    direction,
+    (v) => {
+      direction = v as Direction;
+      onrestart();
+    },
+  )}
+  {@render choice(
+    'Edges',
+    [
+      ['ORTHOGONAL', 'Right angles'],
+      ['SPLINES', 'Curves'],
+      ['POLYLINE', 'Straight'],
+    ],
+    routing,
+    (v) => {
+      routing = v as Routing;
+      ontidy();
+    },
+  )}
+  {@render choice(
+    'Placement',
+    [
+      ['BRANDES_KOEPF', 'Brandes–Köpf'],
+      ['NETWORK_SIMPLEX', 'Network simplex'],
+    ],
+    placement,
+    (v) => {
+      placement = v as Placement;
+      ontidy();
+    },
+    'Brandes–Köpf is the faster.',
+  )}
   {#if stats}
     <p class="muted stats">{stats.nodes} nodes, {stats.edges} edges, laid out in {stats.ms} ms</p>
   {/if}
 </div>
 
+<!-- One of a few options, all in view: a .segmented group, as the toolbar's View is. -->
+{#snippet choice(
+  label: string,
+  options: [string, string][],
+  value: string,
+  onchoose: (value: string) => void,
+  hint?: string,
+)}
+  {@const id = `${uid}-${label.toLowerCase()}`}
+  <div class="field">
+    <span {id}>{label}</span>
+    <div class="segmented" role="group" aria-labelledby={id} aria-describedby={hint ? `${id}-hint` : undefined}>
+      {#each options as [v, words] (v)}
+        <button class="quiet" aria-pressed={value === v} onclick={() => value !== v && onchoose(v)}>{words}</button>
+      {/each}
+    </div>
+    {#if hint}<span id="{id}-hint" class="hint">{hint}</span>{/if}
+  </div>
+{/snippet}
+
 <style>
-  #layout {
-    min-width: 14rem;
+  /* As wide as the popup, its options sharing the width, so the rows line up. */
+  .segmented {
+    display: flex;
+  }
+  .segmented button {
+    flex: 1 1 auto;
   }
   #layout h2 {
     font-size: var(--text-md);

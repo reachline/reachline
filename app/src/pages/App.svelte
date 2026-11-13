@@ -887,8 +887,9 @@
         {/each}
       </div>
     </div>
+    <!-- The card's left edge, the whole way down, tabs and all. -->
+    {#if tab !== null}<Resizer bind:width min={PANEL.min} max={maxWidth} usual={PANEL.usual} wide={PANEL.wide} />{/if}
     <aside id="panel" class="panel" class:hidden={tab === null} aria-label="Panel">
-      <Resizer bind:width min={PANEL.min} max={maxWidth} usual={PANEL.usual} wide={PANEL.wide} />
       {#if tab === 'details'}
         <Details
           {model}
@@ -1097,6 +1098,7 @@
   }
   /* Over the graph's top-right corner, and open, down its right side. */
   .side {
+    position: relative;
     grid-area: canvas;
     z-index: 5;
     align-self: start;
@@ -1126,6 +1128,11 @@
   }
   .app.open .tabs {
     border-bottom: 1px solid var(--border);
+  }
+  /* Its resize handle, down the card's straight edge, clear of its rounded corners. */
+  .side > :global(.resizer) {
+    top: var(--radius-lg);
+    bottom: var(--radius-lg);
   }
   .canvas {
     grid-area: canvas;
@@ -1223,7 +1230,7 @@
       padding: 2px;
       border: 1px solid var(--border);
     }
-    .panel :global(.resizer) {
+    .side > :global(.resizer) {
       display: none;
     }
   }

@@ -76,7 +76,7 @@
 <style>
   .thing {
     position: relative;
-    animation: appear 400ms ease-out;
+    animation: appear 250ms ease-out;
     width: 100%;
     height: 100%;
     display: flex;
@@ -87,6 +87,8 @@
     --fill: var(--surface);
     --stroke: var(--node-stroke);
     --sw: 1.5px;
+    /* A scenario or plan's change shows as the nodes it changes changing. */
+    transition: color 200ms ease;
   }
   .outline {
     position: absolute;
@@ -97,6 +99,9 @@
     fill: var(--fill);
     stroke: var(--stroke);
     stroke-width: var(--sw);
+    transition:
+      fill 200ms ease,
+      stroke 200ms ease;
   }
   .kind {
     position: relative;

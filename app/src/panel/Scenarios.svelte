@@ -4,6 +4,7 @@
   // it leaves worse off.
   import { BASELINE, type Row } from '../../../engine/model.ts';
   import type { Outcome } from '../../../engine/view.ts';
+  import { plural } from '../graph/nodes';
   import { summary, type Model } from '../lib/data';
   import type { Created, Editing, Off } from '../lib/edit';
   import FromPlan from '../forms/FromPlan.svelte';
@@ -78,7 +79,7 @@
         <span id="{uid}-verdicts">{heading}</span><Tip
           id="{uid}-tip"
           about="what’s listed"
-          text={`What’s checked for ${kind}s: what you care about for its own sake. The keys, devices and accounts that lead to it are under Also affected.`}
+          text={`What’s checked for ${plural(kind)}: what you care about for its own sake. The keys, devices and accounts that lead to it are under Also affected.`}
         />
       </h3>
       {#if !checked}
