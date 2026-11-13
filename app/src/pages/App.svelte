@@ -1,16 +1,10 @@
 <script lang="ts">
   import {
-    ChevronDown,
-    ChevronUp,
     Download,
     FileClock,
     FileCode,
     Info,
     Layers,
-    LogIn,
-    MapPin,
-    Network,
-    Pencil,
     Plus,
     Redo2,
     RotateCcw,
@@ -21,7 +15,7 @@
   } from '@lucide/svelte';
   import { untrack } from 'svelte';
   import { expandToDepth, outcome, waysInView, whereView, type View } from '../../../engine/view.ts';
-  import type { Side } from '../graph/nodes';
+  import type { Mode, Side } from '../graph/nodes';
   import AddDialog from '../dialogs/AddDialog.svelte';
   import type { Question } from '../dialogs/confirm';
   import ConfirmEdit from '../dialogs/ConfirmEdit.svelte';
@@ -59,7 +53,7 @@
   import LayoutMenu from '../graph/LayoutMenu.svelte';
   import Legend from '../graph/Legend.svelte';
   import { layout, placeLocally, type Direction, type Placed, type Placement, type Routing } from '../graph/layout';
-  import { BASELINE, KINDS, SCENARIO_KINDS } from '../../../engine/model.ts';
+  import { KINDS, SCENARIO_KINDS } from '../../../engine/model.ts';
   import type { ScenarioChange } from '../../../engine/report.ts';
   import Plans from '../panel/Plans.svelte';
   import Scenarios from '../panel/Scenarios.svelte';
@@ -70,9 +64,10 @@
   import { check, definitionOf } from '../lib/check';
   import { download, exportGraph } from '../graph/export';
   import { format } from '../lib/format';
-  import { compareTexts, ReachError, summary, tryLoad, type Model } from '../lib/data';
+  import { compareTexts, ReachError, tryLoad, type Model } from '../lib/data';
   import ModelSwitcher from '../shell/ModelSwitcher.svelte';
-  import Picker, { type PickerGroup } from '../shell/Picker.svelte';
+  import Lens from '../graph/Lens.svelte';
+  import LayerPicker from '../shell/LayerPicker.svelte';
   import { keep, load } from '../lib/prefs';
   import Resizer from '../shell/Resizer.svelte';
   import { beforeLeave, setQuery } from '../lib/route.svelte.ts';
@@ -80,7 +75,6 @@
 
   let { id, user, onsignout }: { id: number; user: string; onsignout: () => void } = $props();
 
-  type Mode = 'ways' | 'where' | 'all';
   const DEPTH = 2;
 
   // What the graph shows is kept in the URL, e.g. ?target=mail&scenario=nas_dies,
@@ -151,10 +145,7 @@
   const maxWidth = $derived(Math.max(PANEL.min, Math.round(innerWidth * 0.7)));
   $effect(() => keep('panel.tab', tab));
   $effect(() => keep('panel.width', width));
-  // On phones, what the graph shows folds into one row, open or not as this device last had it.
   const phone = $derived(innerWidth <= 760);
-  let lensOpen = $state(load('lens.open') === true);
-  $effect(() => keep('lens.open', lensOpen));
   // Once opened, the editor stays mounted (hidden when closed) to keep its undo history.
   let editorOpened = $state(untrack(() => tab) === 'text');
   let editor = $state<{ undo: () => void; redo: () => void }>();
@@ -630,6 +621,16 @@
 
   const choosing = $derived(mode === 'ways' && !target);
   const lost = $derived(mode === 'ways' && !!model && !!target && !model.things.has(target));
+  // Why what's shown is out of date, if it is.
+  const outdated = $derived(
+    !shown || !(invalid || lost)
+      ? ''
+      : invalid
+        ? planError
+          ? 'the plans that are on don’t load'
+          : 'the text has errors'
+        : `${target} is no longer in the model`,
+  );
   const view = $derived.by(() => {
     if (!model) return null;
     if (mode === 'where') return whereView(model, scenario);
@@ -745,59 +746,6 @@
       ? { why: 'The plans that are on don’t load', fix: 'Show the plans', onfix: () => showTab('plans') }
       : { why: 'The text has errors', fix: 'Show the text', onfix: () => showTab('text') },
   );
-
-  // What the toolbar's pickers offer.
-  const thingGroups = $derived.by((): PickerGroup[] => {
-    const things = [...(model?.things ?? [])];
-    const byName = (a: string, b: string) => a.localeCompare(b);
-    return [...KINDS]
-      .sort(byName)
-      .map((k) => ({
-        name: k,
-        kind: k,
-        rows: things
-          .filter(([, t]) => t.kind === k)
-          .map(([id]) => id)
-          .sort(byName)
-          .map((id) => ({ id })),
-      }))
-      .filter((g) => g.rows.length);
-  });
-  const scenarioGroups = $derived.by((): PickerGroup[] => {
-    const all = [...(model?.scenarios ?? [])].map(([id, sc]) => ({ id, kind: sc.kind, summary: summary(id, sc) }));
-    const PLURAL = { lockout: 'lockouts', breach: 'breaches' };
-    return [
-      {
-        rows: [
-          { id: '', label: 'none', summary: 'the graph without a scenario' },
-          ...all.filter((r) => r.id === BASELINE),
-        ],
-      },
-      ...SCENARIO_KINDS.map((k) => ({ name: PLURAL[k], rows: all.filter((r) => r.id !== BASELINE && r.kind === k) })),
-    ].filter((g) => g.rows.length);
-  });
-  const planGroups = $derived([{ rows: planList.map((p) => ({ id: p.name, summary: p.note || undefined })) }]);
-  const layerGroups = $derived([
-    {
-      rows: [
-        { id: '', label: 'the model' },
-        ...planList.map((p) => ({ id: p.name, label: `plan ${p.name}`, summary: p.note || undefined })),
-      ],
-    },
-  ]);
-
-  const MODES = [
-    ['ways', 'Ways in', LogIn],
-    ['where', 'Where things live', MapPin],
-    ['all', 'Everything', Network],
-  ] as const;
-  const viewing = $derived(MODES.find(([m]) => m === mode) ?? MODES[0]);
-  // What the folded row says is chosen. The plan edits go into is on, and said after.
-  const chosen = $derived([
-    ...(mode === 'ways' && target ? [['Thing', target]] : []),
-    ...(scenarioName ? [['Scenario', scenarioName]] : []),
-    ...plans.filter((p) => p !== layer).map((p) => ['Plan', p]),
-  ]);
 </script>
 
 <svelte:window {onkeydown} {onbeforeunload} bind:innerWidth />
@@ -817,7 +765,7 @@
       >
     {/if}
     <span class="spacer"></span>
-    {#if planList.length && !phone}{@render layerField()}{/if}
+    {#if planList.length && !phone}<LayerPicker plans={planList} {layer} onchoose={setLayer} />{/if}
     <button class="quiet" popovertarget="add-menu" disabled={!editing}
       ><Plus /><span class="wide-only">Add</span></button
     >
@@ -897,74 +845,25 @@
     </div>
   {/if}
 
-  <!--
-    What the graph shows: over its top-left corner, or on phones a row of its
-    own, folded to say what's chosen and where edits go (open while there's no thing chosen).
-  -->
-  <div class="lens shrinks wide">
-    {#if phone && !choosing}
-      {@const Icon = viewing[2]}
-      <button
-        class="quiet fold"
-        aria-expanded={lensOpen}
-        aria-controls="lens-tools"
-        onclick={() => (lensOpen = !lensOpen)}
-      >
-        <Icon /><span class:visually-hidden={chosen.length > 0}>{viewing[1]}</span>
-        <span class="chosen">
-          {#each chosen as [what, id], i (what + id)}
-            {#if i}<span class="sep" aria-hidden="true">·</span>{/if}<span class="visually-hidden">{what}</span><span
-              class="mono">{id}</span
-            >
-          {/each}
-        </span>
-        {#if layer !== null}
-          <span class="into"><Pencil /><span class="visually-hidden">Edits go into plan</span>{layer}</span>
-        {/if}
-        {#if lensOpen}<ChevronUp />{:else}<ChevronDown />{/if}
-      </button>
-    {/if}
-    <div id="lens-tools" class="tools floating" class:hidden={phone && !lensOpen && !choosing}>
-      <div class="segmented" role="group" aria-label="View">
-        {#each MODES as [m, label, Icon] (m)}
-          <button class="quiet" aria-pressed={mode === m} title={label} onclick={() => setMode(m)}
-            ><Icon /><span class="wide-only">{label}</span></button
-          >
-        {/each}
-      </div>
-      {#if mode === 'ways'}
-        <Picker
-          label="Thing"
-          groups={thingGroups}
-          chosen={[target]}
-          filter
-          onchoose={(id: string) => {
-            waysInto(id);
-            select(id);
-          }}
-        />
-      {/if}
-      <Picker
-        label="Scenario"
-        groups={scenarioGroups}
-        chosen={[scenarioName]}
-        onchoose={(name: string) => (scenarioName = name)}
-      />
-      {#if planList.length}
-        <Picker label="Plans" groups={planGroups} chosen={plans} multiple onchoose={turn} />
-      {/if}
-      {#if planList.length && phone}{@render layerField()}{/if}
-    </div>
-    {#if shown && (invalid || lost)}
-      <p class="notice badge" role="status">
-        Out of date: {invalid
-          ? planError
-            ? 'the plans that are on don’t load'
-            : 'the text has errors'
-          : `${target} is no longer in the model`}
-      </p>
-    {/if}
-  </div>
+  <Lens
+    {model}
+    {mode}
+    {target}
+    scenario={scenarioName}
+    {planList}
+    {plans}
+    {layer}
+    {phone}
+    {outdated}
+    onmode={setMode}
+    onthing={(id: string) => {
+      waysInto(id);
+      select(id);
+    }}
+    onscenario={(name: string) => (scenarioName = name)}
+    onplan={turn}
+    onlayer={setLayer}
+  />
 
   <!--
     The panel and its tabs, one surface over the graph. Closed, the tabs alone,
@@ -1073,7 +972,7 @@
     </aside>
   </div>
 
-  <main class="canvas" class:outdated={shown && (invalid || lost)}>
+  <main class="canvas" class:outdated={!!outdated}>
     {#if shown}
       <FlowView
         view={shown.view}
@@ -1154,19 +1053,6 @@
 />
 <ConfirmEdit {asking} onconfirm={confirmed} onclose={() => (asking = null)} />
 
-<!-- Add and every form write here, so it shows whenever there's a choice: in the header, or on phones the folded row. -->
-{#snippet layerField()}
-  <!-- In the accent while edits go into a plan, rather than the model. -->
-  <span class="layer" class:plan={layer !== null}>
-    <Picker
-      label="Edits go into"
-      groups={layerGroups}
-      chosen={[layer ?? '']}
-      onchoose={(id: string) => setLayer(id || null)}
-    />
-  </span>
-{/snippet}
-
 <style>
   /*
    * The document's header across the top, and under it the graph, with what
@@ -1198,68 +1084,16 @@
   .spacer {
     flex: 1;
   }
-  .layer.plan :global(.picker button) {
-    border-color: var(--accent);
-    color: var(--accent);
-  }
   .banner {
     grid-area: banner;
     padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--border);
   }
-  /* Across the graph's top, letting clicks through to it around the bar. */
-  .lens {
+  /* What the graph shows, across its top. */
+  .app > :global(.lens) {
     grid-area: canvas;
     z-index: 5;
     align-self: start;
-    display: grid;
-    justify-items: start;
-    gap: var(--space-2);
-    min-width: 0;
-    padding: var(--space-2);
-    pointer-events: none;
-  }
-  /* Room for the tabs beside it, at the right, while they float too. */
-  .app:not(.open) .lens {
-    padding-right: 13rem;
-  }
-  .tools {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    gap: var(--space-2) var(--space-3);
-    max-width: 100%;
-    padding: var(--space-1);
-    pointer-events: auto;
-  }
-  .tools .segmented {
-    padding: 0;
-    border: none;
-  }
-  /* On phones, the toolbar folded: what's chosen, giving way at its end, and where edits go. */
-  .fold {
-    justify-self: stretch;
-    justify-content: flex-start;
-    min-width: 0;
-    padding: 0 var(--space-2);
-  }
-  .chosen {
-    min-width: 0;
-    overflow: hidden;
-    text-overflow: ellipsis;
-  }
-  .sep {
-    margin-inline: 0.5ch;
-  }
-  .into {
-    display: inline-flex;
-    align-items: center;
-    gap: var(--space-1);
-    color: var(--accent);
-    font-family: var(--code-font);
-  }
-  .fold > :global(.lucide:last-child) {
-    margin-left: auto;
   }
   /* Over the graph's top-right corner, and open, down its right side. */
   .side {
@@ -1307,12 +1141,6 @@
   .outdated :global(.svelte-flow__viewport) {
     opacity: 0.4;
   }
-  .badge {
-    max-width: 100%;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
   .panel {
     position: relative;
     min-width: 0;
@@ -1328,7 +1156,11 @@
 
   /* Wide, the open panel is a card over the graph's right side, which runs on under it. */
   @media (min-width: 761px) {
-    .app.open .lens,
+    /* Room beside it for the tabs while they float too, or the card. */
+    .app:not(.open) > :global(.lens) {
+      padding-right: 13rem;
+    }
+    .app.open > :global(.lens),
     .app.open .canvas > .status {
       padding-right: var(--panel-w);
     }
@@ -1371,19 +1203,8 @@
       display: none;
     }
     /* What the graph shows is a row of its own. */
-    .lens,
-    .app:not(.open) .lens {
+    .app > :global(.lens) {
       grid-area: lens;
-      padding: var(--space-2) var(--space-3);
-      border-bottom: 1px solid var(--border);
-      background: var(--surface);
-      pointer-events: auto;
-    }
-    .tools {
-      padding: 0;
-      border: none;
-      border-radius: 0;
-      box-shadow: none;
     }
     /* Open, the panel in the graph's place, its tabs a row of their own. */
     .app.open .side {

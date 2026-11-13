@@ -5,6 +5,9 @@ import { isJunction, type EdgeKind, type View, type VNode } from '../../../engin
 /** A node's ways in, or what it's a way into. */
 export type Side = 'in' | 'out';
 
+/** What the graph shows: one thing's ways in, where things live, or everything. */
+export type Mode = 'ways' | 'where' | 'all';
+
 /**
  * A node's status in words, and the glyph that shows it beside the name so
  * it isn't told by colour alone. The glyph follows the colour: ✓ where the
