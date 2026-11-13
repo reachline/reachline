@@ -2,7 +2,7 @@
   import { Background, MarkerType, Panel, SvelteFlow, type Edge, type Node } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import { isJunction, type View } from '../../../engine/view.ts';
-  import { describe, edgesOf, type Side } from './nodes';
+  import { describe, drawnAs, edgesOf, type Side } from './nodes';
   import { untrack, type Snippet } from 'svelte';
   import JunctionNode from './flow/JunctionNode.svelte';
   import RoutedEdge from './flow/RoutedEdge.svelte';
@@ -102,6 +102,7 @@
     });
   });
 
+  const as = $derived(drawnAs(view));
   const laidEdges = $derived(
     view.edges.map((e): Edge => ({
       id: e.id,
@@ -109,7 +110,14 @@
       target: e.target,
       type: 'routed',
       selectable: false,
-      data: { kind: e.kind, live: e.live, lit: false, points: placed.edges.get(e.id) ?? [], routing: placed.routing },
+      data: {
+        kind: e.kind,
+        as: as.get(e.id),
+        live: e.live,
+        lit: false,
+        points: placed.edges.get(e.id) ?? [],
+        routing: placed.routing,
+      },
       markerEnd:
         e.kind === 'part'
           ? undefined
@@ -117,7 +125,7 @@
               type: MarkerType.ArrowClosed,
               width: 14,
               height: 14,
-              color: e.live ? `var(--e-${e.kind})` : 'var(--e-dead)',
+              color: e.live ? `var(--e-${e.kind})` : 'var(--gone-stroke)',
             },
     })),
   );
@@ -170,6 +178,10 @@
   }
   .pane :global(.svelte-flow) {
     --xy-background-color: var(--bg);
+  }
+  /* As far in from the edges as what else floats over the graph. */
+  .pane :global(.svelte-flow__panel) {
+    margin: var(--space-2);
   }
   .pane :global(.svelte-flow__node) {
     font: var(--graph-font);

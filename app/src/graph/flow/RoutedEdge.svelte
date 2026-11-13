@@ -6,6 +6,8 @@
 
   interface Data extends Record<string, unknown> {
     kind: EdgeKind;
+    /** The kind it's drawn as: a part, as the edge its AND/OR leads into (drawnAs in nodes.ts). */
+    as: Exclude<EdgeKind, 'part'>;
     live: boolean;
     /** One of the selected node's edges. */
     lit: boolean;
@@ -20,7 +22,14 @@
 
 <!-- A lit edge has a gap in the background's colour around it where others cross it. -->
 {#if d.lit}<path class="sf-edge under" d={path} />{/if}
-<path class="sf-edge k-{d.kind}" class:dead={!d.live} class:lit={d.lit} d={path} marker-end={markerEnd} />
+<path
+  class="sf-edge k-{d.as}"
+  class:part={d.kind === 'part'}
+  class:dead={!d.live}
+  class:lit={d.lit}
+  d={path}
+  marker-end={markerEnd}
+/>
 
 <style>
   .sf-edge {
@@ -46,12 +55,11 @@
     stroke: var(--e-mirror);
     stroke-dasharray: 8 3 2 3;
   }
-  .k-part {
-    stroke: var(--e-part);
+  .part {
     stroke-width: 1;
   }
   .dead {
-    stroke: var(--e-dead);
+    stroke: var(--gone-stroke);
     stroke-width: 1;
   }
   .lit {

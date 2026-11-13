@@ -9,7 +9,7 @@
     ['recovery', 'recovery'],
     ['needs', 'needs'],
     ['mirror', 'mirror'],
-    ['part', 'into AND/OR'],
+    ['part', 'into AND/OR: thin, as the edge it leads into'],
     ['dead', 'can’t carry access in the scenario'],
   ] as const;
 
@@ -92,11 +92,11 @@
     stroke-dasharray: 8 3 2 3;
   }
   .e-part {
-    stroke: var(--e-part);
+    stroke: var(--e-access);
     stroke-width: 1;
   }
   .e-dead {
-    stroke: var(--e-dead);
+    stroke: var(--gone-stroke);
     stroke-width: 1;
   }
   .swatch {
@@ -117,7 +117,7 @@
     background: var(--bad-fill);
   }
   .st-maybe {
-    background: var(--maybe-fill);
+    background: var(--warning-bg);
   }
   .st-start {
     border-color: var(--start-stroke);

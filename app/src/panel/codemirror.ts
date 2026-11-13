@@ -9,8 +9,8 @@ const theme = EditorView.theme({
   '&': { height: '100%', color: 'var(--text)', backgroundColor: 'var(--surface)' },
   '.cm-scroller': { fontFamily: 'var(--code-font)', fontSize: 'var(--code-size)', lineHeight: '1.5' },
   '.cm-gutters': { color: 'var(--muted)', backgroundColor: 'var(--surface)', borderRight: '1px solid var(--border)' },
-  '.cm-activeLine': { backgroundColor: 'var(--active-line)' },
-  '.cm-activeLineGutter': { backgroundColor: 'var(--active-line)' },
+  '.cm-activeLine': { backgroundColor: 'var(--hover)' },
+  '.cm-activeLineGutter': { backgroundColor: 'var(--hover)' },
   '.cm-cursor': { borderLeftColor: 'var(--text)' },
   // Doubled up to outrank CodeMirror's own light and dark styles.
   '&.cm-editor .cm-selectionBackground, &.cm-focused > .cm-scroller > .cm-selectionLayer .cm-selectionBackground': {
@@ -21,7 +21,7 @@ const theme = EditorView.theme({
     backgroundColor: 'var(--surface)',
     border: '1px solid var(--border)',
   },
-  '&.cm-editor .cm-collapsedLines': { color: 'var(--muted)', background: 'var(--active-line)' },
+  '&.cm-editor .cm-collapsedLines': { color: 'var(--muted)', background: 'var(--hover)' },
   '.cm-foldGutter .cm-gutterElement': { padding: '0 4px 0 1px' },
   '&.cm-editor .cm-foldPlaceholder': {
     color: 'var(--muted)',
@@ -33,7 +33,7 @@ const theme = EditorView.theme({
 });
 
 const highlight = HighlightStyle.define([
-  { tag: tags.definition(tags.propertyName), color: 'var(--syn-key)' },
+  { tag: tags.definition(tags.propertyName), color: 'var(--accent)' },
   { tag: [tags.string, tags.special(tags.string)], color: 'var(--syn-string)' },
   { tag: [tags.lineComment, tags.separator, tags.meta], color: 'var(--muted)' },
 ]);

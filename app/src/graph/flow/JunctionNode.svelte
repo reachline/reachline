@@ -27,14 +27,14 @@
     font-weight: 600;
     color: var(--muted);
     background: var(--surface);
-    border: 1.5px solid var(--k-junction);
+    border: 1.5px solid var(--node-stroke);
   }
   /* Shaped like a thing: the centre of its border on outline()'s corners (shapes.ts). */
   .k-unknown {
     border-radius: 7.75px;
     font-size: 10px;
     color: var(--warning);
-    background: var(--maybe-fill);
+    background: var(--warning-bg);
     border: 1.5px dashed var(--maybe-stroke);
   }
   /* Selected: a ring in the text colour, as on things. */

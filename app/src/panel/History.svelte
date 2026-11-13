@@ -103,7 +103,7 @@
   .list {
     max-height: 10rem;
     margin: 0;
-    padding: 4px 0;
+    padding: var(--space-1) 0;
     overflow-y: auto;
     border-bottom: 1px solid var(--border);
     list-style: none;
@@ -117,9 +117,9 @@
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 4px 10px;
+    gap: var(--space-1) var(--space-2);
     margin: 0;
-    padding: 6px 12px;
+    padding: var(--space-2) var(--space-3);
     border-bottom: 1px solid var(--border);
   }
   .diff {

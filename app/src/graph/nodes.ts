@@ -1,6 +1,6 @@
 // How the graph's nodes read: a status's glyph and words, a node's name for
 // screen readers, and the edges that go with a node when it's selected.
-import { isJunction, type View, type VNode } from '../../../engine/view.ts';
+import { isJunction, type EdgeKind, type View, type VNode } from '../../../engine/view.ts';
 
 /** A node's ways in, or what it's a way into. */
 export type Side = 'in' | 'out';
@@ -63,4 +63,20 @@ export function edgesOf(view: View, id: string): Set<string> {
   walk(id, true);
   walk(id, false);
   return ids;
+}
+
+/**
+ * The kind each edge is drawn as, by its id. A part of an AND/OR is drawn as
+ * the edge its junction leads into (through any junctions between), so a
+ * condition's parts look like the way in they make up, and grey is left to
+ * dead edges alone. Each junction has the one edge out.
+ */
+export function drawnAs(view: View): Map<string, Exclude<EdgeKind, 'part'>> {
+  const junctions = new Set(view.nodes.filter((n) => isJunction(n.kind)).map((n) => n.id));
+  const out = new Map(view.edges.filter((e) => junctions.has(e.source)).map((e) => [e.source, e]));
+  const lead = (j: string): Exclude<EdgeKind, 'part'> => {
+    const e = out.get(j)!;
+    return e.kind === 'part' ? lead(e.target) : e.kind;
+  };
+  return new Map(view.edges.map((e) => [e.id, e.kind === 'part' ? lead(e.target) : e.kind]));
 }

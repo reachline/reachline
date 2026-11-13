@@ -2,7 +2,7 @@
 // PNG from that), and Mermaid from its view, as the CLI writes it.
 import { toMermaid } from '../../../engine/mermaid.ts';
 import { isJunction, type EdgeKind, type View, type VNode } from '../../../engine/view.ts';
-import { verdict } from './nodes.ts';
+import { drawnAs, verdict } from './nodes.ts';
 import {
   END,
   FLAG,
@@ -30,9 +30,9 @@ const DASH: Partial<Record<EdgeKind, string>> = { recovery: '6 4', needs: '2 3',
 function look(n: VNode, kind: string, c: Colors) {
   let [fill, stroke, text, width, dash] = [c('surface'), c('node-stroke'), c('text'), 1.5, ''];
   if (n.status === 'has') fill = c(kind === 'breach' ? 'bad-fill' : 'good-fill');
-  else if (n.status === 'maybe') fill = c('maybe-fill');
+  else if (n.status === 'maybe') fill = c('warning-bg');
   else if (n.status === 'lost') fill = c('bad-fill');
-  else if (n.status === 'gone') [fill, stroke, text, dash] = [c('gone-fill'), c('gone-stroke'), c('gone-text'), '4 3'];
+  else if (n.status === 'gone') [fill, stroke, text, dash] = [c('gone-fill'), c('gone-stroke'), c('muted'), '4 3'];
   else if (n.status === 'start') [fill, stroke, text] = [c('start-fill'), c('start-stroke'), c('start-text')];
   if (n.root) width = 3;
   return { fill, stroke, text, width, dash };
@@ -63,10 +63,12 @@ export function toSvg(view: View, placed: Placed, kind: string, vertical: boolea
       ? `M${s.x + s.w / 2},${s.y + s.h} L${t.x + t.w / 2},${t.y}`
       : `M${s.x + s.w},${s.y + s.h / 2} L${t.x},${t.y + t.h / 2}`;
 
+  const as = drawnAs(view);
   const edges = view.edges.map((e) => {
-    const color = c(e.live ? `e-${e.kind}` : 'e-dead');
+    const k = as.get(e.id)!;
+    const color = c(e.live ? `e-${k}` : 'gone-stroke');
     const d = routePath(placed.edges.get(e.id) ?? [], placed.routing) || straight(box(e.source), box(e.target));
-    const dash = DASH[e.kind] ? ` stroke-dasharray="${DASH[e.kind]}"` : '';
+    const dash = DASH[k] ? ` stroke-dasharray="${DASH[k]}"` : '';
     const head = e.kind === 'part' ? '' : ` marker-end="url(#${arrow(color)})"`;
     return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${e.kind === 'part' || !e.live ? 1 : 1.4}"${dash}${head}/>`;
   });
@@ -75,7 +77,7 @@ export function toSvg(view: View, placed: Placed, kind: string, vertical: boolea
     const { x, y, w, h } = box(n.id);
     if (isJunction(n.kind)) {
       const unknown = n.kind === 'unknown';
-      const [fill, stroke] = unknown ? [c('maybe-fill'), c('maybe-stroke')] : [c('surface'), c('k-junction')];
+      const [fill, stroke] = unknown ? [c('warning-bg'), c('maybe-stroke')] : [c('surface'), c('node-stroke')];
       const dash = unknown ? ' stroke-dasharray="3 2"' : '';
       const text = unknown ? `font-size="10" fill="${c('warning')}"` : `font-size="8" fill="${c('muted')}"`;
       // A circle, or for an unknown the corners of a thing's outline.

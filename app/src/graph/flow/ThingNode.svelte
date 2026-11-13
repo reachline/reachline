@@ -161,7 +161,7 @@
     --fill: var(--bad-fill);
   }
   .st-maybe {
-    --fill: var(--maybe-fill);
+    --fill: var(--warning-bg);
   }
   .st-lost {
     --fill: var(--bad-fill);
@@ -169,7 +169,7 @@
   .st-gone {
     --fill: var(--gone-fill);
     --stroke: var(--gone-stroke);
-    color: var(--gone-text);
+    color: var(--muted);
   }
   .st-gone .outline path:not(.halo) {
     stroke-dasharray: 4 3;

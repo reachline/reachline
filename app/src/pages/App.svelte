@@ -916,7 +916,7 @@
         {#if lensOpen}<ChevronUp />{:else}<ChevronDown />{/if}
       </button>
     {/if}
-    <div id="lens-tools" class="tools" class:hidden={phone && !lensOpen && !choosing}>
+    <div id="lens-tools" class="tools floating" class:hidden={phone && !lensOpen && !choosing}>
       <div class="segmented" role="group" aria-label="View">
         {#each MODES as [m, label, Icon] (m)}
           <button class="quiet" aria-pressed={mode === m} title={label} onclick={() => setMode(m)}
@@ -959,23 +959,110 @@
   </div>
 
   <!--
-    Closed, a strip of icons over the graph's top-right corner; open, the
-    panel's first row, as wide as it, giving their words up to fit it. One
-    element either way, so the button pressed keeps the focus.
+    The panel and its tabs, one surface over the graph. Closed, the tabs alone,
+    a strip of icons over its top-right corner; open, the card down its right
+    side (on phones, in its place), the tabs its first row, as wide as it,
+    giving their words up to fit it. The tabs are one element either way, so
+    the button pressed keeps the focus.
   -->
-  <div class="tabs" class:shrinks={tab !== null}>
-    <div class="segmented" role="group" aria-label="Panel">
-      {#each TABS as [t, label, Icon] (t)}
-        <button
-          class="quiet"
-          aria-pressed={tab === t}
-          aria-controls="panel"
-          title={label}
-          onclick={() => showTab(tab === t ? null : t)}
-          ><Icon /><span class:wide-only={tab !== null} class:visually-hidden={tab === null}>{label}</span></button
-        >
-      {/each}
+  <div class="side floating">
+    <div class="tabs" class:shrinks={tab !== null}>
+      <div class="segmented" role="group" aria-label="Panel">
+        {#each TABS as [t, label, Icon] (t)}
+          <button
+            class="quiet"
+            aria-pressed={tab === t}
+            aria-controls="panel"
+            title={label}
+            onclick={() => showTab(tab === t ? null : t)}
+            ><Icon /><span class:wide-only={tab !== null} class:visually-hidden={tab === null}>{label}</span></button
+          >
+        {/each}
+      </div>
     </div>
+    <aside id="panel" class="panel" class:hidden={tab === null} aria-label="Panel">
+      <Resizer bind:width min={PANEL.min} max={maxWidth} usual={PANEL.usual} wide={PANEL.wide} />
+      {#if tab === 'details'}
+        <Details
+          {model}
+          {scenario}
+          {scenarioName}
+          {selected}
+          node={selNode}
+          target={mode === 'ways' ? target : null}
+          onwaysinto={waysInto}
+          onopen={setOpen}
+          edit={editMode}
+          {editing}
+          onedit={setEditMode}
+          {off}
+        />
+      {/if}
+      {#if tab === 'scenarios'}
+        <Scenarios {model} {scenario} {scenarioName} edit={editMode} {editing} onedit={setEditMode} {off} />
+      {/if}
+      {#if editorOpened && editorModule && text !== null}
+        <section class="tab text" class:hidden={tab !== 'text'} aria-label="Model text">
+          {#await editorModule then { default: Editor }}
+            <Editor
+              bind:this={editor}
+              {text}
+              onchange={(t: string) => {
+                text = t;
+                formatError = '';
+              }}
+              {lint}
+              things={() => [...(model?.things ?? [])].map(([id, t]): [string, string] => [id, t.kind])}
+              {reveal}
+              onhistory={(undo: number, redo: number) => (steps = { undo, redo })}
+              onready={() => mounted.resolve?.()}
+              definition={(id: string) => {
+                const at = definitionOf(text ?? '', id, plans);
+                return at && { from: at[0], to: at[1] };
+              }}
+              error={formatError}
+            >
+              {#snippet tools()}
+                <button
+                  class="quiet"
+                  onclick={formatText}
+                  title="Lay the text out the way guided edits do, without comments"
+                  ><TextAlignStart /><span class="wide-only">Format</span></button
+                >
+              {/snippet}
+            </Editor>
+          {:catch e}
+            <p class="status">The editor didn't load: {message(e)}</p>
+          {/await}
+        </section>
+      {/if}
+      {#if tab === 'plans'}
+        <Plans
+          plans={planList.filter((p) => plans.includes(p.name))}
+          any={planList.length > 0}
+          overlaps={text === null ? [] : overlaps(text, plans)}
+          {comparison}
+          editable={!!editing}
+          error={planError}
+          edit={editMode}
+          onedit={setEditMode}
+          {off}
+          onapply={applyPlanNamed}
+          ondelete={deletePlanNamed}
+          onrename={renamePlanTo}
+          onnote={(name: string, note: string) => apply(setPlanNote(name, note))}
+        />
+      {/if}
+      {#if tab === 'history' && text !== null}
+        <section class="tab" aria-label="History">
+          {#await import('../panel/History.svelte') then { default: History }}
+            <History {id} latest={revision} current={text} onrestore={restore} />
+          {:catch e}
+            <p class="status">The history didn't load: {message(e)}</p>
+          {/await}
+        </section>
+      {/if}
+    </aside>
   </div>
 
   <main class="canvas" class:outdated={shown && (invalid || lost)}>
@@ -1026,90 +1113,6 @@
       </p>
     {/if}
   </main>
-
-  <aside id="panel" class="panel" class:hidden={tab === null} aria-label="Panel">
-    <Resizer bind:width min={PANEL.min} max={maxWidth} usual={PANEL.usual} wide={PANEL.wide} />
-    {#if tab === 'details'}
-      <Details
-        {model}
-        {scenario}
-        {scenarioName}
-        {selected}
-        node={selNode}
-        target={mode === 'ways' ? target : null}
-        onwaysinto={waysInto}
-        onopen={setOpen}
-        edit={editMode}
-        {editing}
-        onedit={setEditMode}
-        {off}
-      />
-    {/if}
-    {#if tab === 'scenarios'}
-      <Scenarios {model} {scenario} {scenarioName} edit={editMode} {editing} onedit={setEditMode} {off} />
-    {/if}
-    {#if editorOpened && editorModule && text !== null}
-      <section class="tab text" class:hidden={tab !== 'text'} aria-label="Model text">
-        {#await editorModule then { default: Editor }}
-          <Editor
-            bind:this={editor}
-            {text}
-            onchange={(t: string) => {
-              text = t;
-              formatError = '';
-            }}
-            {lint}
-            things={() => [...(model?.things ?? [])].map(([id, t]): [string, string] => [id, t.kind])}
-            {reveal}
-            onhistory={(undo: number, redo: number) => (steps = { undo, redo })}
-            onready={() => mounted.resolve?.()}
-            definition={(id: string) => {
-              const at = definitionOf(text ?? '', id, plans);
-              return at && { from: at[0], to: at[1] };
-            }}
-            error={formatError}
-          >
-            {#snippet tools()}
-              <button
-                class="quiet"
-                onclick={formatText}
-                title="Lay the text out the way guided edits do, without comments"
-                ><TextAlignStart /><span class="wide-only">Format</span></button
-              >
-            {/snippet}
-          </Editor>
-        {:catch e}
-          <p class="status">The editor didn't load: {message(e)}</p>
-        {/await}
-      </section>
-    {/if}
-    {#if tab === 'plans'}
-      <Plans
-        plans={planList.filter((p) => plans.includes(p.name))}
-        any={planList.length > 0}
-        overlaps={text === null ? [] : overlaps(text, plans)}
-        {comparison}
-        editable={!!editing}
-        error={planError}
-        edit={editMode}
-        onedit={setEditMode}
-        {off}
-        onapply={applyPlanNamed}
-        ondelete={deletePlanNamed}
-        onrename={renamePlanTo}
-        onnote={(name: string, note: string) => apply(setPlanNote(name, note))}
-      />
-    {/if}
-    {#if tab === 'history' && text !== null}
-      <section class="tab" aria-label="History">
-        {#await import('../panel/History.svelte') then { default: History }}
-          <History {id} latest={revision} current={text} onrestore={restore} />
-        {:catch e}
-          <p class="status">The history didn't load: {message(e)}</p>
-        {/await}
-      </section>
-    {/if}
-  </aside>
 </div>
 
 <AddDialog
@@ -1157,8 +1160,7 @@
 <style>
   /*
    * The document's header across the top, and under it the graph, with what
-   * it shows floating over it. Open, the panel is beside it, under its tabs
-   * (on phones, in its place); closed, the tabs float over the graph too.
+   * it shows floating over it, and the panel (on phones, open, in its place).
    */
   .app {
     display: grid;
@@ -1168,14 +1170,6 @@
       'canvas' minmax(0, 1fr)
       / minmax(0, 1fr);
     height: 100%;
-  }
-  .app.open {
-    grid-template:
-      'head head' auto
-      'banner banner' auto
-      'canvas tabs' auto
-      'canvas panel' minmax(0, 1fr)
-      / minmax(0, 1fr) var(--panel-w);
   }
   .head {
     grid-area: head;
@@ -1226,10 +1220,6 @@
     gap: var(--space-2) var(--space-3);
     max-width: 100%;
     padding: var(--space-1);
-    border: 1px solid var(--border);
-    border-radius: var(--radius);
-    background: var(--surface);
-    box-shadow: var(--shadow);
     pointer-events: auto;
   }
   .tools .segmented {
@@ -1261,36 +1251,37 @@
   .fold > :global(.lucide:last-child) {
     margin-left: auto;
   }
-  .tabs {
-    grid-area: tabs;
-    min-width: 0;
-    padding: var(--space-2) var(--space-3);
-    border-bottom: 1px solid var(--border);
-    background: var(--surface);
-  }
-  /* Open, the tabs fill the panel's width. */
-  .tabs .segmented {
-    display: flex;
-    width: 100%;
-  }
-  .tabs button {
-    flex: 1 1 auto;
-  }
-  .app:not(.open) .tabs {
+  /* Over the graph's top-right corner, and open, down its right side. */
+  .side {
     grid-area: canvas;
     z-index: 5;
     align-self: start;
     justify-self: end;
+    display: grid;
+    grid-template-rows: auto minmax(0, 1fr);
+    min-width: 0;
+    min-height: 0;
     margin: var(--space-2);
-    padding: 0;
+  }
+  .app.open .side {
+    align-self: stretch;
+    width: calc(var(--panel-w) - 2 * var(--space-2));
+  }
+  .tabs {
+    min-width: 0;
+  }
+  /* The surface is the card's; inside it, as tall as a .segmented.floating. */
+  .tabs .segmented {
+    display: flex;
+    padding: calc(var(--space-1) + 3px);
     border: none;
     background: none;
   }
-  /* As tall as the toolbar beside it, whose controls are 6px taller than these buttons. */
-  .app:not(.open) .tabs .segmented {
-    width: auto;
-    padding: calc(var(--space-1) + 3px);
-    box-shadow: var(--shadow);
+  .tabs button {
+    flex: 1 1 auto;
+  }
+  .app.open .tabs {
+    border-bottom: 1px solid var(--border);
   }
   .canvas {
     grid-area: canvas;
@@ -1313,74 +1304,28 @@
     text-overflow: ellipsis;
   }
   .panel {
-    grid-area: panel;
     position: relative;
     min-width: 0;
     min-height: 0;
-    background: var(--surface);
   }
   .tab {
     height: 100%;
+    overflow: hidden;
   }
   .hidden {
     display: none;
   }
 
-  /*
-   * Wide, the open panel is a card floating over the graph's right side, its
-   * tabs the card's first row, where they float when it's closed. The card's
-   * surface and shadow are drawn behind both, so no shadow falls across the
-   * seam between them.
-   */
+  /* Wide, the open panel is a card over the graph's right side, which runs on under it. */
   @media (min-width: 761px) {
-    .app.open::before,
-    .app.open .tabs,
-    .app.open .panel {
-      position: relative;
-      z-index: 1;
-    }
-    .app.open::before {
-      content: '';
-      grid-column: 2;
-      grid-row: tabs-start / panel-end;
-      margin: var(--space-2);
-      border-radius: var(--radius-lg);
-      background: var(--surface);
-      box-shadow: var(--shadow);
-    }
-    .app.open .tabs {
-      margin: var(--space-2) var(--space-2) 0;
-      padding: 0;
-      border: 1px solid var(--border);
-      border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-      background: none;
-    }
-    .app.open .tabs .segmented {
-      padding: calc(var(--space-1) + 3px);
-      border: none;
-      background: none;
-    }
-    .app.open .panel {
-      margin: 0 var(--space-2) var(--space-2);
-      border: 1px solid var(--border);
-      border-top: none;
-      border-radius: 0 0 var(--radius-lg) var(--radius-lg);
-      background: none;
-    }
-    /* What fills the card, rounded at its foot to fit. */
-    .app.open .panel > :global(*) {
-      border-bottom-right-radius: calc(var(--radius-lg) - 1px);
-      border-bottom-left-radius: calc(var(--radius-lg) - 1px);
-    }
-    .app.open .tab {
-      overflow: hidden;
-    }
-    /* The graph runs on under the card. */
-    .app.open .canvas {
-      grid-column: 1 / -1;
-    }
+    .app.open .lens,
     .app.open .canvas > .status {
       padding-right: var(--panel-w);
+    }
+    /* What fills the card, rounded at its foot to fit. */
+    .panel > :global(*) {
+      border-bottom-right-radius: calc(var(--radius-lg) - 1px);
+      border-bottom-left-radius: calc(var(--radius-lg) - 1px);
     }
   }
 
@@ -1409,14 +1354,13 @@
         'head' auto
         'banner' auto
         'lens' auto
-        'tabs' auto
-        'panel' minmax(0, 1fr)
+        'side' minmax(0, 1fr)
         / minmax(0, 1fr);
     }
     .app.open .canvas {
       display: none;
     }
-    /* What the graph shows is a row of its own, and so are the tabs while the panel's open, as its header. */
+    /* What the graph shows is a row of its own. */
     .lens,
     .app:not(.open) .lens {
       grid-area: lens;
@@ -1428,7 +1372,25 @@
     .tools {
       padding: 0;
       border: none;
+      border-radius: 0;
       box-shadow: none;
+    }
+    /* Open, the panel in the graph's place, its tabs a row of their own. */
+    .app.open .side {
+      grid-area: side;
+      justify-self: stretch;
+      width: auto;
+      margin: 0;
+      border: none;
+      border-radius: 0;
+      box-shadow: none;
+    }
+    .app.open .tabs {
+      padding: var(--space-2) var(--space-3);
+    }
+    .app.open .tabs .segmented {
+      padding: 2px;
+      border: 1px solid var(--border);
     }
     .panel :global(.resizer) {
       display: none;

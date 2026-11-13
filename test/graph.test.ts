@@ -2,7 +2,7 @@
 import assert from 'node:assert/strict';
 import { test } from 'node:test';
 import { isJunction, waysInView, type View } from '../engine/view.ts';
-import { edgesOf } from '../app/src/graph/nodes.ts';
+import { drawnAs, edgesOf } from '../app/src/graph/nodes.ts';
 import { loadModel } from '../app/src/lib/data.ts';
 
 const model = loadModel(`version: 1
@@ -54,6 +54,25 @@ test("a node's lit edges follow through junctions, and stop at things", () => {
   assert.deepEqual(touched('phone'), new Set(['phone', 'mail']));
   // mail lights its whole condition, and its own edge on to bank.
   assert.deepEqual(touched('mail'), new Set(['phone', 'pin', 'mail', 'bank']));
+});
+
+test('the parts of an AND/OR are drawn as the edge it leads into, however deep', () => {
+  const m = loadModel(`version: 1
+things:
+  home: {kind: location}
+  phone: {kind: device, in: home}
+  pin: {kind: secret, in: home}
+  key: {kind: device, in: home}
+  bank: {kind: account, access: pin, recovery: key and (phone or pin)}
+`);
+  const v = waysInView(m, ['bank'], new Set(['bank']));
+  const as = drawnAs(v);
+  const parts = v.edges.filter((e) => e.kind === 'part');
+  // key and the OR into the AND, phone and pin into the OR.
+  assert.equal(parts.length, 4);
+  for (const e of parts) assert.equal(as.get(e.id), 'recovery', e.id);
+  // Every other edge is drawn as its own kind.
+  for (const e of v.edges) if (e.kind !== 'part') assert.equal(as.get(e.id), e.kind);
 });
 
 const ends = (v: View, eid: string) => {

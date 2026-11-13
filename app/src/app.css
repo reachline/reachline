@@ -53,7 +53,6 @@
   --accent-hover: light-dark(#1d47b3, #9dbfff);
   --on-accent: light-dark(#ffffff, #0d1526);
   --selected: light-dark(#e3ebfd, #1f2d4d);
-  --focus: light-dark(#2457d6, #7aa7ff);
   --danger: light-dark(#c0261b, #ff8a80);
   --danger-bg: light-dark(#fdecea, #3a1c1c);
   --warning: light-dark(#7a4b00, #f5cf75);
@@ -65,36 +64,31 @@
 
   /* The graph (and its exports). A thing's outline is the same for every kind (its icon tells it); colour is for status. */
   --node-stroke: light-dark(#7d838e, #7b7b86);
-  --k-junction: light-dark(#7d838e, #6b7280);
 
-  /* scenario status: fill / stroke (good and bad keep the usual outline) */
+  /* scenario status: fill / stroke (good and bad keep the usual outline; maybe's fill is --warning-bg, gone's text --muted) */
   --good-fill: light-dark(#d4edda, #1d3a25);
   --bad-fill: light-dark(#f8d7da, #4a1f23);
-  --maybe-fill: light-dark(#fff3cd, #463a12);
   --maybe-stroke: light-dark(#a57400, #e0b341);
   --gone-fill: light-dark(#efeff1, #232327);
-  --gone-stroke: light-dark(#8a8a92, #6e6e76);
-  --gone-text: light-dark(#62626a, #8f8f97);
+  --gone-stroke: light-dark(#8a8a92, #6e6e76); /* also a dead edge's */
   --start-fill: light-dark(#424242, #e7e7ea);
   --start-stroke: light-dark(#000000, #ffffff);
   --start-text: light-dark(#ffffff, #111111);
 
-  /* edges. Grey means only one thing: a dead edge, which can't carry access in the scenario. */
+  /*
+   * edges. Grey means only one thing: a dead edge, which can't carry access in
+   * the scenario. A part of an AND/OR is drawn as the edge it leads into.
+   */
   --e-in: light-dark(#5b6c90, #8b9cc0);
   --e-access: light-dark(#3f4652, #b9bec7);
   --e-recovery: light-dark(#9333ea, #c084fc);
   --e-needs: light-dark(#c2410c, #fb923c);
   --e-mirror: light-dark(#0e7490, #22d3ee);
-  --e-part: light-dark(#6b7280, #9ca3af);
-  --e-dead: light-dark(#8b8b93, #646470);
 
-  /* the text editor */
-  --syn-key: light-dark(#1d4ed8, #7ab3ff);
+  /* the text editor (its keys are --accent, its current line --hover) */
   --syn-string: light-dark(#a16207, #e0b341);
   --selection: light-dark(#c7dbff, #2b3d5e);
   --match: light-dark(#fff6d0, #3d3214); /* what Find finds */
-  /* translucent: the selection is drawn behind it */
-  --active-line: light-dark(rgb(0 0 0 / 4%), rgb(255 255 255 / 5%));
 }
 
 /* Fingers: bigger targets, and at least 16px text in fields, below which iOS zooms in on focus. */
@@ -155,7 +149,7 @@ h3 {
 
 /* One focus ring, for everything, used for nothing else. */
 :focus-visible {
-  outline: 2px solid var(--focus);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -462,7 +456,7 @@ legend {
 
 /*
  * A strip of .quiet buttons. As a choice, one of them is pressed
- * (aria-pressed). .floating lifts it over the graph.
+ * (aria-pressed).
  */
 .segmented {
   display: inline-flex;
@@ -481,8 +475,19 @@ legend {
   width: calc(var(--control-h) - 6px);
   padding: 0;
 }
+/*
+ * Over the graph and lifted off it: its toolbar and controls, and the panel
+ * with its tabs. A .segmented one is as tall as a toolbar of fields, which
+ * are 6px taller than its buttons.
+ */
 .floating {
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
   box-shadow: var(--shadow);
+}
+.segmented.floating {
+  padding: calc(var(--space-1) + 3px);
 }
 
 /* A disclosure: <details>, opened by its <summary> as a quiet button would be. */
