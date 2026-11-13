@@ -688,7 +688,7 @@ pre {
     white-space: nowrap;
   }
 }
-/* As wide as the panel's tabs need for all their words. */
+/* As wide as the panel's tabs, or the graph's controls, need for all their words. */
 @container shrinks (max-width: 29rem) {
   :not([aria-pressed='true']) > .wide-only {
     position: absolute;

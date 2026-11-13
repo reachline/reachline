@@ -64,9 +64,12 @@
   async function ontoggle(e: ToggleEvent) {
     if (e.newState !== 'open') {
       query = '';
+      if (menu) menu.style.width = '';
       return;
     }
     await tick();
+    // Held at the width it opens at, so it doesn't narrow as the filter hides rows.
+    if (menu) menu.style.width = `${menu.getBoundingClientRect().width}px`;
     const box = menu?.querySelector<HTMLElement>('input[type=search]');
     const at = list?.querySelector<HTMLElement>('[aria-pressed=true], :checked') ?? list?.querySelector('.row');
     // Scrolls the list alone: scrollIntoView() and focus() would scroll the page too.
@@ -143,8 +146,10 @@
     overflow: hidden;
     text-overflow: ellipsis;
   }
+  /* As wide as its rows, up to a width where long summaries wrap. */
   .menu {
-    width: min(22rem, calc(100vw - 2 * var(--space-4)));
+    width: max-content;
+    max-width: min(22rem, calc(100vw - 2 * var(--space-4)));
     gap: var(--space-1);
   }
   h3 {
@@ -161,7 +166,9 @@
     max-height: min(24rem, 60vh);
     overflow-y: auto;
   }
+  /* A block of its own: inline, a group's rows would all be on one line at its widest. */
   .row {
+    display: flex;
     width: 100%;
     padding-block: var(--space-1);
     text-align: left;

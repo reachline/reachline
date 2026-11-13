@@ -777,6 +777,14 @@
     ].filter((g) => g.rows.length);
   });
   const planGroups = $derived([{ rows: planList.map((p) => ({ id: p.name, summary: p.note || undefined })) }]);
+  const layerGroups = $derived([
+    {
+      rows: [
+        { id: '', label: 'the model' },
+        ...planList.map((p) => ({ id: p.name, label: `plan ${p.name}`, summary: p.note || undefined })),
+      ],
+    },
+  ]);
 
   const MODES = [
     ['ways', 'Ways in', LogIn],
@@ -1148,13 +1156,15 @@
 
 <!-- Add and every form write here, so it shows whenever there's a choice: in the header, or on phones the folded row. -->
 {#snippet layerField()}
-  <label class="field inline"
-    >Edits go into
-    <select value={layer ?? ''} onchange={(e) => setLayer(e.currentTarget.value || null)} class:plan={layer !== null}>
-      <option value="">the model</option>
-      {#each planList as p (p.name)}<option value={p.name}>plan {p.name}</option>{/each}
-    </select>
-  </label>
+  <!-- In the accent while edits go into a plan, rather than the model. -->
+  <span class="layer" class:plan={layer !== null}>
+    <Picker
+      label="Edits go into"
+      groups={layerGroups}
+      chosen={[layer ?? '']}
+      onchoose={(id: string) => setLayer(id || null)}
+    />
+  </span>
 {/snippet}
 
 <style>
@@ -1188,7 +1198,7 @@
   .spacer {
     flex: 1;
   }
-  select.plan {
+  .layer.plan :global(.picker button) {
     border-color: var(--accent);
     color: var(--accent);
   }

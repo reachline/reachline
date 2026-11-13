@@ -163,9 +163,12 @@
     onpaneclick={ondeselect}
   >
     <Background />
-    <Panel position="bottom-left" class="segmented floating" role="group" aria-label="Graph controls">
-      <Zoom {fitKey} {cover} />
-      {@render tools?.()}
+    <!-- As wide as the graph beside the panel, so its words give way as that narrows (a .shrinks box). -->
+    <Panel position="bottom-left" class="bar shrinks" style="right: {cover}px">
+      <div class="segmented floating" role="group" aria-label="Graph controls">
+        <Zoom {fitKey} {cover} />
+        {@render tools?.()}
+      </div>
     </Panel>
   </SvelteFlow>
 </div>
@@ -182,6 +185,13 @@
   /* As far in from the edges as what else floats over the graph. */
   .pane :global(.svelte-flow__panel) {
     margin: var(--space-2);
+  }
+  /* Clicks pass through to the graph beside the bar. */
+  .pane :global(.bar) {
+    pointer-events: none;
+  }
+  .pane :global(.bar > *) {
+    pointer-events: auto;
   }
   .pane :global(.svelte-flow__node) {
     font: var(--graph-font);
