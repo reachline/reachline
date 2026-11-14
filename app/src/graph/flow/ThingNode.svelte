@@ -2,7 +2,7 @@
   import { ChevronDown, ChevronLeft, ChevronRight, ChevronUp } from '@lucide/svelte';
   import { Handle, Position, type NodeProps } from '@xyflow/svelte';
   import type { VNode } from '../../../../engine/view.ts';
-  import { verdict, type Side } from '../nodes';
+  import { opens, verdict, type Side } from '../nodes';
   import { END, FLAG, GLYPH, ICON, ICON_SIZE, KIND_ICONS, outline } from '../shapes';
   import type { Kind } from '../../../../engine/model.ts';
 
@@ -22,11 +22,8 @@
   // A chevron in each end that has more to show (pointing out), or, while selected, something to hide (pointing in).
   const arrows = $derived.by(() => {
     if (!data.onopen) return [];
-    const sides: [Side, boolean | undefined][] = [
-      ['in', n.more ? true : n.expanded ? false : undefined],
-      ['out', n.moreOut ? true : n.expandedOut ? false : undefined],
-    ];
-    return sides.flatMap(([side, open]) => {
+    return (['in', 'out'] as const).flatMap((side) => {
+      const open = opens(n, side);
       if (open === undefined || (!open && !data.selected)) return [];
       const back = (side === 'in') === open;
       const Icon = data.vertical ? (back ? ChevronUp : ChevronDown) : back ? ChevronLeft : ChevronRight;
@@ -60,7 +57,7 @@
   {#if mark ?? n.row}<span class="status"
       >{#if mark}<span class="glyph">{mark}</span>{/if}{#if n.row}<span class="flag">!</span>{/if}</span
     >{/if}
-  <!-- For the pointer; Details has the same actions for the keyboard. The click goes on to select the node. -->
+  <!-- For the pointer; the arrow keys do the same (FlowView). The click goes on to select the node. -->
   {#each arrows as a (a.side)}
     <button
       class="quiet icon node-arrow nodrag nopan {a.side}"

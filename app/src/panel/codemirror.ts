@@ -38,7 +38,7 @@ const highlight = HighlightStyle.define([
   { tag: [tags.lineComment, tags.separator, tags.meta], color: 'var(--muted)' },
 ]);
 
-export const base = [lineNumbers(), yaml(), syntaxHighlighting(highlight), theme, EditorView.lineWrapping];
+export const base = [lineNumbers(), yaml(), syntaxHighlighting(highlight), theme];
 
 /**
  * A view in a shadow root under `host`. In the document CodeMirror adds its

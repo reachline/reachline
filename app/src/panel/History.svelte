@@ -56,6 +56,7 @@
           doc: now,
           extensions: [
             base,
+            EditorView.lineWrapping,
             EditorState.readOnly.of(true),
             EditorView.editable.of(false),
             unifiedMergeView({ original, mergeControls: false, collapseUnchanged: { margin: 3, minSize: 4 } }),

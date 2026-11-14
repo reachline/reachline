@@ -129,7 +129,9 @@ body {
 h1,
 h2,
 h3,
-p {
+p,
+dl,
+dd {
   margin: 0;
 }
 h1 {
@@ -265,6 +267,16 @@ button.quiet:disabled {
 }
 textarea {
   padding: var(--space-2);
+}
+/* One line of text that wraps and grows as long as it runs; where it can't grow, it can be dragged taller. */
+textarea.grows {
+  field-sizing: content;
+  resize: none;
+}
+@supports not (field-sizing: content) {
+  textarea.grows {
+    resize: vertical;
+  }
 }
 ::placeholder {
   color: var(--muted);

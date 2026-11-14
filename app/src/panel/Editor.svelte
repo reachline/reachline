@@ -1,5 +1,5 @@
 <script lang="ts">
-  // The model's text in CodeMirror, under a bar to find in it.
+  // The model's text in CodeMirror, under a bar to find in it, with a menu of the rest.
   // Loaded on demand: it's about as big as the rest of the app.
   import { autocompletion } from '@codemirror/autocomplete';
   import {
@@ -26,11 +26,12 @@
     SearchQuery,
     setSearchQuery,
   } from '@codemirror/search';
-  import { EditorState } from '@codemirror/state';
+  import { Compartment, EditorState } from '@codemirror/state';
   import { drawSelection, EditorView, highlightActiveLine, keymap } from '@codemirror/view';
-  import { ChevronDown, ChevronUp, Search } from '@lucide/svelte';
-  import { untrack, type Snippet } from 'svelte';
+  import { ChevronDown, ChevronUp, Ellipsis, Search, TextAlignStart } from '@lucide/svelte';
+  import { untrack } from 'svelte';
   import type { Problem } from '../lib/check';
+  import { keep, load } from '../lib/prefs';
   import { base, shadowView } from './codemirror';
   import { completeIds } from './complete';
 
@@ -50,12 +51,12 @@
     onready: () => void;
     /** Where a thing is defined, to jump to from where it's referred to. */
     definition: (id: string) => { from: number; to: number } | null;
-    /** More of the bar, after the editor's own. */
-    tools?: Snippet;
-    /** Why the last of those failed, shown under the bar. */
+    /** Lays the text out the way guided edits do. */
+    onformat: () => void;
+    /** Why the last Format failed, shown under the bar. */
     error?: string;
   }
-  let { text, onchange, lint, things, reveal, onhistory, onready, definition, tools, error }: Props = $props();
+  let { text, onchange, lint, things, reveal, onhistory, onready, definition, onformat, error }: Props = $props();
   const uid = $props.id();
 
   /** Undo and redo from outside the editor, such as the header's buttons. */
@@ -102,6 +103,18 @@
     dom.hidden = true;
     return { dom };
   };
+  // Nor the box CodeMirror keeps it in, whose border would show along the foot.
+  const noPanels = EditorView.theme({ '.cm-panels': { display: 'none' } });
+
+  // Long lines wrap, unless this device was told otherwise.
+  let wrap = $state(load('editor.wrap') !== false);
+  const wrapping = new Compartment();
+  const wrapped = (on: boolean) => (on ? EditorView.lineWrapping : []);
+  function setWrap(on: boolean) {
+    wrap = on;
+    keep('editor.wrap', on ? undefined : false);
+    view?.dispatch({ effects: wrapping.reconfigure(wrapped(on)) });
+  }
 
   /** Shows every match of `q`. */
   function arm(view: EditorView, q: string): SearchQuery {
@@ -191,6 +204,7 @@
         doc: untrack(() => text),
         extensions: [
           base,
+          wrapping.of(wrapped(untrack(() => wrap))),
           highlightActiveLine(),
           drawSelection(),
           history(),
@@ -200,6 +214,7 @@
           EditorView.contentAttributes.of({ 'aria-label': 'Model text', tabindex: '0' }),
           lintGutter(),
           foldGutter(),
+          noPanels,
           search({ createPanel: hiddenPanel, scrollToMatch: (r) => EditorView.scrollIntoView(r, { y: 'center' }) }),
           autocompletion({ override: [completeIds(things)] }),
           linter((v) => lint(v.state.doc.toString()), { delay: 300 }),
@@ -242,8 +257,7 @@
   }
 </script>
 
-<!-- A container, so Format gives way to its icon when the panel is narrow. -->
-<div class="text shrinks">
+<div class="text">
   <div class="head">
     <div class="bar">
       <label class="field inline find">
@@ -272,7 +286,19 @@
       <button class="quiet icon" aria-label="Next match" disabled={!found.of} onclick={() => step(false)}
         ><ChevronDown /></button
       >
-      {@render tools?.()}
+      <button class="quiet icon" popovertarget="{uid}-more" aria-label="More" title="More"><Ellipsis /></button>
+      <div id="{uid}-more" class="menu" popover>
+        <button
+          class="quiet"
+          popovertarget="{uid}-more"
+          popovertargetaction="hide"
+          onclick={onformat}
+          title="Lay the text out the way guided edits do, without comments"><TextAlignStart />Format</button
+        >
+        <label
+          ><input type="checkbox" checked={wrap} onchange={(e) => setWrap(e.currentTarget.checked)} />Wrap lines</label
+        >
+      </div>
     </div>
     {#if error}<p class="error" role="alert">{error}</p>{/if}
   </div>

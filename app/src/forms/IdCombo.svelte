@@ -1,8 +1,8 @@
 <script lang="ts">
   // A text field for thing ids, suggesting them from the model as you type,
   // each with its kind. It completes the whole value, or with `word` the word
-  // at the caret, as in a condition. Other attributes go to the <input>.
-  import type { HTMLInputAttributes } from 'svelte/elements';
+  // at the caret, as in a condition. Other attributes go to the field.
+  import type { HTMLInputAttributes, HTMLTextareaAttributes } from 'svelte/elements';
   import { UNKNOWN } from '../../../engine/cond.ts';
   import { suggest, wordAt } from '../panel/complete';
   import KindIcon from '../shell/KindIcon.svelte';
@@ -17,6 +17,11 @@
     states?: boolean;
     /** Suggests `unknown` too. */
     unknown?: boolean;
+    /**
+     * A condition, which can run long: a <textarea> that wraps and grows to
+     * fit, its suggestions those of a textbox (as CodeMirror's are), since
+     * HTML allows no combobox on one. Enter still applies it.
+     */
     word?: boolean;
     /** After a suggestion is picked, with the field's new value. */
     onpick?: (value: string) => void;
@@ -36,7 +41,7 @@
   }: Props = $props();
 
   const uid = $props.id();
-  let input = $state<HTMLInputElement>();
+  let input = $state<HTMLInputElement | HTMLTextAreaElement>();
   let options = $state<string[]>([]);
   let active = $state(-1);
 
@@ -59,6 +64,18 @@
     onpick?.(value);
   }
 
+  const field = $derived({
+    'aria-autocomplete': 'list',
+    'aria-controls': `${uid}-list`,
+    'aria-activedescendant': options[active] ? `${uid}-option-${active}` : undefined,
+    autocomplete: 'off',
+    autocapitalize: 'off',
+    spellcheck: false,
+    oninput: complete,
+    onkeydown,
+    onblur: () => (options = []),
+  } as const);
+
   function onkeydown(e: KeyboardEvent) {
     const open = options.length > 0;
     if (open && (e.key === 'ArrowDown' || e.key === 'ArrowUp')) {
@@ -72,31 +89,27 @@
       e.preventDefault();
       e.stopPropagation();
       options = [];
-    } else if (e.key === 'Enter' && onenter) {
+    } else if (e.key === 'Enter' && (onenter || word)) {
       e.preventDefault();
       options = [];
-      onenter();
+      onenter?.();
     }
   }
 </script>
 
 <div class="combo">
-  <input
-    bind:this={input}
-    bind:value
-    {...rest}
-    role="combobox"
-    aria-autocomplete="list"
-    aria-expanded={options.length > 0}
-    aria-controls="{uid}-list"
-    aria-activedescendant={options[active] ? `${uid}-option-${active}` : undefined}
-    autocomplete="off"
-    autocapitalize="off"
-    spellcheck="false"
-    oninput={complete}
-    {onkeydown}
-    onblur={() => (options = [])}
-  />
+  {#if word}
+    <textarea
+      bind:this={input}
+      bind:value
+      {...rest as HTMLTextareaAttributes}
+      {...field}
+      class="grows"
+      rows="1"
+      aria-haspopup="listbox"></textarea>
+  {:else}
+    <input bind:this={input} bind:value {...rest} {...field} role="combobox" aria-expanded={options.length > 0} />
+  {/if}
   <ul class="listbox" id="{uid}-list" role="listbox" aria-label={listLabel} hidden={!options.length}>
     {#each options as id, i (id)}
       <!-- Pressed, not clicked, so the field keeps its focus; the keyboard picks with the arrows and Enter. -->
@@ -119,7 +132,7 @@
   .combo {
     min-width: 0;
   }
-  input {
+  :is(input, textarea) {
     width: 100%;
     font-family: var(--code-font);
   }

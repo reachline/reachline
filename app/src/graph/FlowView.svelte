@@ -2,7 +2,7 @@
   import { Background, MarkerType, Panel, SvelteFlow, type Edge, type Node } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import { isJunction, type View } from '../../../engine/view.ts';
-  import { describe, drawnAs, edgesOf, type Side } from './nodes';
+  import { describe, drawnAs, edgesOf, opens, type Side } from './nodes';
   import { untrack, type Snippet } from 'svelte';
   import JunctionNode from './flow/JunctionNode.svelte';
   import RoutedEdge from './flow/RoutedEdge.svelte';
@@ -36,7 +36,9 @@
 
   // Svelte Flow's own description talks of deleting and moving nodes.
   const ariaLabelConfig = {
-    'node.a11yDescription.default': 'Press Enter to select a node and see its details, or Shift+Enter to edit it.',
+    'node.a11yDescription.default':
+      'Press Enter to select a node and see its details, or Shift+Enter to edit it. ' +
+      'Showing ways in, an arrow key toward a side of it shows or hides what’s there.',
   };
 
   /** Svelte Flow keeps keys to its own selection, which is off; these choose a node as a click does. */
@@ -51,6 +53,17 @@
       onnode(el.dataset.id);
     } else if (e.key === 'Escape') {
       ondeselect();
+    } else if (onopen) {
+      // As the chevron on that side would; ways in are to the left, or above.
+      const keys: Record<string, Side | undefined> = vertical
+        ? { ArrowUp: 'in', ArrowDown: 'out' }
+        : { ArrowLeft: 'in', ArrowRight: 'out' };
+      const side = keys[e.key];
+      const n = side && view.nodes.find((x) => x.id === el.dataset.id);
+      const open = side && n ? opens(n, side) : undefined;
+      if (!side || open === undefined) return;
+      e.preventDefault();
+      onopen(el.dataset.id, side, open);
     }
   }
 

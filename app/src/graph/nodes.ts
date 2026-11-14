@@ -5,6 +5,12 @@ import { isJunction, type EdgeKind, type View, type VNode } from '../../../engin
 /** A node's ways in, or what it's a way into. */
 export type Side = 'in' | 'out';
 
+/** What a node's chevron on `side` does, by pointer or arrow key: show more (true), hide what's shown (false), or nothing. */
+export function opens(n: VNode, side: Side): boolean | undefined {
+  const [more, shown] = side === 'in' ? [n.more, n.expanded] : [n.moreOut, n.expandedOut];
+  return more ? true : shown ? false : undefined;
+}
+
 const PLURALS: Record<string, string | undefined> = { breach: 'breaches' };
 
 /** A check, or a scenario's kind, in the plural: "checked for breaches". */

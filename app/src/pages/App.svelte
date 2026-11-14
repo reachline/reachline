@@ -9,7 +9,6 @@
     Redo2,
     RotateCcw,
     ShieldAlert,
-    TextAlignStart,
     Undo2,
     WandSparkles,
   } from '@lucide/svelte';
@@ -899,7 +898,6 @@
           node={selNode}
           target={mode === 'ways' ? target : null}
           onwaysinto={waysInto}
-          onopen={setOpen}
           edit={editMode}
           {editing}
           onedit={setEditMode}
@@ -928,17 +926,9 @@
                 const at = definitionOf(text ?? '', id, plans);
                 return at && { from: at[0], to: at[1] };
               }}
+              onformat={formatText}
               error={formatError}
-            >
-              {#snippet tools()}
-                <button
-                  class="quiet"
-                  onclick={formatText}
-                  title="Lay the text out the way guided edits do, without comments"
-                  ><TextAlignStart /><span class="wide-only">Format</span></button
-                >
-              {/snippet}
-            </Editor>
+            />
           {:catch e}
             <p class="status">The editor didn't load: {message(e)}</p>
           {/await}

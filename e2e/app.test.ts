@@ -110,14 +110,14 @@ after(async () => {
 test('the graph, from the keyboard and the toolbar, and what a reload keeps', async () => {
   const { page, problems } = await openExample();
 
-  // The graph works from the keyboard: Enter on a node selects it, Details shows its ways in, Escape clears it.
+  // The graph works from the keyboard: Enter on a node selects it, the arrow toward its ways in shows them, Escape clears it.
   const more = page.getByRole('group', { name: /has more ways in(,|$)/ }).first();
   const id = (await more.getAttribute('aria-label'))!.split(',')[0];
   const count = await page.locator('.svelte-flow__node').count();
   await more.focus();
   await page.keyboard.press('Enter');
   await page.getByRole('heading', { name: new RegExp(`^${id} `) }).waitFor();
-  await page.getByRole('button', { name: 'Show ways in' }).click();
+  await page.keyboard.press('ArrowLeft');
   await page.waitForFunction((n) => document.querySelectorAll('.svelte-flow__node').length > n, count);
   await page.getByRole('group', { name: new RegExp(`^${id},`) }).focus();
   await page.keyboard.press('Escape');
@@ -230,12 +230,20 @@ test('the text editor', async () => {
   // Format drops a comment (which is warned about), and the header's Undo takes that back as one step.
   await page.keyboard.insertText('# gone\n');
   await page.locator('.cm-lintRange-warning').waitFor();
+  await page.getByRole('button', { name: 'More', exact: true }).click();
   await page.getByRole('button', { name: 'Format' }).click();
   await page.locator('.cm-content').getByText('# gone').waitFor({ state: 'detached' });
   await undo.click();
   await page.locator('.cm-content').getByText('# gone').waitFor();
   await undo.click();
   await page.getByText('Saved', { exact: true }).waitFor();
+
+  // Long lines wrap until that's turned off.
+  await page.locator('.cm-content.cm-lineWrapping').waitFor();
+  await page.getByRole('button', { name: 'More', exact: true }).click();
+  await page.getByRole('checkbox', { name: 'Wrap lines' }).uncheck();
+  await page.locator('.cm-content.cm-lineWrapping').waitFor({ state: 'detached' });
+  await page.keyboard.press('Escape');
 
   // Find shows every match and steps through them; F12 on an id goes to where it's defined.
   await page.locator('.cm-content').click();
@@ -275,7 +283,7 @@ test('guided edits, plans and templates', async () => {
   await addIn.press('Enter');
   await page.getByRole('button', { name: 'Remove home from lives in' }).waitFor();
   // A condition completes the word at the caret, and offers to create what isn't a thing yet.
-  const access = page.getByRole('combobox', { name: 'Accessed with', exact: true });
+  const access = page.getByRole('textbox', { name: 'Accessed with', exact: true });
   await access.pressSequentially('tablet_pin or fa');
   await page
     .getByRole('listbox', { name: 'Things for accessed with' })

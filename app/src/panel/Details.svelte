@@ -1,9 +1,10 @@
 <script lang="ts">
   // The panel's Details tab: the thing selected in the graph (in edit mode,
   // its form), and its status in the scenario.
+  import { fmtCond } from '../../../engine/cond.ts';
   import { fmtWhy } from '../../../engine/model.ts';
   import { isJunction, type Outcome, type VNode } from '../../../engine/view.ts';
-  import { plural, type Side } from '../graph/nodes';
+  import { plural } from '../graph/nodes';
   import type { Model } from '../lib/data';
   import type { Created, Editing, Off } from '../lib/edit';
   import FromPlan from '../forms/FromPlan.svelte';
@@ -20,8 +21,6 @@
     /** The thing whose ways in are shown, if that's the view. */
     target: string | null;
     onwaysinto: (id: string) => void;
-    /** Shows or hides the node's ways in, or what it's a way into. */
-    onopen: (id: string, side: Side, open: boolean) => void;
     /** Whether the forms are showing. */
     edit: boolean;
     /** Null while the text doesn't load. */
@@ -29,7 +28,7 @@
     onedit: (on: boolean) => void;
     off: Off;
   }
-  let { model, scenario, scenarioName, selected, node, target, onwaysinto, onopen, edit, editing, onedit, off }: Props =
+  let { model, scenario, scenarioName, selected, node, target, onwaysinto, edit, editing, onedit, off }: Props =
     $props();
 
   const thingSpec = $derived(selected ? editing?.written.things[selected] : undefined);
@@ -38,16 +37,22 @@
   const thing = $derived(selected && !junction ? model?.things.get(selected) : undefined);
   const reach = $derived(selected ? scenario?.best.get(selected) : undefined);
 
-  // What the node can show or hide, in the ways-in view. The arrows on its sides do the same.
-  const toggles = $derived.by(() => {
-    if (target === null || !node) return [];
-    const all: [Side, boolean, string, boolean | undefined][] = [
-      ['in', true, 'Show ways in', node.more],
-      ['in', false, 'Hide ways in', node.expanded],
-      ['out', true, 'Show what it leads to', node.moreOut],
-      ['out', false, 'Hide what it leads to', node.expandedOut],
+  // The thing as it stands, under the form's labels and in its order, so editing changes what's here.
+  const fields = $derived.by(() => {
+    if (!thing) return [];
+    const cond = (c: typeof thing.access) => c && fmtCond(c);
+    const text = (v: unknown) => (typeof v === 'string' && v ? v : null);
+    const all: [string, string | null, boolean][] = [
+      ['Check for', thing.check.map(plural).join(' and ') || null, false],
+      ['Note', text(thing.note), false],
+      ['To do', text(thing.todo), false],
+      ['Lives in', thing.in.join(', ') || null, true],
+      ['Accessed with', cond(thing.access), true],
+      ['Recovered with', cond(thing.recovery), true],
+      ['Locked with', cond(thing.lock), true],
+      ['Needs', cond(thing.needs), true],
     ];
-    return all.filter(([, , , on]) => on);
+    return all.filter((f): f is [string, string, boolean] => f[1] !== null);
   });
 </script>
 
@@ -76,13 +81,29 @@
             ondelete={() => editing.deleteThing(selected)}
           />
         {/key}
+      {:else if fields.length || thing.mirrors}
+        <dl>
+          {#each fields as [label, value, ids] (label)}
+            <div>
+              <dt>{label}</dt>
+              <dd class:mono={ids} class:todo={label === 'To do'}>{value}</dd>
+            </div>
+          {/each}
+          {#if thing.mirrors}
+            <div>
+              <dt>Mirrors</dt>
+              <dd>
+                A copy of <span class="mono">{thing.mirrors.of}</span>, synced by
+                <span class="mono">{thing.mirrors.by}</span>.
+              </dd>
+            </div>
+          {/if}
+        </dl>
       {:else}
-        {#if thing.check.length}<p class="muted">Checked for {thing.check.map(plural).join(' and ')}</p>{/if}
-        {#if thing.note}<p>{thing.note}</p>{/if}
-        {#if thing.todo}<p class="todo">To do: {thing.todo}</p>{/if}
+        <p class="muted">Nothing more is written about it.</p>
       {/if}
     </section>
-    {#if scenario !== undefined || target !== selected || toggles.length}
+    {#if scenario !== undefined || target !== selected}
       <section aria-label="In the scenario">
         {#if scenario}
           {#if !scenario.avail.get(selected)}
@@ -95,15 +116,8 @@
           {/if}
           {#if scenario.rows.has(selected)}<p class="row">{scenario.rows.get(selected)![0]}</p>{/if}
         {/if}
-        {#if target !== selected || toggles.length}
-          <div class="actions">
-            {#if target !== selected}
-              <button onclick={() => onwaysinto(selected)}>Ways into this</button>
-            {/if}
-            {#each toggles as [side, open, label] (label)}
-              <button class="quiet" onclick={() => onopen(selected, side, open)}>{label}</button>
-            {/each}
-          </div>
+        {#if target !== selected}
+          <div><button onclick={() => onwaysinto(selected)}>Ways into this</button></div>
         {/if}
       </section>
     {/if}
@@ -113,7 +127,8 @@
     <section>
       <p class="muted">
         Select a node for its details, or double-click it to edit it. A chevron beside a node means there’s more that
-        side; selected, a node also has chevrons that hide what’s shown.
+        side; selected, a node also has chevrons that hide what’s shown. With a node focused, the arrow keys do the
+        same.
       </p>
     </section>
   {/if}
@@ -127,9 +142,14 @@
     color: var(--danger);
     font-weight: 600;
   }
-  .actions {
-    display: flex;
-    flex-wrap: wrap;
-    gap: var(--space-2);
+  dl {
+    display: grid;
+    gap: var(--space-3);
+  }
+  dt {
+    font-weight: 500;
+  }
+  dd {
+    overflow-wrap: anywhere;
   }
 </style>
