@@ -24,7 +24,7 @@ export type Colors = (name: string) => string;
 const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => `&#${ch.charCodeAt(0)};`);
 
 const PAD = 16;
-const DASH: Partial<Record<EdgeKind, string>> = { recovery: '6 4', needs: '2 3', mirror: '8 3 2 3' };
+const DASH: Partial<Record<EdgeKind, string>> = { recovery: '6 4', lock: '12 3', needs: '2 3', mirror: '8 3 2 3' };
 
 /** What ThingNode's styles give a node. */
 function look(n: VNode, kind: string, c: Colors) {

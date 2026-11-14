@@ -15,11 +15,11 @@ export interface Outcome {
 
 export function outcome(m: Model, name: string): Outcome {
   const { sc, best } = m.run(name);
-  return { sc, start: m.start(sc), best, avail: availability(m.things, new Set(sc.lost)), rows: m.rows(name) };
+  return { sc, start: m.start(sc), best, avail: availability(m.things, new Set(sc.gone)), rows: m.rows(name) };
 }
 
 export type NodeKind = Kind | 'and' | 'or' | 'unknown';
-export type EdgeKind = 'in' | 'needs' | 'mirror' | 'access' | 'recovery' | 'part';
+export type EdgeKind = 'in' | 'needs' | 'mirror' | 'access' | 'recovery' | 'lock' | 'part';
 export type Status = 'has' | 'maybe' | 'lost' | 'gone' | 'start' | 'none';
 
 export interface VNode {
@@ -136,7 +136,7 @@ class Builder {
   }
 
   /** Edges into target, one for each part of c joined by op at its top: the
-   *  options of access and recovery, the places of in, the requirements of needs. */
+   *  options of access, recovery and lock, the places of in, the requirements of needs. */
   into(c: Cond | null, op: Op, target: string, kind: EdgeKind, ok: (id: string) => boolean = this.ok) {
     (c === null ? [] : split(c, op)).forEach((part, i) => {
       const [nid, live] = this.cond(part, `${target}/${kind}${i}`, ok);

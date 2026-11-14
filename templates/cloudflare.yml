@@ -13,10 +13,10 @@ template:
   slots:
     vault: Where the password is kept
     mail: The account's email
-    phone_unlocked: The unlocked phone with your authenticator app
+    phone: The phone with your authenticator app
     hw_key: Your security key
     safe: Where the backup codes are kept
-    laptop_unlocked: A computer that has signed in to Cloudflare before
+    laptop: A computer that has signed in to Cloudflare before
   optional:
     cloudflare_totp: true
     cloudflare_key: false
@@ -26,13 +26,13 @@ template:
 things:
   vault: {kind: service, note: 'your password manager, unlocked'}
   mail: {kind: account}
-  phone_unlocked: {kind: device}
+  phone: {kind: device}
   hw_key: {kind: device}
   safe: {kind: location}
-  laptop_unlocked: {kind: device}
+  laptop: {kind: device}
 
   cloudflare_pw: {kind: secret, in: vault}
-  cloudflare_totp: {kind: secret, in: phone_unlocked, note: an authenticator app}
+  cloudflare_totp: {kind: secret, in: phone, note: an authenticator app}
   cloudflare_key: {kind: secret, in: hw_key, note: a security key}
   cloudflare_mail_code: {kind: secret, in: mail, note: codes by email}
   cloudflare_codes: {kind: secret, in: safe, note: backup codes}
@@ -42,4 +42,4 @@ things:
     check: [lockout, breach]
     # The password, or a reset by email; then any second factor.
     access: (cloudflare_pw or mail) and (cloudflare_totp or cloudflare_key or cloudflare_mail_code)
-    recovery: ((cloudflare_pw or mail) and cloudflare_codes) or (mail and laptop_unlocked)
+    recovery: ((cloudflare_pw or mail) and cloudflare_codes) or (mail and laptop)

@@ -16,7 +16,7 @@ plans:
         note: any one of my keys; every account enrolls both
       mail: {recovery: mail_codes}
     scenarios:
-      keys_lost: {kind: lockout, lost: key_keyring, note: keyring gone}
+      keys_lost: {kind: lockout, gone: key_keyring, note: keyring gone}
     me: [head, body, carried, home, contacts, offsite]
 ```
 
@@ -38,14 +38,14 @@ Plans apply in order, and a later plan's field replaces an earlier one's. On the
 
 ```text
 $ reachline --model model.yml --plan spare_key
-house_fire  (lockout: lost home, carried)
+house_fire  (lockout: gone home, carried)
   # at night, everything is home
   documents      LOST  →  ok
   mail           LOST  →  ok
   code_host      UNSURE  if code_host.recovery (unknown)  →  ok
   bank           LOST  →  ok
 
-nas_dies  (lockout: lost nas)
+nas_dies  (lockout: gone nas)
   # the pi keeps syncing, so the cloud copy empties too
   still          documents
   (no change)

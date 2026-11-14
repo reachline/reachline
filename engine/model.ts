@@ -15,22 +15,22 @@ export type Check = (typeof CHECKS)[number];
 const VERSION = 1;
 
 /** The fields that hold a condition. */
-export const CONDITIONS = ['needs', 'access', 'recovery'] as const;
+export const CONDITIONS = ['needs', 'access', 'recovery', 'lock'] as const;
 
 /** The fields that hold a list: `check` and `in` on things, the rest on scenarios, and `me`. */
-export const LISTS = ['check', 'in', 'lost', 'attacker', 'assume', 'deny', 'me'] as const;
+export const LISTS = ['check', 'in', 'gone', 'has', 'assume', 'deny', 'me'] as const;
 
 /** The fields that refer to things, besides `me`: a thing's in the order the graph draws them. */
 export const REFS = {
-  things: ['in', 'needs', 'mirrors', 'access', 'recovery'],
-  scenarios: ['lost', 'attacker', 'assume', 'deny'],
+  things: ['in', 'needs', 'mirrors', 'access', 'recovery', 'lock'],
+  scenarios: ['gone', 'has', 'assume', 'deny'],
 } as const;
 
 /** The fields that refer to states only. */
 export const STATE_REFS = ['assume', 'deny'] as const;
 
 /** The fields where `unknown` means something: a place you don't know, or an assumption. */
-export const UNKNOWN_IN = ['in', 'access', 'recovery'] as const;
+export const UNKNOWN_IN = ['in', 'access', 'recovery', 'lock'] as const;
 
 /**
  * Whether a value can be a list of one on its own, without brackets: one id,
@@ -47,6 +47,8 @@ export interface Spec {
   needs: Cond | null;
   access: Cond | null;
   recovery: Cond | null;
+  /** What every way in must also meet: the PIN of a phone, the combination of a safe. */
+  lock: Cond | null;
   mirrors: { of: string; by: string } | null;
   note?: unknown;
   todo?: unknown;
@@ -55,8 +57,10 @@ export interface Spec {
 
 export interface Scenario {
   kind: (typeof SCENARIO_KINDS)[number];
-  lost?: string[];
-  attacker?: string[];
+  /** What no longer exists, for anyone. */
+  gone?: string[];
+  /** What the scenario starts from; none means `me` in a lockout, and nothing in a breach. */
+  has?: string[];
   assume?: string[];
   deny?: string[];
   note?: string;
@@ -66,12 +70,17 @@ export interface Scenario {
 /** Unknowns and states a path relies on: sorted, no duplicates. Empty = outright. */
 export type Assumptions = readonly string[];
 
+/** A condition met: the top-level `or` option taken, and the ids it takes, one option per `or` (or `unknown`). */
+export interface Met {
+  via: Cond;
+  uses: string[];
+}
+
+/** How a thing was reached; `lock` is how its lock was met, if it has one. A state with no `in` just holds. */
 export type Why =
-  | { kind: 'start' }
   | { kind: 'state' }
-  | { kind: 'in'; via: string }
-  // via: the top-level `or` option taken; uses: the ids it takes, one option per `or` (or `unknown`).
-  | { kind: 'access' | 'recovery'; via: Cond; uses: string[] };
+  | ({ kind: 'start'; lock?: Met } | { kind: 'in'; via: string; lock?: Met })
+  | (Met & { kind: 'access' | 'recovery'; lock?: Met });
 
 export interface Entry {
   a: Assumptions;
@@ -134,15 +143,15 @@ const entries = (v: unknown): [string, unknown][] => (isMap(v) ? Object.entries(
 const KEYS = {
   model: ['version', 'things', 'scenarios', 'me', 'plans'],
   plan: ['note', 'things', 'scenarios', 'me'],
-  thing: ['kind', 'check', 'in', 'needs', 'access', 'recovery', 'mirrors', 'note', 'todo'],
+  thing: ['kind', 'check', 'in', 'needs', 'access', 'recovery', 'lock', 'mirrors', 'note', 'todo'],
   mirrors: ['of', 'by'],
-  scenario: ['kind', 'lost', 'attacker', 'assume', 'deny', 'note'],
+  scenario: ['kind', 'has', 'gone', 'assume', 'deny', 'note'],
 };
 
 export const SCENARIO_KINDS = ['lockout', 'breach'] as const;
 
 /**
- * The normal day: you with `me`, nothing lost, no states pinned. It's built
+ * The normal day: you with `me`, nothing gone, no states pinned. It's built
  * in, first among the scenarios, and every lockout is reported against it.
  */
 export const BASELINE = 'baseline';
@@ -209,7 +218,7 @@ export function load(
       if (name === BASELINE) {
         throw fault(
           at,
-          `${where}: scenario ${BASELINE}: the normal day is built in (me, with nothing lost); remove this`,
+          `${where}: scenario ${BASELINE}: the normal day is built in (me, with nothing gone); remove this`,
         );
       }
       if (sc === null) {
@@ -355,7 +364,7 @@ function validate(
   for (const [name, sc] of scenarios) {
     const o = from.scenarios.get(name)!;
     const items = (key: string) => listed(sc[key], fieldAt(o, key), `${name}: ${key}`);
-    for (const key of ['lost', 'attacker'] as const) {
+    for (const key of ['gone', 'has'] as const) {
       for (const { id: r, path } of items(key)) {
         if (r === UNKNOWN || r === '?') misplaced(name, key, r, path);
         else if (!things.has(r)) unknown(name, r, path);
@@ -386,7 +395,7 @@ function validate(
 }
 
 /** What still exists, after needs, in, and mirrors that sync a loss. */
-export function availability(things: Map<string, Spec>, lost: Set<string>): Map<string, boolean> {
+export function availability(things: Map<string, Spec>, gone: Set<string>): Map<string, boolean> {
   const memo = new Map<string, boolean>();
   const avail = (tid: string, stack: readonly string[]): boolean => {
     const known = memo.get(tid);
@@ -394,9 +403,9 @@ export function availability(things: Map<string, Spec>, lost: Set<string>): Map<
     if (stack.includes(tid)) return true;
     const spec = things.get(tid)!;
     const st = [...stack, tid];
-    // A place you don't know is never lost.
+    // A place you don't know is never gone.
     let ok =
-      !lost.has(tid) &&
+      !gone.has(tid) &&
       (spec.needs === null || holds(spec.needs, (n) => avail(n, st))) &&
       (spec.in.length === 0 || spec.in.some((c) => c === UNKNOWN || avail(c, st)));
     // A mirror follows its source: once the source is gone, the next sync
@@ -470,12 +479,34 @@ function sameEntry(x: Entry, y: Entry): boolean {
 const START: Why = { kind: 'start' };
 const STATE: Why = { kind: 'state' };
 
-/** Each way into tid that `best` reaches, in the order the model lists them. */
-function candidates(tid: string, spec: Spec, best: Best): Entry[] {
+/** A condition's top-level option with the fewest assumptions, the first listed on a tie, or null if none is met. */
+function meet(c: Cond, best: Best, owner: string): (Met & { a: Assumptions }) | null {
+  let min: (Met & { a: Assumptions }) | null = null;
+  for (const via of split(c, 'or')) {
+    const u = use(via, best, owner);
+    if (u && (!min || u.a.length < min.a.length)) min = { via, ...u };
+  }
+  return min;
+}
+
+/** What a scenario settles besides what's gone: what it starts from, and the states it pins. */
+interface Setting {
+  held: ReadonlySet<string>;
+  assume: ReadonlySet<string>;
+}
+
+/**
+ * Each way into tid that `best` reaches, in the order the model lists them,
+ * each with its lock met. A state is an assumption however it's reached,
+ * unless the scenario assumes it.
+ */
+function candidates(tid: string, spec: Spec, best: Best, { held, assume }: Setting): Entry[] {
   const cands: Entry[] = [];
+  const own = spec.kind === 'state' && !assume.has(tid) ? [tid] : [];
+  if (held.has(tid)) cands.push({ a: [], why: START });
   for (const c of spec.in) {
     const a = c === UNKNOWN ? [tid] : best.get(c)?.a;
-    if (a) cands.push({ a, why: { kind: 'in', via: c } });
+    if (a) cands.push({ a: union(a, own), why: { kind: 'in', via: c } });
   }
   for (const kind of ['access', 'recovery'] as const) {
     const owner = kind === 'access' ? tid : `${tid}.recovery`;
@@ -483,10 +514,21 @@ function candidates(tid: string, spec: Spec, best: Best): Entry[] {
     const cond = spec[kind];
     for (const via of cond === null ? [] : split(cond, 'or')) {
       const u = use(via, best, owner);
-      if (u) cands.push({ a: u.a, why: { kind, via, uses: u.uses } });
+      if (u) cands.push({ a: union(u.a, own), why: { kind, via, uses: u.uses } });
     }
   }
-  return cands;
+  if (spec.lock === null || !cands.length) return cands;
+  const lock = meet(spec.lock, best, `${tid}.lock`);
+  if (!lock) return [];
+  const met: Met = { via: lock.via, uses: lock.uses };
+  return cands.map(({ a, why }) => ({ a: union(a, lock.a), why: { ...why, lock: met } as Why }));
+}
+
+/** What a path takes: the ids it came through, and what met the lock. */
+function deps(w: Why): string[] {
+  if (w.kind === 'state') return [];
+  const lock = w.lock?.uses ?? [];
+  return [...(w.kind === 'in' ? [w.via] : w.kind === 'start' ? [] : w.uses), ...lock];
 }
 
 /**
@@ -497,9 +539,8 @@ function candidates(tid: string, spec: Spec, best: Best): Entry[] {
  * the first thing in it with another way in, through what's placed and
  * relying on the same assumptions, take that way instead.
  */
-function ground(things: Map<string, Spec>, best: Best, seed: Best): Best {
+function ground(things: Map<string, Spec>, best: Best, seed: Best, setting: Setting): Best {
   const out: Best = new Map(seed);
-  const deps = (w: Why) => (w.kind === 'in' ? [w.via] : w.kind === 'start' || w.kind === 'state' ? [] : w.uses);
   const placed = (e: Entry) => deps(e.why).every((d) => d === UNKNOWN || out.has(d));
   for (;;) {
     const ready = [...best].filter(([tid, e]) => !out.has(tid) && placed(e));
@@ -508,7 +549,7 @@ function ground(things: Map<string, Spec>, best: Best, seed: Best): Best {
     const freed = [...best].some(([tid, { a }]) => {
       const e = out.has(tid)
         ? undefined
-        : bestOf(candidates(tid, things.get(tid)!, out).filter((c) => cmpStrings(c.a, a) === 0));
+        : bestOf(candidates(tid, things.get(tid)!, out, setting).filter((c) => cmpStrings(c.a, a) === 0));
       if (e) out.set(tid, e);
       return e !== undefined;
     });
@@ -524,16 +565,19 @@ function ground(things: Map<string, Spec>, best: Best, seed: Best): Best {
 export function reach(
   things: Map<string, Spec>,
   start: Iterable<string>,
-  lost: Set<string>,
+  gone: Set<string>,
   assume = new Set<string>(),
   deny = new Set<string>(),
 ): Best {
-  const avail = availability(things, lost);
+  const avail = availability(things, gone);
+  const setting: Setting = { held: new Set(start), assume };
   const seed: Best = new Map();
-  for (const s of start) if (avail.get(s)) seed.set(s, { a: [], why: START });
-  // States hold for anyone, but only as an assumption unless pinned.
+  // Holding a locked thing isn't using it, so only what has no lock starts out reached.
+  for (const s of setting.held) if (avail.get(s) && things.get(s)!.lock === null) seed.set(s, { a: [], why: START });
+  // A state with no way in holds for anyone, but only as an assumption unless pinned.
   for (const [tid, spec] of things) {
-    if (spec.kind === 'state' && avail.get(tid) && !deny.has(tid) && !seed.has(tid)) {
+    const free = spec.in.length === 0 && spec.access === null && spec.recovery === null;
+    if (spec.kind === 'state' && free && avail.get(tid) && !deny.has(tid) && !seed.has(tid)) {
       seed.set(tid, { a: assume.has(tid) ? [] : [tid], why: STATE });
     }
   }
@@ -543,15 +587,15 @@ export function reach(
   for (let pass = 0; pass < 2 * things.size + 2; pass++) {
     const nxt: Best = new Map(seed);
     for (const [tid, spec] of things) {
-      if (!avail.get(tid) || seed.has(tid)) continue;
-      const e = bestOf(candidates(tid, spec, best));
+      if (!avail.get(tid) || seed.has(tid) || deny.has(tid)) continue;
+      const e = bestOf(candidates(tid, spec, best, setting));
       if (e) nxt.set(tid, e);
     }
     const done = nxt.size === best.size && [...nxt].every(([k, e]) => best.has(k) && sameEntry(e, best.get(k)!));
     best = nxt; // on the last pass, its `or` choices come from the final assumptions
     if (done) break;
   }
-  return ground(things, best, seed);
+  return ground(things, best, seed, setting);
 }
 
 /** Lower is more reachable: 0 outright, n assumptions, Infinity not at all. */
@@ -587,12 +631,12 @@ export class Model {
   }
 
   start(sc: Scenario): string[] {
-    return sc.kind === 'lockout' ? this.me : (sc.attacker ?? []);
+    return sc.has?.length ? sc.has : sc.kind === 'lockout' ? this.me : [];
   }
 
   run(name: string): { sc: Scenario; best: Best } {
     const sc = this.scenario(name);
-    const best = reach(this.things, this.start(sc), new Set(sc.lost), new Set(sc.assume), new Set(sc.deny));
+    const best = reach(this.things, this.start(sc), new Set(sc.gone), new Set(sc.assume), new Set(sc.deny));
     return { sc, best };
   }
 
@@ -603,14 +647,14 @@ export class Model {
     const assume = new Set(sc.assume);
     const deny = new Set(sc.deny);
     const free = [...this.states].filter((t) => !assume.has(t) && !deny.has(t));
-    const lost = new Set(sc.lost);
+    const gone = new Set(sc.gone);
     return new Map(
       free.map((s) => [
         s,
         reach(
           this.things,
           this.start(sc),
-          lost,
+          gone,
           new Set([...assume, s]),
           new Set([...deny, ...free.filter((f) => f !== s)]),
         ),
@@ -652,14 +696,14 @@ export class Model {
   /**
    * Everything else that's worse off: what isn't checked for the scenario's
    * kind, leaving out what the scenario names itself, and states that hold
-   * only as an assumption (any free state does, on any day).
+   * only as an assumption (as any state not assumed does, on any day).
    */
   affected(name: string): Map<string, Row> {
     const sc = this.scenario(name);
-    const named = new Set([sc.lost, sc.attacker, sc.assume, sc.deny].flatMap((ids) => ids ?? []));
+    const named = new Set([sc.gone, sc.has, sc.assume, sc.deny].flatMap((ids) => ids ?? []));
     return this.judge(
       name,
-      (spec, t, e) => !spec.check.includes(sc.kind) && !named.has(t) && !(e?.why.kind === 'state' && e.a.length),
+      (spec, t, e) => !spec.check.includes(sc.kind) && !named.has(t) && !(this.states.has(t) && e?.a.includes(t)),
     );
   }
 
@@ -695,7 +739,7 @@ export class Model {
 }
 
 export function fmtWhy(why: Why): string {
-  if (why.kind === 'start' || why.kind === 'state') return why.kind;
-  if (why.kind === 'in') return `in ${why.via}`;
-  return `${why.kind} ${fmtCond(why.via)}`;
+  if (why.kind === 'state') return why.kind;
+  const way = why.kind === 'start' ? 'start' : why.kind === 'in' ? `in ${why.via}` : `${why.kind} ${fmtCond(why.via)}`;
+  return why.lock ? `${way}, lock ${fmtCond(why.lock.via)}` : way;
 }

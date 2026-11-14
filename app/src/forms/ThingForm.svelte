@@ -37,10 +37,10 @@
     breach: 'Breaches report it if an attacker can reach it.',
   };
   const IN_HINT =
-    'Reaching any one of these reaches it; it’s lost only once all of them are. ' +
-    'unknown is a place you don’t know: never lost, and reached only by assuming it.';
+    'Reaching any one of these reaches it; it’s gone only once all of them are. ' +
+    'unknown is a place you don’t know: never gone, and reached only by assuming it.';
   const GRAMMAR = 'Join ids with and or or, and bracket a group, as in pw and (totp or key).';
-  const MIRRORS_HINT = 'A synced copy, lost once its source is lost while the sync still runs.';
+  const MIRRORS_HINT = 'A synced copy, gone once its source is gone while the sync still runs.';
 </script>
 
 <div class="form">
@@ -111,6 +111,14 @@
     {ids}
     unknown
     onchange={(v: string | null, created: Created[]) => onset('recovery', v, created)}
+  />
+  <CondField
+    label="Locked with"
+    hint={`What every way in must also meet: a phone’s PIN or face, a safe’s combination. Holding it isn’t enough, so a state here, such as the laptop being unlocked, is safe on its own. ${GRAMMAR}`}
+    value={spec.lock}
+    {ids}
+    unknown
+    onchange={(v: string | null, created: Created[]) => onset('lock', v, created)}
   />
   <CondField
     label="Needs"

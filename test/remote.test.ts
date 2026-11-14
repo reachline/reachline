@@ -22,7 +22,7 @@ things:
   laptop: {kind: device, in: [home]}
   mail: {kind: account, check: [lockout], access: laptop}
 scenarios:
-  fire: {kind: lockout, lost: [home]}
+  fire: {kind: lockout, gone: [home]}
 `;
 // A backup offsite: the fire no longer locks you out of mail.
 const AFTER = BEFORE.replace('access: laptop', 'access: laptop or backup').replace(

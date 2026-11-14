@@ -4,9 +4,10 @@ import { fmtCond, refs, split, UNKNOWN } from './cond.ts';
 import { fmtWhy, type Best, type Model, type Row, type Scenario } from './model.ts';
 
 export function what(sc: Scenario): string {
-  return sc.kind === 'lockout'
-    ? `lost ${(sc.lost ?? []).join(', ') || 'nothing'}`
-    : `attacker has ${(sc.attacker ?? []).join(', ')}`;
+  const list = (ids: string[] | undefined) => (ids?.length ? ids.join(', ') : 'nothing');
+  const has = (sc.kind === 'breach' || sc.has?.length) && `has ${list(sc.has)}`;
+  const gone = (sc.kind === 'lockout' || sc.gone?.length) && `gone ${list(sc.gone)}`;
+  return [has, gone].filter(Boolean).join('; ');
 }
 
 export function header(sc: Scenario, name: string): string[] {
@@ -86,13 +87,20 @@ export function explain(m: Model, name: string, target: string): string[] {
   if (!best.has(target)) {
     out.push(`${target} not reachable in ${name}. Its ways in:`);
     const spec = m.things.get(target)!;
-    for (const c of spec.in) out.push(c === UNKNOWN ? `  in ${c}` : `  in ${c}: ${statusOf(m, c, best)}`);
-    for (const kind of ['access', 'recovery'] as const) {
+    const conds = (kind: 'access' | 'recovery' | 'lock') => {
       const cond = spec[kind];
       for (const s of cond === null ? [] : split(cond, 'or')) {
         out.push(`  ${kind} ${fmtCond(s)}`);
         for (const r of [...new Set(refs(s))].sort()) out.push(`      ${r}: ${statusOf(m, r, best)}`);
       }
+    };
+    if (m.start(m.scenario(name)).includes(target)) out.push('  start');
+    for (const c of spec.in) out.push(c === UNKNOWN ? `  in ${c}` : `  in ${c}: ${statusOf(m, c, best)}`);
+    conds('access');
+    conds('recovery');
+    if (spec.lock !== null) {
+      out.push('And its lock, which every way in needs:');
+      conds('lock');
     }
     return out;
   }
@@ -101,9 +109,10 @@ export function explain(m: Model, name: string, target: string): string[] {
     const { a, why } = best.get(tid)!;
     const note = a.length ? `  ${m.fmtUnknowns(a)}` : '';
     out.push('  '.repeat(depth) + `${tid}  [${fmtWhy(why)}]${note}` + (seen.has(tid) ? '  (above)' : ''));
-    if (seen.has(tid) || why.kind === 'start' || why.kind === 'state') return;
+    if (seen.has(tid) || why.kind === 'state') return;
     seen.add(tid);
-    for (const x of why.kind === 'in' ? [why.via] : why.uses) {
+    const came = why.kind === 'in' ? [why.via] : why.kind === 'start' ? [] : why.uses;
+    for (const x of [...came, ...(why.lock?.uses ?? [])]) {
       if (x === UNKNOWN) out.push('  '.repeat(depth + 1) + UNKNOWN);
       else walk(x, depth + 1);
     }

@@ -40,6 +40,7 @@ const ARROWS: Record<EdgeKind, string> = {
   needs: '-.->|needs|',
   mirror: '-.->|mirror|',
   recovery: '-.->|recovery|',
+  lock: '-.->|lock|',
 };
 
 /** A view as a Mermaid flowchart, coloured for the scenario's kind (or none); Mermaid lays it out itself. */

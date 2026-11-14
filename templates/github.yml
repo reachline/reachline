@@ -13,11 +13,11 @@ template:
   slots:
     vault: Where the password is kept
     mail: The email account GitHub sends to
-    phone_unlocked: The unlocked phone with your authenticator app and GitHub Mobile
+    phone: The phone with your authenticator app and GitHub Mobile
     phone_number: The phone number for text messages
     hw_key: Your security key
     safe: Where the recovery codes are kept
-    laptop_unlocked: The computer with your SSH key, signed in
+    laptop: The computer with your SSH key
   optional:
     github_totp: true
     github_sms: false
@@ -30,20 +30,20 @@ template:
 things:
   vault: {kind: service, note: 'your password manager, unlocked'}
   mail: {kind: account}
-  phone_unlocked: {kind: device}
+  phone: {kind: device}
   phone_number: {kind: service}
   hw_key: {kind: device}
   safe: {kind: location}
-  laptop_unlocked: {kind: device}
+  laptop: {kind: device}
 
   github_pw: {kind: secret, in: vault}
-  github_totp: {kind: secret, in: phone_unlocked, note: an authenticator app}
+  github_totp: {kind: secret, in: phone, note: an authenticator app}
   github_sms: {kind: secret, in: phone_number, note: codes by text message}
   github_key: {kind: secret, in: hw_key, note: a security key}
-  github_mobile: {kind: secret, in: phone_unlocked, note: 'GitHub Mobile, signed in'}
-  github_passkey: {kind: secret, in: phone_unlocked, note: 'a passkey, which signs in without the password'}
+  github_mobile: {kind: secret, in: phone, note: 'GitHub Mobile, signed in'}
+  github_passkey: {kind: secret, in: phone, note: 'a passkey, which signs in without the password'}
   github_codes: {kind: secret, in: safe, note: recovery codes}
-  github_ssh: {kind: secret, in: laptop_unlocked, note: 'an SSH key, which can back a recovery request'}
+  github_ssh: {kind: secret, in: laptop, note: 'an SSH key, which can back a recovery request'}
 
   github:
     kind: account

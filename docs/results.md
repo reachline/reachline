@@ -5,14 +5,14 @@
 Each scenario lists the checked things it affects:
 
 ```text
-house_fire  (lockout: lost home, carried)
+house_fire  (lockout: gone home, carried)
   # at night, everything is home
   documents      LOST
   mail           LOST
   code_host      UNSURE  if code_host.recovery (unknown)
   bank           LOST
 
-thief_carried  (breach: attacker has carried)
+thief_carried  (breach: has carried)
   # phone and keys taken while locked
   documents      UNSURE  if storage.recovery (unknown)  via in docs_cloud
   mail           REACHED  via recovery phone_number
@@ -20,7 +20,7 @@ thief_carried  (breach: attacker has carried)
 
 | Verdict | Means |
 | --- | --- |
-| **LOST** | In a lockout: you can't reach it, whether it's gone or just out of reach. |
+| **LOST** | In a lockout: it can't be reached, whether it's gone or just out of reach. |
 | **REACHED** | In a breach: the attacker reaches it outright. |
 | **UNSURE** `if …` | It's reached only if what you marked `unknown` works out. Named after its owner: `old_drive (unknown)` is the one in `old_drive`'s `in` or `access`, and `code_host.recovery (unknown)` the one in its `recovery`. |
 | **DEPENDS** `if …` | It's reached only if the named states hold. `if any one of pm_open_laptop, pm_open_phone` means either one is enough. |
@@ -31,7 +31,7 @@ A result that relies on both unknowns and states is UNSURE. A lockout doesn't li
 
 A verdict on its own would blame the scenario for problems you already have, so each kind is measured against a reference.
 
-**A lockout is compared with the normal day.** It lists a checked thing only if it's worse off than on a normal day: lost, or relying on more assumptions. Anything already shaky shows up once, under `baseline` ("already shaky on a normal day"), rather than in every lockout. Read `baseline` first.
+**A lockout is compared with the normal day,** even one that starts from someone else's `has`. It lists a checked thing only if it's worse off than on a normal day: lost, or relying on more assumptions. Anything already shaky shows up once, under `baseline` ("already shaky on a normal day"), rather than in every lockout. Read `baseline` first.
 
 **A breach is compared with an attacker who has nothing.** It lists a checked thing the attacker reaches, unless someone with nothing at all could reach it on fewer assumptions, or on the same ones. A guess anyone could make isn't blamed on the theft.
 
@@ -42,14 +42,14 @@ Each line of a breach says how the attacker got in: `via in docs_nas`, `via reco
 ```text
 $ reachline --model model.yml thief_carried mail
 mail  [recovery phone_number]
-  phone_number  [access phone]
-    phone  [in carried]
+  phone_number  [access sim]
+    sim  [in carried]
       carried  [start]
 ```
 
-Each line is a thing and how it was reached, with what that used indented beneath it. `start` is where the scenario starts (`me`, or what the attacker has), `state` is a state that held, and `(above)` marks a thing already shown.
+Each line is a thing and how it was reached, with what that used indented beneath it. `start` is where the scenario starts (`me`, or what it `has`), `state` is a state with no way in that held, and `(above)` marks a thing already shown. A locked thing also says how its lock was met, as in `laptop  [in home, lock laptop_pw]`, with what that used beneath it too.
 
-When the thing can't be reached, you get its ways in instead, with where each part stands: `yes`, `no`, or `if` and the assumptions.
+When the thing can't be reached, you get its ways in instead, and its lock if it has one, with where each part stands: `yes`, `no`, or `if` and the assumptions.
 
 ```text
 $ reachline --model model.yml house_fire mail

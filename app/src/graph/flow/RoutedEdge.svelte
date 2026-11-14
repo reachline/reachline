@@ -47,6 +47,10 @@
     stroke: var(--e-recovery);
     stroke-dasharray: 6 4;
   }
+  .k-lock {
+    stroke: var(--e-lock);
+    stroke-dasharray: 12 3;
+  }
   .k-needs {
     stroke: var(--e-needs);
     stroke-dasharray: 2 3;

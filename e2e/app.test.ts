@@ -245,15 +245,15 @@ test('the text editor', async () => {
   await page.keyboard.press('Escape');
   await page.keyboard.press('F12');
   await page.locator('.cm-activeLine', { hasText: /^\s*mail_pw:/ }).waitFor();
-  await page.getByRole('searchbox', { name: 'Find' }).fill('hw_key');
+  await page.getByRole('searchbox', { name: 'Find' }).fill('vault');
   await page.getByText(/^\d+ of \d+$/).waitFor();
   assert.ok((await page.locator('.cm-searchMatch').count()) > 1);
   // Folding everything (from the keyboard; the gutter folds one) hides all but the top level.
   await page.locator('.cm-content').click();
   await page.keyboard.press('Control+Alt+BracketLeft');
-  await page.locator('.cm-content').getByText('laptop_unlocked').waitFor({ state: 'detached' });
+  await page.locator('.cm-content').getByText('pm_master_sheet').waitFor({ state: 'detached' });
   await page.keyboard.press('Control+Alt+BracketRight');
-  await page.locator('.cm-content').getByText('laptop_unlocked').first().waitFor();
+  await page.locator('.cm-content').getByText('pm_master_sheet').first().waitFor();
 
   assert.deepEqual(problems, []);
 });

@@ -7,6 +7,7 @@
     ['in', 'in'],
     ['access', 'access'],
     ['recovery', 'recovery'],
+    ['lock', 'lock: needed by every way in'],
     ['needs', 'needs'],
     ['mirror', 'mirror'],
     ['part', 'into AND/OR: thin, as the edge it leads into'],
@@ -82,6 +83,10 @@
   .e-recovery {
     stroke: var(--e-recovery);
     stroke-dasharray: 6 4;
+  }
+  .e-lock {
+    stroke: var(--e-lock);
+    stroke-dasharray: 12 3;
   }
   .e-needs {
     stroke: var(--e-needs);

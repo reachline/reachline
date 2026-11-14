@@ -26,7 +26,7 @@ test('ids are offered in the fields that refer to things', () => {
   assert.deepEqual(offered('things:\n  a: {kind: device, in: [ho|]}\n'), [...all, 'unknown']);
   assert.deepEqual(offered('things:\n  a:\n    needs: ho|\n'), all);
   assert.deepEqual(offered('things:\n  a:\n    mirrors: {of: ho|, by: x}\n'), all);
-  assert.deepEqual(offered('scenarios:\n  s: {kind: lockout, lost: [|]}\n'), all);
+  assert.deepEqual(offered('scenarios:\n  s: {kind: lockout, gone: [|]}\n'), all);
   assert.deepEqual(offered('me: [h|, x]\n'), all);
 });
 

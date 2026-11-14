@@ -26,7 +26,7 @@
   const ME_HINT =
     'What you have without getting it through anything else, which everything is reached from: usually places, ' +
     'such as head (what you remember), body, carried, home, and contacts (people who’d lend you a device). ' +
-    'A lockout takes some away; a breach starts from what the attacker has instead.';
+    'A lockout starts from these unless it says otherwise; a breach starts from what the attacker has instead.';
 </script>
 
 <div class="form">
@@ -34,7 +34,7 @@
     label="Scenario"
     value={name}
     fixed={name === BASELINE
-      ? 'The normal day is built in: you, with nothing lost. Every lockout is compared with it.'
+      ? 'The normal day is built in: you, with nothing gone. Every lockout is compared with it.'
       : undefined}
     {onrename}
   />
@@ -55,21 +55,21 @@
       onchange={(k: string) => onset('kind', k)}
     />
   </div>
-  {#if spec.kind === 'breach'}
-    <IdList
-      label="Attacker has"
-      hint="What the attacker starts with."
-      values={list(spec.attacker)}
-      {ids}
-      onchange={(v: string[], created: Created[]) => onset('attacker', v, created)}
-    />
-  {/if}
   <IdList
-    label="Lost"
-    hint="What's gone in this scenario, and everything only in it."
-    values={list(spec.lost)}
+    label={spec.kind === 'breach' ? 'Attacker has' : 'Has'}
+    hint={spec.kind === 'breach'
+      ? 'What the attacker starts with.'
+      : 'Leave it empty to start from what you have on a normal day. Name what someone else has, such as a partner, to see what they could reach without you.'}
+    values={list(spec.has)}
     {ids}
-    onchange={(v: string[], created: Created[]) => onset('lost', v, created)}
+    onchange={(v: string[], created: Created[]) => onset('has', v, created)}
+  />
+  <IdList
+    label="Gone"
+    hint="What no longer exists in this scenario, for anyone, and everything that existed only through it."
+    values={list(spec.gone)}
+    {ids}
+    onchange={(v: string[], created: Created[]) => onset('gone', v, created)}
   />
   <IdList
     label="Assume"

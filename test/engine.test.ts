@@ -73,7 +73,7 @@ test('losing more never reaches more', () => {
   for (const m of PLAN_SETS.map((p) => example(...p))) {
     // A mirror survives when its syncer is lost too (tested below), so leave mirrors out.
     const things = new Map([...m.things].map(([t, s]) => [t, { ...s, mirrors: null }]));
-    const losses = [[], ...[...m.scenarios.values()].map((sc) => sc.lost ?? [])];
+    const losses = [[], ...[...m.scenarios.values()].map((sc) => sc.gone ?? [])];
     for (const lost of losses) {
       const before = reach(things, m.me, new Set(lost));
       for (const extra of things.keys()) {
@@ -93,7 +93,7 @@ test('a mirror empties once its source is lost, unless its syncer is lost too', 
 
 test('an attacker given more never reaches less', () => {
   for (const m of PLAN_SETS.map((p) => example(...p))) {
-    const starts = [[], ...[...m.scenarios.values()].map((sc) => sc.attacker ?? [])];
+    const starts = [[], ...[...m.scenarios.values()].map((sc) => sc.has ?? [])];
     for (const start of starts) {
       const before = reach(m.things, start, new Set());
       for (const extra of m.things.keys()) {
@@ -107,29 +107,32 @@ test('an attacker given more never reaches less', () => {
 test('every path relies on exactly its assumptions and leads back to the start', () => {
   // Listing carrier first makes phone_number's two equal ways in tie the other
   // way, which once showed mail ← phone_number ← carrier ← mail.
-  const carrierFirst = { things: { phone_number: { access: 'carrier or phone' } } };
+  const carrierFirst = { things: { phone_number: { access: 'carrier or sim' } } };
   const models = [
     ...PLAN_SETS.map((p) => example(...p)),
     exampleWith({ carrier_first: carrierFirst }, ['carrier_first']),
   ];
   for (const m of models) {
     for (const name of m.scenarios.keys()) {
-      const { best } = m.run(name);
+      const { sc, best } = m.run(name);
       const placed = new Set<string>();
       const check = (t: string, path: string[]) => {
         assert.ok(!path.includes(t), `${name}: ${[...path, t].join(' ← ')}`);
         if (placed.has(t)) return;
         const { a, why } = best.get(t)!;
-        if (why.kind === 'in' && why.via === UNKNOWN) {
-          assert.deepEqual(a, [t], `${name}: ${t}`);
-        } else if (why.kind === 'in') {
-          assert.deepEqual(best.get(why.via)?.a, a, `${name}: ${t}`);
-          check(why.via, [...path, t]);
-        } else if (why.kind === 'access' || why.kind === 'recovery') {
-          const owner = why.kind === 'access' ? t : `${t}.recovery`;
-          const relied = why.uses.flatMap((x) => (x === UNKNOWN ? [owner] : best.get(x)!.a));
+        if (why.kind !== 'state') {
+          // An unknown is an assumption about its owner, and a state reached through something is one about itself.
+          const owner = why.kind === 'recovery' ? `${t}.recovery` : t;
+          const came = why.kind === 'in' ? [why.via] : why.kind === 'start' ? [] : why.uses;
+          const lock = why.lock?.uses ?? [];
+          const own = m.states.has(t) && why.kind !== 'start' && !sc.assume?.includes(t) ? [t] : [];
+          const relied = [
+            ...came.map((x) => (x === UNKNOWN ? [owner] : best.get(x)!.a)),
+            ...lock.map((x) => (x === UNKNOWN ? [`${t}.lock`] : best.get(x)!.a)),
+            own,
+          ].flat();
           assert.deepEqual([...new Set(relied)].sort(), a, `${name}: ${t}`);
-          for (const x of why.uses) if (x !== UNKNOWN) check(x, [...path, t]);
+          for (const x of [...came, ...lock]) if (x !== UNKNOWN) check(x, [...path, t]);
         }
         placed.add(t);
       };
@@ -186,16 +189,17 @@ test('every reference error is reported', () => {
         needs: 'home and bad_needs',
         access: 'bad_access and (home or bad_anyof)',
         recovery: 'bad_recovery',
+        lock: 'bad_lock',
         mirrors: { of: 'bad_of', by: 'bad_by' },
       },
     },
     scenarios: {
-      fire: { kind: 'lockout', lost: ['bad_lost'], assume: ['home'], deny: ['bad_deny'] },
-      b: { kind: 'breach', attacker: ['bad_attacker'] },
+      fire: { kind: 'lockout', gone: ['bad_gone'], assume: ['home'], deny: ['bad_deny'] },
+      b: { kind: 'breach', has: ['bad_has'] },
     },
     me: ['bad_me'],
   };
-  const ids = ['in', 'needs', 'access', 'anyof', 'recovery', 'of', 'by', 'lost', 'deny', 'attacker', 'me'];
+  const ids = ['in', 'needs', 'access', 'anyof', 'recovery', 'lock', 'of', 'by', 'gone', 'deny', 'has', 'me'];
   assert.throws(
     () => new Model(doc(bad)),
     (e: Error) => {
@@ -238,6 +242,8 @@ test('kinds, checks and keys are closed sets, and kind is required', () => {
   // A misspelled scenario kind used to run as a breach.
   fails({ scenarios: { fire: { kind: 'lockut' } } }, 'fire', 'kind');
   fails({ scenarios: { fire: {} } }, 'fire', 'kind');
+  // The old names are errors.
+  fails({ scenarios: { fire: { kind: 'lockout', lost: [] } } }, 'fire', 'lost');
   assert.throws(() => exampleWith({ p: { version: 1 } }, ['p']), /version/);
   // A plan adding a thing must give its kind; one changing a thing needn't.
   assert.throws(() => exampleWith({ p: { things: { new_key: { in: ['home'] } } } }, ['p']), /new_key/);
@@ -253,8 +259,8 @@ test('a list of one needs no brackets, but a list of more does', () => {
         pw: { kind: 'secret', in: one('home'), check: one('lockout') },
       },
       scenarios: {
-        fire: { kind: 'lockout', lost: one('home'), deny: one('open') },
-        thief: { kind: 'breach', attacker: one('home'), assume: one('open') },
+        fire: { kind: 'lockout', gone: one('home'), deny: one('open') },
+        thief: { kind: 'breach', has: one('home'), assume: one('open') },
       },
       me: one('home'),
     });
@@ -264,7 +270,7 @@ test('a list of one needs no brackets, but a list of more does', () => {
   // More than one, or a reference that isn't a thing, is marked on the field.
   const marks = (d: object) => marked(doc(d)).map((m) => `${m.path} ${m.text}`);
   assert.deepEqual(marks({ things: { a: { kind: 'secret', in: 'home or safe' } } }), ['things.a.in home or safe']);
-  assert.deepEqual(marks({ scenarios: { s: { kind: 'lockout', lost: 'nope' } } }), ['scenarios.s.lost nope']);
+  assert.deepEqual(marks({ scenarios: { s: { kind: 'lockout', gone: 'nope' } } }), ['scenarios.s.gone nope']);
   assert.deepEqual(marks({ me: 'a, b' }), ['me a, b']);
 });
 
@@ -282,11 +288,7 @@ test('errors mark where the problem is written, in the model or a plan', () => {
   one(doc({ ...base, things: { a: { kind: 'device', check: ['lockout', 'lockut'] } } }), [], 'things.a.check.1');
   one(doc({ ...base, things: { a: { kind: 'device', recovry: [] } } }), [], 'things.a.recovry');
   one(doc({ scenarios: { fire: { kind: 'lockut' } } }), [], 'scenarios.fire.kind', 'lockut');
-  one(
-    exampleDoc({ p: { scenarios: { s: { kind: 'breach', attackers: [] } } } }),
-    ['p'],
-    'plans.p.scenarios.s.attackers',
-  );
+  one(exampleDoc({ p: { scenarios: { s: { kind: 'breach', attacker: [] } } } }), ['p'], 'plans.p.scenarios.s.attacker');
   one(exampleDoc({ p: { thingz: {} } }), ['p'], 'plans.p.thingz');
   one(exampleDoc({ p: { things: { new_key: { in: ['home'] } } } }), ['p'], 'plans.p.things.new_key');
 
@@ -325,7 +327,7 @@ test('a condition that does not parse is marked on the word, and says how to fix
 
 test('unknown is a place in in and an assumption in access, but means nothing in needs or a scenario', () => {
   const things = { home: { kind: 'location' }, a: { kind: 'device', in: ['home', UNKNOWN] } };
-  const m = new Model(doc({ things, scenarios: { fire: { kind: 'lockout', lost: ['home'] } }, me: ['home'] }));
+  const m = new Model(doc({ things, scenarios: { fire: { kind: 'lockout', gone: ['home'] } }, me: ['home'] }));
   assert.deepEqual(m.run('baseline').best.get('a')!.a, []);
   // Once home is lost, it's somewhere you don't know: never lost, reached only by assuming it.
   assert.deepEqual(m.run('fire').best.get('a')!.a, ['a']);
@@ -336,7 +338,7 @@ test('unknown is a place in in and an assumption in access, but means nothing in
     );
   fails({ things: { a: { kind: 'device', needs: `a and ${UNKNOWN}` } } }, UNKNOWN);
   fails({ things: { a: { kind: 'device', in: ['?'] } } }, '"?"');
-  fails({ things: { a: { kind: 'device' } }, scenarios: { s: { kind: 'lockout', lost: [UNKNOWN] } } }, UNKNOWN);
+  fails({ things: { a: { kind: 'device' } }, scenarios: { s: { kind: 'lockout', gone: [UNKNOWN] } } }, UNKNOWN);
   assert.equal(marked(doc({ things: { [UNKNOWN]: { kind: 'device' } } }))[0].path, `things.${UNKNOWN}`);
 });
 
@@ -373,7 +375,7 @@ test('also affected is what checking everything would add, less what the scenari
   const all = new Model(doc(d));
   for (const [name, sc] of m.scenarios) {
     const rows = m.rows(name);
-    const named = [sc.lost, sc.attacker, sc.assume, sc.deny].flat();
+    const named = [sc.gone, sc.has, sc.assume, sc.deny].flat();
     for (const [t, row] of m.affected(name)) {
       assert.ok(!rows.has(t) && !named.includes(t), `${name}: ${t}`);
       assert.deepEqual(all.rows(name).get(t), row, `${name}: ${t}`);
@@ -383,4 +385,68 @@ test('also affected is what checking everything would add, less what the scenari
   assert.ok(fire.has('laptop') && !fire.has('home') && !fire.has('mail'));
   // A free state holds only as an assumption on any day, which isn't being worse off.
   assert.ok(![...m.affected('baseline').keys()].some((t) => m.states.has(t)));
+});
+
+test('a lock is met on top of every way in, and holding a thing is not getting past it', () => {
+  const m = new Model(
+    doc({
+      things: {
+        carried: { kind: 'location' },
+        phone: { kind: 'device', in: 'carried', lock: 'pin or open' },
+        pin: { kind: 'secret' },
+        open: { kind: 'state' },
+        totp: { kind: 'secret', in: 'phone' },
+        box: { kind: 'location', lock: `pin or ${UNKNOWN}` },
+      },
+    }),
+  );
+  const reached = (start: string[], assume: string[] = [], deny = ['open']) =>
+    reach(m.things, start, new Set(), new Set(assume), new Set(deny)).get('totp')?.a;
+  assert.equal(reached(['carried']), undefined);
+  assert.equal(reached(['phone']), undefined);
+  assert.deepEqual(reached(['carried', 'pin']), []);
+  assert.deepEqual(reached(['phone'], ['open'], []), []);
+  assert.deepEqual(reached(['phone'], [], []), ['open']);
+  // An unknown in a lock is an assumption about the lock.
+  assert.deepEqual(reach(m.things, ['box'], new Set()).get('box')?.a, ['box.lock']);
+});
+
+test('a state with in is reached only through it, and is still an assumption', () => {
+  const m = new Model(
+    doc({
+      things: {
+        home: { kind: 'location' },
+        laptop: { kind: 'device', in: 'home' },
+        session: { kind: 'state', in: 'laptop' },
+        anywhere: { kind: 'state' },
+        mail: { kind: 'account', access: 'session or anywhere' },
+      },
+    }),
+  );
+  const a = (start: string[], assume: string[] = [], deny: string[] = []) =>
+    reach(m.things, start, new Set(), new Set(assume), new Set(deny)).get('session')?.a;
+  assert.equal(a([]), undefined);
+  assert.deepEqual(a(['home']), ['session']);
+  assert.deepEqual(a(['home'], ['session']), []);
+  assert.equal(a(['home'], [], ['session']), undefined);
+  // A state with no way in still holds for anyone, as an assumption.
+  assert.deepEqual(reach(m.things, [], new Set()).get('mail')?.a, ['anywhere']);
+});
+
+test("a lockout can start from someone else's, and is measured against your normal day", () => {
+  const m = new Model(
+    doc({
+      things: {
+        head: { kind: 'location' },
+        home: { kind: 'location' },
+        pw: { kind: 'secret', in: 'head' },
+        docs: { kind: 'data', in: 'home', check: 'lockout' },
+        bank: { kind: 'account', access: 'pw', check: 'lockout' },
+      },
+      scenarios: { partner: { kind: 'lockout', has: 'home' } },
+      me: ['head', 'home'],
+    }),
+  );
+  assert.deepEqual([...m.rows('partner')], [['bank', ['LOST', '']]]);
+  assert.equal(m.rows(BASELINE).size, 0);
 });

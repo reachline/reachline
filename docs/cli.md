@@ -34,7 +34,7 @@ reachline push home.yml          # saves it as a new revision
 ```text
 Verdicts changed since revision 41:
 
-house_fire  (lockout: lost home, carried)
+house_fire  (lockout: gone home, carried)
   mail           LOST  →  ok
 ```
 

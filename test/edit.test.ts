@@ -124,7 +124,7 @@ test('removing a thing never widens a way in', () => {
   for (const plans of [[], ['spare_key'], ['backup']]) model(removed, plans);
   const access_ = (text: string, id: string) =>
     (parse(text) as { things: Record<string, { access?: string }> }).things[id].access;
-  assert.equal(access_(removed, 'mail'), '(mail_pw and mail_totp) or (phone_unlocked and mail_session_phone)');
+  assert.equal(access_(removed, 'mail'), '(mail_pw and mail_totp) or mail_session_phone');
   assert.equal(access_(removed, 'registrar'), undefined);
 });
 
@@ -134,7 +134,7 @@ test('a rename or removal reaches an id written without brackets', () => {
     '  home: {kind: location}',
     '  pw: {kind: secret, in: home}',
     'scenarios:',
-    '  fire: {kind: lockout, lost: home}',
+    '  fire: {kind: lockout, gone: home}',
     'me: home',
     'plans:',
     '  p:',
@@ -152,8 +152,10 @@ test('a rename or removal reaches an id written without brackets', () => {
 test('a rename swaps whole words in a condition, and nothing else', () => {
   const renamed = edit(EXAMPLE, renameThing('phone', 'mobile'));
   const t = (parse(renamed) as { things: Record<string, { access?: string }> }).things;
-  assert.equal(t.phone_unlocked.access, 'mobile and (phone_pin or face)');
-  assert.equal(t.phone_number.access, 'mobile or carrier');
+  assert.equal(
+    t.vault.access,
+    '((laptop or mobile) and pm_master) or pm_open_laptop or pm_open_phone or (loaner and pm_master and hw_key)',
+  );
 });
 
 test('an edit to a plan goes into the plan, and the model is untouched', () => {

@@ -26,7 +26,7 @@ template:
   prefix: github
   slots:
     vault: Where the password is kept
-    phone_unlocked: The unlocked phone with your authenticator app
+    phone: The phone with your authenticator app
     safe: Where the recovery codes are kept
   optional:
     github_totp: true
@@ -34,11 +34,11 @@ template:
 
 things:
   vault: {kind: service}
-  phone_unlocked: {kind: device}
+  phone: {kind: device}
   safe: {kind: location}
 
   github_pw: {kind: secret, in: vault}
-  github_totp: {kind: secret, in: phone_unlocked, note: an authenticator app}
+  github_totp: {kind: secret, in: phone, note: an authenticator app}
   github_codes: {kind: secret, in: safe, note: recovery codes}
   github:
     kind: account

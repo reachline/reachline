@@ -30,10 +30,11 @@ A list of one can go without brackets: `in: home` = `in: [home]`. A list of mult
 | --- | --- | --- |
 | `kind` (Kind) | one word | Required. See [kinds](#kinds). |
 | `check` (Check for) | list | `lockout` (lockouts report it if you can't reach it), `breach` (breaches report it if an attacker can). You should check the ends, not the means. |
-| `in` (Lives in) | list of ids | Where it lives, physically or digitally. It's reached through any one of these, and gone once all of them are. May include `unknown`, a place you don't know: never lost, and reached only by assuming it. |
+| `in` (Lives in) | list of ids | Where it lives, physically or digitally. It's reached through any one of these, and gone once all of them are. May include `unknown`, a place you don't know: never gone, and reached only by assuming it. |
 | `needs` (Needs) | condition | It exists only while this holds, reached or not. No `unknown`. |
 | `access` (Accessed with) | condition | It's reached when this holds. |
 | `recovery` (Recovered with) | condition | The same as `access`, reported as recovery. |
+| `lock` (Locked with) | condition | Every way in must meet this too, including a scenario's `has`: holding a thing isn't using it. An `unknown` here is named `id.lock`. |
 | `mirrors` (Mirrors) | `{of, by}` | A synced copy of `of`, kept in step by `by`. It's gone once `of` is, while `by` still exists. |
 | `note`, `todo` | text | Free text. `reachline --model FILE --todo` lists the todos. |
 
@@ -45,17 +46,17 @@ A thing with no `in` and no `needs` always exists. Apart from a state, a thing w
 | --- | --- |
 | `account` | Something you sign in to: email, the bank, cloud storage. |
 | `data` | Files you care about: documents, backups. |
-| `device` | Hardware, and the unlocked session on it: `phone`, `phone_unlocked`, `hw_key`. |
+| `device` | Hardware: `phone`, `laptop`, `hw_key`. |
 | `location` | A place: `home`, `safe`, `offsite`, and the roots `head`, `body`, `carried`, `contacts`. |
 | `secret` | What proves it's you: passwords, PINs, authenticator seeds, recovery codes, fingerprints. |
 | `service` | Something that runs, which you use: the password manager, a phone number, a domain, a sync job. |
 | `state` | A condition of the moment: the password manager unlocked on the laptop. |
 
-Only `state` changes how ReachLine treats a thing. A state isn't reached through anything: unless a scenario settles it, it holds as an assumption, for as long as it exists. `in` and `needs` can make it gone; `access` and `recovery` have no effect on it.
+Only `state` changes how ReachLine treats a thing: it's an assumption, unless a scenario settles it with `assume` or `deny`. A state with no `in`, `access` or `recovery` holds for anyone, for as long as it exists. One with them is reached like anything else, and is still an assumption: `{kind: state, in: phone}` is a session on the unlocked phone.
 
 ## Conditions
 
-Conditions are things joined by `and` and `or`, with brackets, nested as deep as you like. The properties `needs`, `access` and `recovery` each hold one condition.
+Conditions are things joined by `and` and `or`, with brackets, nested as deep as you like. The properties `needs`, `access`, `recovery` and `lock` each hold one condition.
 
 ```yaml
 needs: vm and (proxy_a or proxy_b)
@@ -65,24 +66,24 @@ recovery: mail and unknown
 
 - `and` and `or` can't share a level without brackets. `a and b or c` will error, to prevent ambiguity.
 - Each option of a top-level `or` is a separate way in, and the results name the one used. Inside brackets, an `or` takes the option that relies on the fewest assumptions, or the first written on a tie.
-- `unknown` is allowed in `access` and `recovery`, and as a place in `in`. Nowhere else.
+- `unknown` is allowed in `access`, `recovery` and `lock`, and as a place in `in`. Nowhere else.
 
 ## Scenarios
 
 | Field | Shape | Meaning |
 | --- | --- | --- |
-| `kind` | `lockout` or `breach` | Required. A lockout starts from `me`; a breach starts from `attacker`. |
-| `lost` | list of ids | Gone in this scenario, along with everything that existed only through them. In a breach this applies to the attacker too. |
-| `attacker` ("Attacker has") | list of ids | A breach's starting point, and nothing else. |
+| `kind` | `lockout` or `breach` | Required. A lockout reports what you can't reach, against the normal day; a breach reports what the attacker reaches, against an attacker with nothing. |
+| `has` (Has, Attacker has) | list of ids | Where the scenario starts, and nothing else. A lockout without it starts from `me`; a breach without it, from nothing. |
+| `gone` (Gone) | list of ids | No longer exists in this scenario, for anyone, along with everything that existed only through them. |
 | `assume` | list of states | States that hold. |
 | `deny` | list of states | States that don't hold. |
 | `note` | text | Shown under the scenario's name. |
 
-The normal day, `baseline`, is built in: `me`, nothing lost, no states settled. It comes first in every list of scenarios.
+The normal day, `baseline`, is built in: `me`, nothing gone, no states settled. It comes first in every list of scenarios.
 
 ## `me` (On a normal day you have)
 
-A list of ids: what you have without getting it through anything else, usually places. It's where the normal day and every lockout start.
+A list of ids: what you have without getting it through anything else, usually places. It's where the normal day starts, and every lockout that doesn't say `has`.
 
 ## Plans
 

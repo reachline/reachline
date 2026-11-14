@@ -30,9 +30,11 @@ export function compareTexts(before: string, after: string, beforePlans: string[
   return compare(b, a, [...new Set([...a.scenarios.keys(), ...b.scenarios.keys()])]);
 }
 
-/** A scenario in a line: what it takes away, or what the attacker starts with. */
+/** A scenario in a line: what it starts from, if not you, and what's gone. */
 export function summary(name: string, sc: Scenario): string {
-  if (name === BASELINE) return 'the normal day: you, with nothing lost';
-  const ids = ((sc.kind === 'lockout' ? sc.lost : sc.attacker) ?? []).join(', ') || 'nothing';
-  return sc.kind === 'lockout' ? `loses ${ids}` : `the attacker has ${ids}`;
+  if (name === BASELINE) return 'the normal day: you, with nothing gone';
+  const ids = (list?: string[]) => (list?.length ? list.join(', ') : 'nothing');
+  const has = sc.kind === 'breach' ? `the attacker has ${ids(sc.has)}` : sc.has?.length ? `has ${ids(sc.has)}` : '';
+  const gone = sc.kind === 'lockout' || sc.gone?.length ? `${ids(sc.gone)} gone` : '';
+  return [has, gone].filter(Boolean).join(', ');
 }

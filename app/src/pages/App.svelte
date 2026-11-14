@@ -579,7 +579,7 @@
   }
 
   function addedScenario(name: string, kind: string) {
-    if (!apply(addScenario(layer, name, kind === 'breach' ? { kind, attacker: [] } : { kind, lost: [] }))) return;
+    if (!apply(addScenario(layer, name, kind === 'breach' ? { kind, has: [] } : { kind, gone: [] }))) return;
     scenarioName = name;
     setEditMode(true);
     showTab('scenarios');

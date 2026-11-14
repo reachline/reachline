@@ -52,7 +52,7 @@ test('a service with no second factor set up asks for the password alone', () =>
   assert.equal(things.github.access, 'github_pw or mail');
   assert.equal(things.github.recovery, undefined);
   // What nothing needs any more isn't created.
-  assert.ok(!('hw_key' in things) && !('phone_unlocked' in things));
+  assert.ok(!('hw_key' in things) && !('phone' in things));
 });
 
 test('slots bind to your things, and the prefix renames what is the template’s', () => {
