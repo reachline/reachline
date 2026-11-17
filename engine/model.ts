@@ -300,6 +300,10 @@ function normalize(tid: string, raw: Raw, from: Origin): Spec {
       throw fault(at, `${tid}: ${key}: ${e.message}`, [e.from, e.to]);
     }
   }
+  // A state with no way in holds without being reached, so there'd be nothing for a lock to stand in front of.
+  if (spec.kind === 'state' && spec.lock !== null && !(spec.in as string[]).length && !spec.access && !spec.recovery) {
+    throw fault(fieldAt(from, 'lock'), `${tid}: a state with no in, access or recovery can't have a lock`);
+  }
   // eslint-disable-next-line @typescript-eslint/prefer-nullish-coalescing -- any falsy value means none
   spec.mirrors = spec.mirrors || null;
   return spec as Spec;

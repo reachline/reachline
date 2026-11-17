@@ -1,10 +1,10 @@
 # CLI and agents
 
-The `reachline` command works on your models from a terminal. It pulls a model from your server into a file, runs the engine on that file, and pushes your edits back as a new revision. Because it's an ordinary command, an AI agent that can run commands, such as Claude Code, can use it the same way you do.
+The `reachline` command works on your models from a terminal. It pulls a model from your server into a file, runs the engine on that file, and pushes your edits back as a new revision. If you want to utilize an AI agent to help you reason through your model, this would be how.
 
-## Setting it up
+## Setup
 
-Your server hands out the command, always in the version that matches it. Your Account page, under **CLI and agents**, shows the commands to copy:
+You download the CLI tool from your own server. Your Account page, under **CLI and agents**, shows the commands to copy:
 
 ```sh
 mkdir -p ~/.local/bin && curl -fsSL https://reachline.example.com/reachline.mjs -o ~/.local/bin/reachline
@@ -12,7 +12,7 @@ chmod +x ~/.local/bin/reachline
 reachline login https://reachline.example.com
 ```
 
-It runs on macOS and Linux, and needs [Node.js](https://nodejs.org) 22 or newer, and `~/.local/bin` on your `PATH`. On Windows, run it in [WSL](https://learn.microsoft.com/windows/wsl/install), which is Linux, and so is your agent's shell there. For a shorter name, add `alias rl=reachline` to your shell's settings.
+It runs on macOS and Linux, and needs [Node.js](https://nodejs.org) 22 or newer, and `~/.local/bin` on your `PATH`. On Windows, run it in [WSL](https://learn.microsoft.com/windows/wsl/install), which is Linux, and so is your agent's shell there.
 
 `reachline login` prints a link to your Account page, with a new token's name filled in. Create the token, copy it, and paste it at the prompt. It isn't shown as you paste, so it stays out of your shell's history. The token is kept in `~/.config/reachline/config.json`, which only you can read. `REACHLINE_SERVER` and `REACHLINE_TOKEN` in the environment override it.
 
@@ -46,7 +46,72 @@ Nothing is lost by accident:
 
 Every push is a revision, so you can look at it, or restore what came before, in the app's History.
 
-The reports from [Reading the results](results.md) and [Plans](plans.md) run on the file: `reachline --model home.yml` for every scenario, then a scenario's name, a scenario and a thing, `--plan` or `--todo`. `reachline help` lists them all, and `reachline docs` prints this guide. For a picture, the app draws the graph and exports it.
+## Reports
+
+The reports run the engine on a file, on your computer, so they need no server or sign-in. Name the file with `--model`:
+
+| Command | Shows |
+| --- | --- |
+| `reachline --model home.yml` | every scenario's verdicts |
+| `reachline --model home.yml house_fire burglary` | just those scenarios |
+| `reachline --model home.yml burglary mail` | how the scenario reaches one thing, or what's in the way if it can't |
+| `reachline --model home.yml --todo` | the model's open todos |
+| `reachline --model home.yml --plan spare_key` | every scenario, before and after the plan |
+
+[Reading the results](results.md) explains the verdicts.
+
+A scenario that shares its name with a command, such as `check`, goes after `--`: `reachline --model home.yml -- check`. Any command that fails exits 1, with the reason on stderr, and `check` exits 1 when the model has errors, so a script or an agent can tell.
+
+`reachline help` lists every command. `reachline docs` prints these docs, one topic at a time, as in `reachline docs modelling`. For a picture, the app draws the graph and exports it as SVG, PNG or Mermaid.
+
+### Following a path
+
+Give a scenario and a thing to see the whole path to it:
+
+```text
+$ reachline --model home.yml thief_carried mail
+mail  [recovery phone_number]
+  phone_number  [access sim]
+    sim  [in carried]
+      carried  [start]
+```
+
+Each line is a thing and how it was reached, with what that used indented beneath it. `start` is where the scenario starts (`me`, or what it `has`), `state` is a state with no way in that held, and `(above)` marks a thing already shown. A locked thing also says how its lock was met, as in `laptop  [in home, lock laptop_pw]`, with what that used beneath it too.
+
+When the thing can't be reached, you get its ways in instead, and its lock if it has one, with where each part stands: `yes`, `no`, or `if` and the assumptions.
+
+```text
+$ reachline --model home.yml house_fire mail
+mail not reachable in house_fire. Its ways in:
+  access mail_pw and (mail_totp or hw_key)
+      hw_key: no
+      mail_pw: no
+      mail_totp: no
+  ...
+  recovery mail_codes
+      mail_codes: no
+```
+
+### Trying a plan
+
+`--plan` can repeat, and the plans apply in the order given. It combines with the other forms: with scenario names, just those scenarios before and after; with a scenario and a thing, or `--todo`, the model with the plans applied.
+
+```text
+$ reachline --model home.yml --plan spare_key
+house_fire  (lockout: gone home, carried)
+  # at night, everything is home
+  documents      LOST  →  ok
+  mail           LOST  →  ok
+  code_host      UNSURE  if code_host.recovery (unknown)  →  ok
+  bank           LOST  →  ok
+
+nas_dies  (lockout: gone nas)
+  # the pi keeps syncing, so the cloud copy empties too
+  still          documents
+  (no change)
+```
+
+Each verdict that changes reads before → after, and `still` lists the problems the plan leaves as they were.
 
 ## With an AI agent
 
@@ -60,4 +125,4 @@ Other agents keep skills or instructions in their own places. The skill doesn't 
 
 Sign in yourself before you start. The agent needs only the command, never the token.
 
-Think about what this means. Your model is a map of your weak points, and an agent sends whatever it reads to whoever runs the model behind it. Give an agent only models you're content to share with that provider. A local model, run on your own machine, works with the same command.
+Keep in mind, your model is a map of your weak points, and an agent sends whatever it reads to whoever runs the model behind it. Give an agent only models you're fine sharing with that provider.

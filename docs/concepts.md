@@ -2,7 +2,7 @@
 
 ## Things
 
-Everything in a model is a **thing**: the places you keep stuff, your devices, passwords and keys, the services and accounts you use, and your data. Each has an id under `things:` and a `kind`, and is referred to by its id everywhere else.
+Every node in your model is a **thing**: the places you keep stuff, your devices, passwords and keys, the services and accounts you use, and your data. Each has an id under `things:` and a `kind`, and is referred to by its id everywhere else.
 
 ```yaml
 things:
@@ -19,9 +19,7 @@ things:
 In every scenario, ReachLine asks two questions of every thing:
 
 1. **Does it still exist?** A fire destroys the laptop. A lapsed domain takes the mail account that runs on it.
-2. **Can someone get to it?** Your password manager survives the fire, but without a device and the master password you can't open it.
-
-The difference matters. Something that's gone can't be reached at all: not by you, not through recovery, not by an attacker. Something that still exists might be reached some other way.
+2. **Can someone get to it?** Your password manager survives a fire, but without a device and the master password you can't open it.
 
 Each field answers one question or both:
 
@@ -39,7 +37,7 @@ Fields come in two shapes.
 
 **A list states facts, all true at once.** `in: [head, partner]` says the safe's combination is in your memory *and* your partner's. What follows is that reaching either one reaches it, and it's gone only once both are.
 
-**A condition says what it takes**, as ids joined by `and` and `or`, with brackets:
+**A condition says what it takes**, as ids joined by `and` and `or`, with parentheses:
 
 ```yaml
 access: mail_pw and (mail_totp or hw_key)
@@ -54,19 +52,24 @@ Holding a thing isn't the same as using it. A thief with your phone has the phon
 ```yaml
 phone: {kind: device, in: carried, lock: phone_pin or face}
 mail_totp: {kind: secret, in: phone}
+sim: {kind: device, in: carried}
 ```
 
-Every way in has to meet the lock as well, so reaching `carried` gets someone the phone only with the PIN or your face, and the authenticator behind it with it. The id means the thing in use: `access: phone and pm_master` is signing in from the unlocked phone. A safe's combination and an encrypted backup's key are locks too.
+A lock **only** belongs on what someone can have without being able to use it. E.g. your phone, an encrypted backup, maybe a safe in your closet. In these cases, having the thing is importantly different from being able to use it. Regular accounts should be modeled with `access` rather than `lock`, someone "having" your locked account doesn't make sense.
+
+Every way in has to meet the lock as well, so reaching `carried` gets someone your phone's authenticator app only when they also have the PIN or your face. Even a scenario that starts from the phone itself, `has: phone`, starts with it locked. The id means the thing in use: `access: phone and pm_master` is signing in from the unlocked phone.
+
+Whatever works without unlocking goes beside the locked thing, not in it. The SIM gets texts while the phone is locked, and a thief can put it in another phone, so it's `in: carried`. Put it `in: phone` and the model would say a thief can't get your text codes.
 
 ## The normal day
 
 Everything has to be reached from somewhere. `me` lists where you start: what you have without getting it through anything else. These are almost always places.
 
 ```yaml
-me: [head, body, carried, home, contacts]
+me: [head, body, carried, home]
 ```
 
-`head` holds what you remember, `body` your fingerprints and face (and turning up in person), `carried` what's on you when you're out, and `contacts` the people who'd lend you a device. A password is reached because it's `in: head`, and the laptop because it's `in: home` and you know its password.
+`head` holds what you remember, `body` your fingerprints and face (and turning up in person), and `carried` what's on you when you're out. Someone who keeps something for you, such as a friend with your spare key, is a place of their own, in `me` if you could ask them for it. A password is reached because it's `in: head`, and the laptop because it's `in: home` and you know its password.
 
 `me` with nothing gone is the **normal day**. It's built in as a scenario called `baseline`, and every lockout is measured against it.
 
@@ -81,7 +84,7 @@ A lockout can start from someone else's `has` instead of `me`. `{kind: lockout, 
 
 ## Checks
 
-You don't want a verdict on every password and device. `check` marks the ends: what you care about for its own sake, such as your mail, your documents and your money.
+You don't want a flag on every password and device. `check` marks the "ends": what you care about for its own sake, such as your mail, your documents and your money.
 
 ```yaml
 mail: {kind: account, check: [lockout, breach], access: ...}
@@ -94,7 +97,7 @@ ReachLine follows everything that leads to a checked thing, so a stolen key show
 Two things make a result less than certain:
 
 - **`unknown`** stands for a fact about your setup you don't know, such as what support asks for once your second factor is gone: `recovery: unknown`. A result that relies on one is **UNSURE**.
-- A **state** (a thing of kind `state`) is a condition of the moment, such as the password manager being unlocked on the laptop. It might hold on the day or not, so ReachLine never assumes either way. A result that relies only on states **DEPENDS**. A state that's `in` something, such as a session on the phone, is reached only through it.
+- A **state** (a thing of kind `state`) is a condition of the moment, such as the password manager being unlocked on the laptop. It might hold when something goes wrong, or it might not, so ReachLine never assumes either way. A result that relies only on states **DEPENDS**. A state that's `in` something, such as a session on the phone, is reached only through it.
 
 Every verdict names what it relies on, so you can see what to find out or what to fix. [Reading the results](results.md) covers verdicts in full.
 

@@ -154,7 +154,7 @@ test('a rename swaps whole words in a condition, and nothing else', () => {
   const t = (parse(renamed) as { things: Record<string, { access?: string }> }).things;
   assert.equal(
     t.vault.access,
-    '((laptop or mobile) and pm_master) or pm_open_laptop or pm_open_phone or (loaner and pm_master and hw_key)',
+    '((laptop or mobile) and pm_master) or pm_open_laptop or pm_open_phone or (pm_master and hw_key)',
   );
 });
 

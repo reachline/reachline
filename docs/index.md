@@ -16,5 +16,3 @@ You describe your setup as a **model**: one YAML document listing your things an
 5. [Templates](templates.md): adding a common service in one go, and writing a template.
 6. [Reference](reference.md): every field, in one place.
 7. [CLI and agents](cli.md): working on a model from a terminal, or having an AI agent do it.
-
-The examples come from [`examples/model.yml`](https://github.com/reachline/reachline/blob/main/examples/model.yml), a made-up person's setup that uses every part of the format.

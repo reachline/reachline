@@ -13,6 +13,7 @@
   },
   "include": [
     "reachline.ts",
+    ".github/stats.ts",
     "cli/**/*.ts",
     "app/cli.vite.config.ts",
     "engine/**/*.ts",

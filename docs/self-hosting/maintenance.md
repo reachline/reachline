@@ -6,7 +6,7 @@ Copying ReachLine's data directory while the server runs can catch the database 
 
 ## Upgrading
 
-A release comes out on the first of each month when there's something new, and at once for a security fix. Read its [notes](https://github.com/reachline/reachline/releases) first: anything you need to do, such as changing a setting, is under **Breaking changes**. Until 1.0, any release may have some.
+A release comes out on the first of each month when there's something new, and at once for a security fix. Read its [notes](https://github.com/reachline/reachline/releases) first: anything you need to do, such as changing a setting, is under **Breaking changes**. Until v1.0.0, any release may have some.
 
 ```sh
 docker compose pull

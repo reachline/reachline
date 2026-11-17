@@ -36,7 +36,7 @@ A list of one can go without brackets: `in: home` = `in: [home]`. A list of mult
 | `recovery` (Recovered with) | condition | The same as `access`, reported as recovery. |
 | `lock` (Locked with) | condition | Every way in must meet this too, including a scenario's `has`: holding a thing isn't using it. An `unknown` here is named `id.lock`. |
 | `mirrors` (Mirrors) | `{of, by}` | A synced copy of `of`, kept in step by `by`. It's gone once `of` is, while `by` still exists. |
-| `note`, `todo` | text | Free text. `reachline --model FILE --todo` lists the todos. |
+| `note`, `todo` | text | Free text. The app shows them with the thing, and the [command line](cli.md#reports) lists the todos. |
 
 A thing with no `in` and no `needs` always exists. Apart from a state, a thing with no `in`, `access` or `recovery` is reached only from where a scenario starts.
 
@@ -47,12 +47,12 @@ A thing with no `in` and no `needs` always exists. Apart from a state, a thing w
 | `account` | Something you sign in to: email, the bank, cloud storage. |
 | `data` | Files you care about: documents, backups. |
 | `device` | Hardware: `phone`, `laptop`, `hw_key`. |
-| `location` | A place: `home`, `safe`, `offsite`, and the roots `head`, `body`, `carried`, `contacts`. |
+| `location` | A place: `home`, `safe`, `offsite`, and the roots `head`, `body`, `carried`. |
 | `secret` | What proves it's you: passwords, PINs, authenticator seeds, recovery codes, fingerprints. |
 | `service` | Something that runs, which you use: the password manager, a phone number, a domain, a sync job. |
 | `state` | A condition of the moment: the password manager unlocked on the laptop. |
 
-Only `state` changes how ReachLine treats a thing: it's an assumption, unless a scenario settles it with `assume` or `deny`. A state with no `in`, `access` or `recovery` holds for anyone, for as long as it exists. One with them is reached like anything else, and is still an assumption: `{kind: state, in: phone}` is a session on the unlocked phone.
+Only `state` changes how ReachLine treats a thing: it's an assumption, unless a scenario settles it with `assume` or `deny`. A state with no `in`, `access` or `recovery` holds for anyone, for as long as it exists, so it can't have a `lock`. One with them is reached like anything else, and is still an assumption: `{kind: state, in: phone}` is a session on the unlocked phone.
 
 ## Conditions
 

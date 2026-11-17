@@ -9,7 +9,6 @@ baseline
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -24,7 +23,6 @@ baseline
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -87,7 +85,6 @@ domain_lapses
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -101,7 +98,6 @@ domain_lapses
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     no                             LOST
   mail_codes               yes
   mail_pw                  yes
@@ -137,7 +133,6 @@ forgot_master
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -152,7 +147,6 @@ forgot_master
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -181,7 +175,6 @@ house_fire
   bank                     no                             LOST
   body                     yes
   code_host                code_host.recovery             UNSURE  if code_host.recovery (unknown)
-  contacts                 yes
   documents                no                             LOST
   face                     yes
   finger                   yes
@@ -189,7 +182,6 @@ house_fire
   key_pin                  yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     no                             LOST
   phone_pin                yes
   pm_master                yes
@@ -226,7 +218,6 @@ lose_carried
   carrier_pw               yes
   code_host                code_host.recovery             UNSURE  if code_host.recovery (unknown)
   code_pw                  yes
-  contacts                 yes
   docs_cloud               storage.recovery
   docs_nas                 yes
   documents                yes
@@ -239,7 +230,6 @@ lose_carried
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -270,7 +260,6 @@ nas_dies
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   documents                yes
   domain                   yes
@@ -284,7 +273,6 @@ nas_dies
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -384,7 +372,6 @@ baseline
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -399,7 +386,6 @@ baseline
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -464,7 +450,6 @@ domain_lapses
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -478,7 +463,6 @@ domain_lapses
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     no                             LOST
   mail_codes               yes
   mail_pw                  yes
@@ -515,7 +499,6 @@ forgot_master
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -530,7 +513,6 @@ forgot_master
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -560,7 +542,6 @@ house_fire
   bank                     no                             LOST
   body                     yes
   code_host                code_host.recovery             UNSURE  if code_host.recovery (unknown)
-  contacts                 yes
   documents                no                             LOST
   face                     yes
   finger                   yes
@@ -568,7 +549,6 @@ house_fire
   key_pin                  yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     no                             LOST
   old_drive                old_drive
   phone_pin                yes
@@ -607,7 +587,6 @@ lose_carried
   carrier_pw               yes
   code_host                code_host.recovery             UNSURE  if code_host.recovery (unknown)
   code_pw                  yes
-  contacts                 yes
   docs_cloud               storage.recovery
   docs_nas                 yes
   documents                yes
@@ -620,7 +599,6 @@ lose_carried
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -652,7 +630,6 @@ nas_dies
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   documents                no                             LOST
   domain                   yes
   face                     yes
@@ -665,7 +642,6 @@ nas_dies
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -769,7 +745,6 @@ baseline
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -786,7 +761,6 @@ baseline
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -845,7 +819,6 @@ domain_lapses
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -861,7 +834,6 @@ domain_lapses
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     no                             LOST
   mail_codes               yes
   mail_pw                  yes
@@ -898,7 +870,6 @@ forgot_master
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -915,7 +886,6 @@ forgot_master
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -949,7 +919,6 @@ house_fire
   carrier_pw               yes
   code_host                yes
   code_pw                  yes
-  contacts                 yes
   docs_cloud               yes
   documents                yes
   domain                   yes
@@ -961,7 +930,6 @@ house_fire
   key_pin                  yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_pw                  yes
   offsite                  yes
@@ -986,7 +954,6 @@ keys_lost
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -1002,7 +969,6 @@ keys_lost
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -1052,7 +1018,6 @@ lose_carried
   carrier_pw               yes
   code_host                yes
   code_pw                  yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -1067,7 +1032,6 @@ lose_carried
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -1099,7 +1063,6 @@ nas_dies
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   documents                yes
   domain                   yes
@@ -1115,7 +1078,6 @@ nas_dies
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -1201,7 +1163,6 @@ baseline
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -1218,7 +1179,6 @@ baseline
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -1279,7 +1239,6 @@ domain_lapses
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -1295,7 +1254,6 @@ domain_lapses
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     no                             LOST
   mail_codes               yes
   mail_pw                  yes
@@ -1333,7 +1291,6 @@ forgot_master
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -1350,7 +1307,6 @@ forgot_master
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -1385,7 +1341,6 @@ house_fire
   carrier_pw               yes
   code_host                yes
   code_pw                  yes
-  contacts                 yes
   docs_cloud               yes
   documents                yes
   domain                   yes
@@ -1397,7 +1352,6 @@ house_fire
   key_pin                  yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_pw                  yes
   offsite                  yes
@@ -1423,7 +1377,6 @@ keys_lost
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -1439,7 +1392,6 @@ keys_lost
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -1492,7 +1444,6 @@ lose_carried
   carrier_pw               yes
   code_host                yes
   code_pw                  yes
-  contacts                 yes
   docs_cloud               yes
   docs_nas                 yes
   documents                yes
@@ -1507,7 +1458,6 @@ lose_carried
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes
@@ -1540,7 +1490,6 @@ nas_dies
   code_host                yes
   code_pw                  yes
   code_totp                yes
-  contacts                 yes
   documents                no                             LOST
   domain                   yes
   face                     yes
@@ -1555,7 +1504,6 @@ nas_dies
   laptop                   yes
   laptop_open              laptop_open
   laptop_pw                yes
-  loaner                   yes
   mail                     yes
   mail_codes               yes
   mail_pw                  yes

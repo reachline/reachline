@@ -37,31 +37,7 @@ A verdict on its own would blame the scenario for problems you already have, so 
 
 ## Why a thing was reached
 
-Each line of a breach says how the attacker got in: `via in docs_nas`, `via recovery phone_number`, or `via access` and the part of the condition that worked. To follow the whole path, give the scenario and the thing:
-
-```text
-$ reachline --model model.yml thief_carried mail
-mail  [recovery phone_number]
-  phone_number  [access sim]
-    sim  [in carried]
-      carried  [start]
-```
-
-Each line is a thing and how it was reached, with what that used indented beneath it. `start` is where the scenario starts (`me`, or what it `has`), `state` is a state with no way in that held, and `(above)` marks a thing already shown. A locked thing also says how its lock was met, as in `laptop  [in home, lock laptop_pw]`, with what that used beneath it too.
-
-When the thing can't be reached, you get its ways in instead, and its lock if it has one, with where each part stands: `yes`, `no`, or `if` and the assumptions.
-
-```text
-$ reachline --model model.yml house_fire mail
-mail not reachable in house_fire. Its ways in:
-  access mail_pw and (mail_totp or hw_key)
-      hw_key: no
-      mail_pw: no
-      mail_totp: no
-  ...
-  recovery mail_codes
-      mail_codes: no
-```
+Each line of a breach says how the attacker got in: `via in docs_nas`, `via recovery phone_number`, or `via access` and the part of the condition that worked. To follow the whole path, or see what's in the way of something you can't reach, use the [command line](cli.md#following-a-path), or the graph's "Ways in" view.
 
 When there are several ways in, ReachLine reports the one that relies on the fewest assumptions. On a tie, `in` comes before `access`, `access` before `recovery`, and then the first one written.
 

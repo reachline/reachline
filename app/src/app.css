@@ -84,9 +84,9 @@
   --e-in: light-dark(#5b6c90, #8b9cc0);
   --e-access: light-dark(#3f4652, #b9bec7);
   --e-recovery: light-dark(#9333ea, #c084fc);
-  --e-lock: light-dark(#be185d, #f472b6);
-  --e-needs: light-dark(#c2410c, #fb923c);
-  --e-mirror: light-dark(#0e7490, #22d3ee);
+  --e-lock: light-dark(#0e7490, #72b3bc);
+  --e-needs: light-dark(#c2410c, #f9af72);
+  --e-mirror: light-dark(#be185d, #f08cc0);
 
   /* the text editor (its keys are --accent, its current line --hover) */
   --syn-string: light-dark(#a16207, #e0b341);

@@ -4,7 +4,7 @@ Start small, and think carefully. The starter model (one of the ways to start a 
 
 ## Start from places
 
-`me` is where everything is reached from, so begin with the places you start from: `head`, `body`, `carried`, `home`, and `contacts` if friends would lend you a device. Places can sit inside other places: lose `home` and you lose the safe in it too.
+`me` is where everything is reached from, so begin with the places you start from: `head`, `body`, `carried` and `home`. A person who keeps something for you, such as a spare key or a copy of the emergency sheet, gets a place of their own, since what each of them could reach, or lose, is a scenario of its own. Places can sit inside other places: lose `home` and you lose the safe in it too.
 
 ```yaml
 safe: {kind: location, in: home, lock: safe_combo, note: fire-rated box in the hall closet}
@@ -34,6 +34,8 @@ vault:
   kind: service
   access: (laptop or phone) and pm_master
 ```
+
+Name a device only when it's that device that counts: what's on it, what's signed in on it, or that it's already trusted. Any device you could buy or borrow, an attacker has too, so leave it out. Signing in to the vault from a new device is `pm_master and hw_key`, not `new_device and pm_master and hw_key`.
 
 ## Things that never disappear
 
@@ -67,7 +69,7 @@ phone_number: {kind: service, access: sim or carrier}
 
 Text messages shown on the lock screen are the same: model them beside the phone if your previews are on.
 
-## States: what's true on the day
+## States: what may or may not hold
 
 Some access depends on the moment: the password manager happens to be open, or the mail app is signed in. Make each one a thing of kind `state`, `in` the device it's on:
 

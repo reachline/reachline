@@ -1,12 +1,12 @@
 # Auth
 
-Users sign in with a username and password, with an OpenID Connect provider (single sign-on), or either. `AUTH_METHODS` chooses: `password` (the default), `oidc`, or `password,oidc`.
+Users sign in with a username and password, with an OpenID Connect provider (single sign-on), or either. `AUTH_METHODS` may equal `password` (the default), `oidc`, or `password,oidc`.
 
 At someone's first sign-in with the provider, ReachLine links them to the account with the same username as theirs at the provider (its `preferred_username`), if that account isn't linked yet. Otherwise it makes a new account, with a username from the provider's. Either way, later sign-ins find the account by the provider's identity (issuer and subject), never by email or name. Anyone can link or unlink the provider, or add or remove a password, on their account page, as long as one way in remains.
 
-Linking by username trusts the provider's usernames: whoever is `alice` there gets `alice`'s account here. If people can choose their own username at the provider, set `AUTH_OIDC_LINK_USERNAME=0`, and link accounts from their account pages instead.
+Set `AUTH_OIDC_LINK_USERNAME=0` to disable linking by username. Then linking can only be done from the account page of the username/password account.
 
-ReachLine doesn't check groups. Who may sign in is the provider's decision, so limit the application to the right people there. With registration on, anyone the provider lets through gets an account.
+ReachLine doesn't check groups. Who may sign in is the provider's decision, so limit the application to the right people there. With registration on, anyone the provider lets through gets an account. Set `AUTH_REGISTRATION=0` to disable registration.
 
 ## Single sign-on
 

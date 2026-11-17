@@ -6,7 +6,6 @@ things:
   carried: {kind: location, note: on my person when out}
   home: {kind: location}
   safe: {kind: location, in: home, lock: safe_combo, note: fire-rated box in the hall closet}
-  contacts: {kind: location, note: friends and family who would lend a device}
   partner: {kind: location, note: what my partner knows and has}
 
   laptop: {kind: device, in: home, lock: laptop_pw or finger or laptop_open}
@@ -18,10 +17,6 @@ things:
     todo: set a SIM PIN
   hw_key: {kind: device, in: carried, note: FIDO2 key on the keyring; the only one}
   id_card: {kind: device, in: carried}
-  loaner:
-    kind: device
-    in: contacts
-    note: a borrowed or newly bought device, good enough to sign in from
   nas: {kind: device, in: home}
   pi: {kind: device, in: home, note: small always-on server that runs the cloud sync}
   old_drive:
@@ -61,7 +56,7 @@ things:
     kind: service
     note: the password manager, decrypted
     check: breach
-    access: ((laptop or phone) and pm_master) or pm_open_laptop or pm_open_phone or (loaner and pm_master and hw_key)
+    access: ((laptop or phone) and pm_master) or pm_open_laptop or pm_open_phone or (pm_master and hw_key)
   phone_number: {kind: service, note: SMS to my number, access: sim or carrier}
   domain: {kind: service, note: the custom domain my mail address is on, in: registrar}
   sync_job:
@@ -120,7 +115,7 @@ scenarios:
   burglary: {kind: breach, has: home}
   sim_swap: {kind: breach, has: phone_number}
 
-me: [head, body, carried, home, contacts]
+me: [head, body, carried, home]
 
 plans:
   spare_key:
@@ -136,7 +131,7 @@ plans:
       mail: {recovery: mail_codes}
     scenarios:
       keys_lost: {kind: lockout, gone: key_keyring, note: keyring gone}
-    me: [head, body, carried, home, contacts, offsite]
+    me: [head, body, carried, home, offsite]
 
   backup:
     note: make the cloud copy a versioned backup instead of a sync, and retire the old drive

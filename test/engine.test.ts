@@ -409,6 +409,11 @@ test('a lock is met on top of every way in, and holding a thing is not getting p
   assert.deepEqual(reached(['phone'], [], []), ['open']);
   // An unknown in a lock is an assumption about the lock.
   assert.deepEqual(reach(m.things, ['box'], new Set()).get('box')?.a, ['box.lock']);
+  // A state with no way in holds without being reached, so a lock on it would be ignored.
+  assert.throws(
+    () => new Model(doc({ things: { pin: { kind: 'secret' }, open: { kind: 'state', lock: 'pin' } } })),
+    (e: Error) => e instanceof ReachError && e.message.includes('open') && e.message.includes('lock'),
+  );
 });
 
 test('a state with in is reached only through it, and is still an assumption', () => {

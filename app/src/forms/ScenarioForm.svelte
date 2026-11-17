@@ -25,7 +25,7 @@
 
   const ME_HINT =
     'What you have without getting it through anything else, which everything is reached from: usually places, ' +
-    'such as head (what you remember), body, carried, home, and contacts (people who’d lend you a device). ' +
+    'such as head (what you remember), body, carried and home. ' +
     'A lockout starts from these unless it says otherwise; a breach starts from what the attacker has instead.';
 </script>
 

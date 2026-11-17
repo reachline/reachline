@@ -17,7 +17,7 @@ plans:
       mail: {recovery: mail_codes}
     scenarios:
       keys_lost: {kind: lockout, gone: key_keyring, note: keyring gone}
-    me: [head, body, carried, home, contacts, offsite]
+    me: [head, body, carried, home, offsite]
 ```
 
 ## How a plan changes the model
@@ -32,27 +32,10 @@ plans:
 
 ## Several plans
 
-Plans apply in order, and a later plan's field replaces an earlier one's. On the command line the order is the order of `--plan`; in the app, it's the order the document lists them, with a warning when two plans that are on set the same field.
+Plans apply in order, and a later plan's field replaces an earlier one's. In the app, that's the order the document lists them, with a warning when two plans that are on set the same field. On the command line, it's the order you give them.
 
-## Running a plan
+## Seeing what it changes
 
-```text
-$ reachline --model model.yml --plan spare_key
-house_fire  (lockout: gone home, carried)
-  # at night, everything is home
-  documents      LOST  →  ok
-  mail           LOST  →  ok
-  code_host      UNSURE  if code_host.recovery (unknown)  →  ok
-  bank           LOST  →  ok
+ReachLine runs every scenario with and without the plan. Each verdict that changes reads before → after, as in `mail  LOST  →  ok`, and `still` lists the problems the plan leaves as they were. For the command line, see [Trying a plan](cli.md#trying-a-plan).
 
-nas_dies  (lockout: gone nas)
-  # the pi keeps syncing, so the cloud copy empties too
-  still          documents
-  (no change)
-```
-
-Each changed verdict reads before → after. `still` lists the problems the plan leaves as they were. A plan combines with everything else on the command line, such as a scenario or an explanation, which then run against the model with the plan applied.
-
-In the app, the Plans tab turns plans on and off, and shows what the plans that are on change, scenario by scenario. **Edit** sends the forms' changes into a plan instead of the model; editing a field copies its current value into the plan first, since the plan replaces the whole field. **Apply** merges a plan into the model and deletes it.
-
-Plans are your drafts. Try a change as a plan, including a [template](templates.md) added as one, and apply it when you've made the change for real.
+In the app, turn plans on from **Plans** above the graph. The graph then shows the model with them, and the Plans tab shows what they change, scenario by scenario. **Edits go into** chooses where Add and the forms write: the model, or one plan. A field you edit in a plan is written there whole, since the plan replaces the whole field. **Apply…** shows what a plan changes in the model, then merges it in and removes the plan.
