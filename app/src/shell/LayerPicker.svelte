@@ -24,7 +24,7 @@
 
 <!-- In the accent while edits go into a plan, rather than the model. -->
 <span class:plan={layer !== null}>
-  <Picker label="Edits go into" {groups} chosen={[layer ?? '']} onchoose={(id: string) => onchoose(id || null)} />
+  <Picker label="Edit" {groups} chosen={[layer ?? '']} onchoose={(id: string) => onchoose(id || null)} />
 </span>
 
 <style>

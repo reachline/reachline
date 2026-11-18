@@ -326,9 +326,9 @@ test('guided edits, plans and templates', async () => {
   await page.keyboard.press('Escape');
   await page.getByRole('button', { name: 'Plans', exact: true }).click();
   await page.locator('.verdicts li').first().waitFor();
-  await page.getByRole('button', { name: 'Edits go into the model' }).click();
+  await page.getByRole('button', { name: 'Edit the model' }).click();
   await page.getByRole('button', { name: /^plan spare_key/ }).click();
-  const into = page.getByRole('button', { name: 'Edits go into plan spare_key' });
+  const into = page.getByRole('button', { name: 'Edit plan spare_key' });
   await into.waitFor();
   // Where edits go survives a reload.
   await page.reload();
@@ -358,7 +358,7 @@ test('guided edits, plans and templates', async () => {
   await addPlan.getByRole('button', { name: 'Add', exact: true }).click();
   await page.getByRole('heading', { name: 'new_plan plan' }).waitFor();
   await page.getByRole('textbox', { name: 'Note' }).waitFor();
-  await page.getByRole('button', { name: 'Edits go into plan new_plan' }).waitFor();
+  await page.getByRole('button', { name: 'Edit plan new_plan' }).waitFor();
   await undo.click();
   await page.getByText('Saved', { exact: true }).waitFor();
   // Nothing, the panel's tabs included, is wider than the window.
@@ -609,7 +609,7 @@ test('on a phone, nothing scrolls sideways and the model page passes axe', async
   await passesAxe(page, 'model, on a phone');
   // The example has plans, so where edits go is in the toolbar.
   await page.getByRole('button', { name: /^Ways in/, expanded: false }).click();
-  await page.getByRole('button', { name: /^Edits go into / }).waitFor();
+  await page.getByRole('button', { name: /^Edit (the model|plan )/ }).waitFor();
   assert.equal(await scrollsSideways(page), false);
   await passesAxe(page, 'model, the toolbar open, on a phone');
   await page.getByRole('button', { name: 'Details', exact: true }).click();
