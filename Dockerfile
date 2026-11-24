@@ -17,6 +17,7 @@ COPY app app
 COPY engine engine
 COPY examples examples
 COPY server server
+COPY templates templates
 # The command line, bundled with its docs into app/dist/reachline.mjs.
 COPY cli cli
 COPY docs docs

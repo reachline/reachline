@@ -14,7 +14,8 @@
     ids: Map<string, string>;
     /** Verdicts before and after adding these things; null if that can't be worked out. */
     preview: (things: Things) => ScenarioChange[] | null;
-    onadd: (template: Template, prefix: string, things: Things, asPlan: boolean) => void;
+    /** `main` is the template's own thing (its id is the prefix), under the id it ends up with. */
+    onadd: (template: Template, prefix: string, main: string | null, things: Things, asPlan: boolean) => void;
     dialog?: HTMLDialogElement;
   }
   let { ids, preview, onadd, dialog = $bindable() }: Props = $props();
@@ -30,6 +31,7 @@
   let prefix = $state('');
   let slots = $state<Record<string, string | null>>({});
   let include = $state<string[]>([]);
+  let standsIn = $state<Record<string, string | null>>({});
 
   const found = $derived(
     templates.filter((t) => `${t.name} ${t.note}`.toLowerCase().includes(query.trim().toLowerCase())),
@@ -41,6 +43,7 @@
     // A thing of yours with the slot's id is most likely the one it means.
     slots = Object.fromEntries(t.slots.map((s) => [s.id, ids.has(s.id) ? s.id : null]));
     include = t.optional.filter((o) => o.on).map((o) => o.id);
+    standsIn = {};
   }
 
   function reset() {
@@ -48,16 +51,18 @@
     chosen = null;
   }
 
-  // Only the slots something still needs, given what's ticked.
-  const needed = $derived.by(() => {
-    if (!chosen) return [];
-    const left = instantiate(chosen, { prefix: chosen.prefix, slots: {}, include: new Set(include) });
-    return chosen.slots.filter((s) => s.id in left);
-  });
-  const things = $derived(chosen ? instantiate(chosen, { prefix, slots, include: new Set(include) }) : {});
+  // Only the slots something still needs, and what may stand in, given what's ticked.
+  const left = $derived(
+    chosen ? instantiate(chosen, { prefix: chosen.prefix, slots: {}, include: new Set(include) }) : {},
+  );
+  const needed = $derived(chosen?.slots.filter((s) => s.id in left) ?? []);
+  const standing = $derived(chosen?.standsIn.filter((s) => s.id in left) ?? []);
+  const things = $derived(chosen ? instantiate(chosen, { prefix, slots, include: new Set(include), standsIn }) : {});
+  /** Yours that the template stands in for: they take its fields. */
+  const replaced = $derived(new Set(standing.flatMap((s) => standsIn[s.id] ?? [])));
   const problem = $derived.by(() => {
     if (idProblem(prefix)) return idProblem(prefix);
-    const taken = Object.keys(things).filter((id) => ids.has(id));
+    const taken = Object.keys(things).filter((id) => ids.has(id) && !replaced.has(id));
     if (taken.length) return `Already things: ${taken.join(', ')}. Pick yours for a slot, or change the prefix.`;
     return '';
   });
@@ -66,7 +71,8 @@
   function add(asPlan: boolean) {
     if (!chosen || problem) return;
     dialog?.close();
-    onadd(chosen, prefix, things, asPlan);
+    const main = standsIn[chosen.prefix] ?? prefix;
+    onadd(chosen, prefix, main in things ? main : null, things, asPlan);
   }
 </script>
 
@@ -87,9 +93,6 @@
           <li class="muted">No template matches.</li>
         {/each}
       </ul>
-      <p class="hint">
-        Missing one you need? Templates live in the repository's templates/ folder, and new ones are welcome.
-      </p>
       <div class="buttons">
         <button class="quiet" onclick={() => dialog?.close()}>Cancel</button>
       </div>
@@ -110,6 +113,20 @@
           New ids start with it; another account of the same kind can take another, such as {chosen.prefix}_work.
         </span>
       </div>
+
+      {#each standing as s (s.id)}
+        <label class="field"
+          >{s.label}
+          <select
+            value={standsIn[s.id] ?? ''}
+            onchange={(e) => (standsIn = { ...standsIn, [s.id]: e.currentTarget.value || null })}
+          >
+            <option value="">No, a new {s.kind}</option>
+            {#each [...ids].filter(([, kind]) => kind === s.kind) as [id] (id)}<option value={id}>Yes, my {id}</option
+              >{/each}
+          </select>
+        </label>
+      {/each}
 
       {#if chosen.optional.length}
         <fieldset>
@@ -153,7 +170,7 @@
             {#each Object.entries(things) as [id, spec] (id)}
               <li>
                 <span class="mono">{id}</span>
-                <span class="muted">{spec.kind}</span>
+                <span class="muted">{replaced.has(id) ? `your ${String(spec.kind)}, updated` : spec.kind}</span>
                 {#if spec.access}<span class="mono"> · {show('access', spec.access)}</span>{/if}
               </li>
             {/each}
@@ -190,6 +207,8 @@
   }
   .pick {
     display: grid;
+    /* Buttons centre what's in them; a row of a list starts at the edge. */
+    justify-content: start;
     justify-items: start;
     width: 100%;
     padding: var(--space-2) var(--space-3);

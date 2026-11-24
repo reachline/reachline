@@ -604,8 +604,14 @@
   }
 
   type Things = Record<string, Record<string, unknown>>;
+  // A thing that's already in the model is one a template stands in for: it takes the template's fields.
+  // In a plan, adding it does that by itself, since a plan's fields replace the model's.
   const adding = (layer: Layer, things: Things) =>
-    Object.entries(things).map(([id, spec]) => addThing(layer, id, spec));
+    Object.entries(things).flatMap(([id, spec]) =>
+      layer === null && editing?.inModel('things', id)
+        ? Object.entries(spec).map(([field, v]) => setField(null, id, field, v))
+        : [addThing(layer, id, spec)],
+    );
 
   function previewTemplate(things: Things) {
     if (text === null) return null;
@@ -617,8 +623,7 @@
   }
 
   /** A template's things go into the model, or into a plan of their own to weigh first. */
-  function addedTemplate(t: Template, prefix: string, things: Things, asPlan: boolean) {
-    const main = prefix in things ? prefix : null;
+  function addedTemplate(t: Template, prefix: string, main: string | null, things: Things, asPlan: boolean) {
     if (!asPlan) {
       if (!apply(...adding(null, things))) return;
       if (main) selected = main;
@@ -1060,7 +1065,8 @@
   bind:dialog={templateDialog}
   ids={editing?.ids ?? new Map<string, string>()}
   preview={previewTemplate}
-  onadd={(t: Template, prefix: string, things: Things, asPlan: boolean) => addedTemplate(t, prefix, things, asPlan)}
+  onadd={(t: Template, prefix: string, main: string | null, things: Things, asPlan: boolean) =>
+    addedTemplate(t, prefix, main, things, asPlan)}
 />
 <ConfirmEdit {asking} onconfirm={confirmed} onclose={() => (asking = null)} />
 

@@ -62,3 +62,15 @@ test('slots bind to your things, and the prefix renames what is the template’s
   // By default only the authenticator app: an `or` of one is just it, and the passkey's way in goes.
   assert.equal(things.github_work.access, '(github_work_pw or mail) and github_work_totp');
 });
+
+test('a thing that stands in for one of yours takes your id, and what refers to it follows', () => {
+  const apple = templates.find((t) => t.id === 'apple')!;
+  const include = new Set([...apple.optional.filter((o) => o.on).map((o) => o.id), 'apple_passwords']);
+  const things = instantiate(apple, choices(apple, { include, standsIn: { apple: 'mail', apple_passwords: 'vault' } }));
+  assert.ok(!('apple' in things) && !('apple_passwords' in things));
+  assert.equal(things.mail.kind, 'account');
+  assert.deepEqual(asList(things.apple_drive.in), ['mail']);
+  // The vault slot was yours already, so the stand-in takes its place, and the password is in it.
+  assert.equal(things.vault.kind, 'service');
+  assert.deepEqual(asList(things.apple_pw.in), ['vault']);
+});

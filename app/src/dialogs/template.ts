@@ -22,6 +22,8 @@ export interface Template {
   slots: { id: string; label: string; kind: string }[];
   /** Things you may not have set up, labelled by their note, and whether they start ticked. */
   optional: { id: string; label: string; on: boolean }[];
+  /** Things that may be one of yours already (the account may be your mail): yours then takes its fields. */
+  standsIn: { id: string; label: string; kind: string }[];
   things: Record<string, Fields>;
 }
 
@@ -45,6 +47,7 @@ export function readTemplate(id: string, text: string): Template {
   };
   Object.keys(obj(head.slots)).forEach(known('slot'));
   Object.keys(obj(head.optional)).forEach(known('optional'));
+  Object.keys(obj(head.stands_in)).forEach(known('stands_in'));
   return {
     id,
     name: str(head.name),
@@ -62,6 +65,11 @@ export function readTemplate(id: string, text: string): Template {
       label: str(things[k].note),
       on: on === true,
     })),
+    standsIn: Object.entries(obj(head.stands_in)).map(([k, label]) => ({
+      id: k,
+      label: str(label),
+      kind: str(things[k].kind),
+    })),
     things,
   };
 }
@@ -72,6 +80,8 @@ export interface Choices {
   slots: Record<string, string | null>;
   /** The optional things to keep. */
   include: Set<string>;
+  /** For each that may stand in, the thing of yours it is, or null to add it as its own. */
+  standsIn?: Record<string, string | null>;
 }
 
 const isRef = (field: string) => (REFS.things as readonly string[]).includes(field);
@@ -83,7 +93,9 @@ const swapAll = (spec: Fields, from: string, to: string): Fields =>
 /**
  * The things a template adds, with your choices. An optional thing left out
  * is removed as one never set up: an `or` it empties is a step the service
- * doesn't ask for. A slot nothing needs any more isn't created.
+ * doesn't ask for. A slot nothing needs any more isn't created. A thing that
+ * stands in for one of yours takes your id; adding it then sets those fields
+ * of yours.
  */
 export function instantiate(t: Template, c: Choices): Record<string, Fields> {
   let things: Record<string, Fields> = structuredClone(t.things);
@@ -115,5 +127,15 @@ export function instantiate(t: Template, c: Choices): Record<string, Fields> {
   for (const id of Object.keys(things)) {
     if (renamed(id) !== id) map((_, spec) => swapAll(spec, id, renamed(id)));
   }
-  return Object.fromEntries(Object.entries(things).map(([id, spec]) => [renamed(id), spec]));
+  things = Object.fromEntries(Object.entries(things).map(([id, spec]) => [renamed(id), spec]));
+  for (const [id, mine] of Object.entries(c.standsIn ?? {})) {
+    const from = renamed(id);
+    if (mine === null || !(from in things)) continue;
+    map((_, spec) => swapAll(spec, from, mine));
+    // A slot of the same id is yours too, so this takes its place.
+    things = Object.fromEntries(
+      Object.entries(things).flatMap(([k, spec]) => (k === mine ? [] : [[k === from ? mine : k, spec]])),
+    );
+  }
+  return things;
 }
