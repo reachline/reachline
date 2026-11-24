@@ -1,0 +1,90 @@
+# Generic: an account at a crypto exchange that holds your coins for you
+# (Coinbase, Gemini, Kraken), as against a wallet of your own (see
+# wallet.yml). They differ in the details, so check yours against what's
+# here.
+#
+# Signing in takes the password and a second step: a security key, a
+# passkey, an authenticator app or a text. Coinbase starts with texts, and
+# Gemini is retiring them; if yours still offers a text once you've set up
+# something stronger, keep texts ticked. On a device they don't know,
+# Coinbase and Gemini also ask you to confirm it from a link in your email. The app, once signed in, opens with the phone's
+# unlock or its own passcode, and at Coinbase approves a sign-in elsewhere.
+#
+# A forgotten password is reset by a code or link to your email, and the
+# second step is still asked for. Kraken's Master Key, if you've set one,
+# is needed for that reset too and stands in for the second step: add it to
+# the password's side of `access`, and to where you keep it.
+#
+# Without the second step, recovery takes the password (or the email, to
+# reset it), then an upload of your photo ID and a selfie, and withdrawals
+# wait a day or more afterwards. Coinbase can take trusted contacts' approval
+# instead, two to five people you chose; Kraken leaves it to support.
+template:
+  name: Crypto exchange
+  note: An account at a crypto exchange (Coinbase, Gemini, Kraken), its second step, the email that confirms a new device, and recovery with your ID.
+  icon: chart-candlestick
+  checked: 2026-11-24
+  links:
+    'Coinbase: Set up your 2-step verification': https://help.coinbase.com/en/coinbase/getting-started/getting-started-with-coinbase/2-step-verification
+    'Coinbase: Confirm your unrecognized device': https://help.coinbase.com/en/coinbase/getting-started/verify-my-account/device-confirmation-troubleshooting
+    'Coinbase: Reset your password': https://help.coinbase.com/en/coinbase/managing-my-account/get-back-into-my-account/reset-my-password
+    'Coinbase: Account recovery for lost email or 2-step verification access': https://help.coinbase.com/en/coinbase/managing-my-account/get-back-into-my-account/account-recovery-lost-email-2step-verification
+    'Gemini: How do I recover my account?': https://support.gemini.com/hc/en-us/articles/51210965781147-How-do-I-recover-my-account
+    'Kraken: Master Key as a sign-in method': https://support.kraken.com/hc/en-us/articles/13620135229460-How-to-recover-your-Sign-in-2FA
+  prefix: exchange
+  slots:
+    vault: Where the password is kept
+    mail: The email account the exchange has on file
+    phone_number: The phone number the exchange has on file
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    phone: The phone with the exchange's app
+    laptop: A computer the exchange has confirmed
+    id_card: Your photo ID
+    body: Turning up in person
+    contacts: Your trusted contacts
+  optional:
+    exchange_sms: true
+    exchange_totp: false
+    exchange_key: false
+    exchange_passkey: false
+    exchange_app: true
+    exchange_laptop: true
+    exchange_id: true
+    exchange_contacts: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  phone_number: {kind: service}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  phone: {kind: device}
+  laptop: {kind: device}
+  id_card: {kind: device}
+  body: {kind: location}
+  contacts: {kind: location}
+
+  exchange_pw: {kind: secret, in: vault}
+  exchange_sms: {kind: secret, in: phone_number, note: 'codes by text'}
+  exchange_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  exchange_key: {kind: secret, in: hw_key, note: a security key}
+  exchange_passkey: {kind: secret, in: phone, note: 'a passkey, in place of the second step'}
+  exchange_app: {kind: secret, in: phone, note: 'the app, signed in'}
+  exchange_laptop: {kind: secret, in: laptop, note: 'a computer the exchange has confirmed, which needs no email'}
+  exchange_id:
+    kind: secret
+    note: 'recovery with your photo ID and a selfie'
+    access: (exchange_pw or mail) and id_card and body
+  exchange_contacts:
+    kind: secret
+    note: "recovery with your trusted contacts' approval (Coinbase)"
+    access: (exchange_pw or mail) and contacts
+
+  exchange:
+    kind: account
+    check: [lockout, breach]
+    access: >-
+      ((exchange_pw or mail) and (exchange_sms or exchange_totp or exchange_key or exchange_passkey)
+      and (mail or exchange_laptop)) or exchange_app
+    recovery: exchange_id or exchange_contacts

@@ -3,14 +3,19 @@
   // tick what you've set up, and see what it would change before adding it.
   import {
     ArrowLeft,
+    AtSign,
+    ChartCandlestick,
+    CircleUser,
     DatabaseBackup,
+    DoorClosed,
     Globe,
+    HandCoins,
+    IdCard,
+    KeyRound,
     Landmark,
-    Package,
     Phone,
     Server,
     ShieldCheck,
-    Vault,
     Wallet,
   } from '@lucide/svelte';
   import type { ScenarioChange } from '../../../engine/report.ts';
@@ -45,14 +50,19 @@
   });
   const logo = (id: string, theme = '') => logos[`../../../templates/icons/${id}${theme}.svg`];
   const ICON: Record<TemplateIcon, typeof Globe> = {
+    'at-sign': AtSign,
+    'chart-candlestick': ChartCandlestick,
+    'circle-user': CircleUser,
     'database-backup': DatabaseBackup,
+    'door-closed': DoorClosed,
     globe: Globe,
+    'hand-coins': HandCoins,
+    'id-card': IdCard,
+    'key-round': KeyRound,
     landmark: Landmark,
-    package: Package,
     phone: Phone,
     server: Server,
     'shield-check': ShieldCheck,
-    vault: Vault,
     wallet: Wallet,
   };
 

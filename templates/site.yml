@@ -1,0 +1,63 @@
+# Generic: an account at any website or app without a template of its own.
+# Tick what it asks for and what you've set up.
+#
+# Most sign in with a password and, once you've turned it on, a second step,
+# and reset a forgotten password by a link or code to your email; the
+# second step is still asked for after that. Some ask for a code by email on
+# a device they don't know, even without a second step: tick codes by email.
+# A passkey usually signs in alone. Backup codes stand in for the second
+# step.
+#
+# Signed up with Google, Apple or Microsoft, it signs in through that
+# account instead: tick it, and leave out the password if it never had
+# one. If the site's email is an alias, bind its email to the alias (see
+# alias.yml).
+template:
+  name: Website account
+  note: An account at any website or app, its password and second step, a reset by email, or signing in with Google, Apple or Microsoft.
+  icon: circle-user
+  checked: 2026-11-24
+  prefix: site
+  slots:
+    vault: Where the password is kept
+    mail: The email account the site sends to
+    authenticator: Your authenticator app
+    phone_number: The phone number for text messages
+    hw_key: Your security key
+    phone: The phone with your passkey
+    safe: Where the backup codes are kept
+    idp: The account you sign in with (Google, Apple, Microsoft)
+  optional:
+    site_pw: true
+    site_totp: false
+    site_sms: false
+    site_mail_code: false
+    site_key: false
+    site_passkey: false
+    site_codes: false
+    site_idp: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  authenticator: {kind: data}
+  phone_number: {kind: service}
+  hw_key: {kind: device}
+  phone: {kind: device}
+  safe: {kind: location}
+  idp: {kind: account}
+
+  site_pw: {kind: secret, in: vault, note: a password}
+  site_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  site_sms: {kind: secret, in: phone_number, note: codes by text}
+  site_mail_code: {kind: secret, in: mail, note: 'codes by email, on a device it doesn''t know'}
+  site_key: {kind: secret, in: hw_key, note: a security key}
+  site_passkey: {kind: secret, in: phone, note: 'a passkey, which signs in alone'}
+  site_codes: {kind: secret, in: safe, note: backup codes}
+  site_idp: {kind: secret, in: idp, note: 'signing in with Google, Apple or Microsoft'}
+
+  site:
+    kind: account
+    check: [lockout, breach]
+    access: ((site_pw or mail) and (site_totp or site_sms or site_mail_code or site_key)) or site_passkey or site_idp
+    recovery: (site_pw or mail) and site_codes

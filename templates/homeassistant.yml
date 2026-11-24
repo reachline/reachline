@@ -1,0 +1,55 @@
+# Home Assistant, self-hosted, and its owner's account, which controls every
+# lock, garage door and alarm in it: bind the smart lock template's hub to
+# `ha`.
+#
+# Signing in takes the password, and an authenticator app once you've
+# turned that on in your profile; Home Assistant offers it but doesn't turn
+# it on. The notify module, set up in configuration.yaml, sends the code as
+# a notification instead, usually to the phone. The companion app, once
+# signed in, stays signed in. Remote access through Home Assistant Cloud
+# (Nabu Casa) is end-to-end encrypted and still asks for this sign-in.
+# Trusted networks let a device on your network in without one: ReachLine
+# has no networks, so add `or home` to the access if you use them.
+#
+# The owner's password can't be recovered from inside Home Assistant. It's
+# reset from the box itself: its console (`auth reset`), or a shell on the
+# machine running it. Whoever holds the box holds Home Assistant.
+template:
+  name: Home Assistant
+  note: Home Assistant (self-hosted), signing in as its owner, the companion app, and resetting it from the box.
+  checked: 2026-11-24
+  links:
+    Multi-factor authentication: https://www.home-assistant.io/docs/authentication/multi-factor-auth/
+    I'm locked out!: https://www.home-assistant.io/docs/locked_out/
+    'Nabu Casa: Remote access security aspects': https://support.nabucasa.com/hc/en-us/articles/26508882007581-Remote-access-Security-aspects
+    'Nabu Casa: I forgot the owner password for the Home Assistant Green': https://support.nabucasa.com/hc/en-us/articles/25142896227357-I-forgot-the-owner-password-for-the-Home-Assistant-Green-How-can-I-reset-it
+  prefix: ha
+  slots:
+    vault: Where the password is kept
+    authenticator: Your authenticator app
+    phone: The phone with the companion app, which gets its notifications
+    server: The box it runs on (Home Assistant Green or Yellow, or your server)
+  optional:
+    ha_totp: false
+    ha_notify: false
+    ha_app: true
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  authenticator: {kind: data}
+  phone: {kind: device}
+  server: {kind: device}
+
+  ha_pw: {kind: secret, in: vault}
+  ha_totp: {kind: secret, in: authenticator, note: 'an authenticator app, once you turn it on'}
+  ha_notify: {kind: secret, in: phone, note: 'a code by notification (the notify module)'}
+  ha_app: {kind: secret, in: phone, note: 'the companion app, signed in'}
+  ha_console: {kind: secret, in: server, note: "resetting the password from the box's console or the host's shell"}
+
+  ha:
+    kind: account
+    note: 'Home Assistant, signed in as its owner'
+    check: [lockout, breach]
+    needs: server
+    access: (ha_pw and (ha_totp or ha_notify)) or ha_app
+    recovery: ha_console

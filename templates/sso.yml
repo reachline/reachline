@@ -1,0 +1,78 @@
+# Generic: self-hosted single sign-on (authentik, Authelia, Pocket ID) in
+# front of the apps you run, and your account in it. Bind other templates'
+# identity provider (Pangolin's, say) to `sso`.
+#
+# authentik and Authelia sign in with a password and a second step: an
+# authenticator app or a security key or passkey. A forgotten password is
+# reset by a link by email, after which the second step is still asked for;
+# authentik's example recovery flow without that check logs you straight
+# in. Authelia adds a new second step with the password and a code by
+# email, unless `require_second_factor` is set, so by default the email is
+# enough on its own. Pocket ID has no password: a passkey signs in alone,
+# and a login code by email does too if you've turned that on. For Pocket
+# ID, leave out the password, its reset, the authenticator app and the
+# second step by email.
+#
+# A shell on the server signs anyone in: authentik's `create_recovery_key`,
+# Pocket ID's `one-time-access-token`, or Authelia's user database and
+# `authelia storage` commands. Whoever holds the server holds every app
+# behind it.
+template:
+  name: Self-hosted sign-in
+  note: Self-hosted single sign-on (authentik, Authelia, Pocket ID), how you sign in, reset or add a second step, and the apps behind it.
+  icon: key-round
+  checked: 2026-11-24
+  links:
+    'authentik: Example flows': https://docs.goauthentik.io/add-secure-apps/flows-stages/flow/flows/
+    "authentik: I can't log in to authentik": https://docs.goauthentik.io/troubleshooting/login/
+    'Authelia: Reset password': https://www.authelia.com/configuration/identity-validation/reset-password/
+    'Authelia: Elevated session': https://www.authelia.com/configuration/identity-validation/elevated-session/
+    'Pocket ID: Sign-in methods': https://pocket-id.org/docs/guides/sign-in-methods
+    'Pocket ID: Account recovery': https://pocket-id.org/docs/troubleshooting/account-recovery
+  prefix: sso
+  slots:
+    server: The server it runs on
+    vault: Where the password is kept
+    mail: The email account it sends to
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    phone: The phone with your passkey
+  optional:
+    sso_pw: true
+    sso_totp: true
+    sso_key: false
+    sso_passkey: false
+    sso_reset: true
+    sso_mail_enroll: true
+    sso_mail_signin: false
+
+things:
+  server: {kind: device}
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  phone: {kind: device}
+
+  sso_server: {kind: service, in: server, note: 'running on your server, whose shell signs anyone in'}
+  sso_pw: {kind: secret, in: vault, note: 'a password (not Pocket ID)'}
+  sso_totp: {kind: secret, in: authenticator, note: 'an authenticator app (not Pocket ID)'}
+  sso_key: {kind: secret, in: hw_key, note: 'a security key or passkey, as the second step'}
+  sso_passkey: {kind: secret, in: phone, note: 'a passkey, which signs in alone (Pocket ID)'}
+  sso_reset: {kind: secret, in: mail, note: 'a password reset by email (not Pocket ID)'}
+  sso_mail_enroll: {kind: secret, in: mail, note: 'a new second step, added with a code by email (Authelia, unless require_second_factor is set)'}
+  sso_mail_signin: {kind: secret, in: mail, note: "signing in by email alone (Pocket ID's login codes, if on; authentik's recovery without MFA)"}
+
+  sso:
+    kind: account
+    note: 'your account, signed in'
+    needs: sso_server
+    access: ((sso_pw or sso_reset) and (sso_totp or sso_key or sso_mail_enroll)) or sso_passkey or sso_mail_signin
+    recovery: sso_server
+
+  sso_apps:
+    kind: service
+    note: 'the apps behind it'
+    check: [lockout, breach]
+    needs: sso_server
+    access: sso

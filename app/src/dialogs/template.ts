@@ -9,14 +9,19 @@ type Fields = Record<string, unknown>;
 
 /** Icons for a template with no logo in templates/icons (a generic one): Lucide's, by name. */
 export const ICONS = [
+  'at-sign',
+  'chart-candlestick',
+  'circle-user',
   'database-backup',
+  'door-closed',
   'globe',
+  'hand-coins',
+  'id-card',
+  'key-round',
   'landmark',
-  'package',
   'phone',
   'server',
   'shield-check',
-  'vault',
   'wallet',
 ] as const;
 export type TemplateIcon = (typeof ICONS)[number];

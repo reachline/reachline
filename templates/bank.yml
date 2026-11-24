@@ -1,6 +1,7 @@
 # Generic: online banking at a bank or credit union (Chase, Bank of America,
-# Wells Fargo, Citi, Capital One, a credit union). Banks differ in the
-# details, so check yours against what's here.
+# Wells Fargo, Citi, Capital One, a credit union), and the same at a
+# brokerage (Fidelity, Schwab, Vanguard) or a card issuer (Amex, Discover).
+# They differ in the details, so check yours against what's here.
 #
 # Signing in takes the password and, on a device the bank doesn't know, a
 # second step: a code by text, call or email, an approval in the bank's app,
@@ -17,8 +18,8 @@
 # Phone support may too, on whatever it asks; add that as `unknown` if
 # yours does.
 template:
-  name: Bank
-  note: Online banking at a bank or credit union (Chase, Bank of America, Wells Fargo, Citi, Capital One), its second step and how a password is reset.
+  name: Bank, brokerage or credit card
+  note: Online banking or investing (Chase, Bank of America, Wells Fargo, Citi, Capital One, Fidelity, Schwab, Vanguard, Amex), its second step and how a password is reset.
   icon: landmark
   checked: 2026-11-24
   prefix: bank
@@ -69,7 +70,7 @@ things:
     access: bank_identity and (phone_number or mail)
   bank_branch:
     kind: secret
-    note: 'a reset at a branch, with photo ID (not at online-only banks)'
+    note: 'a reset at a branch, with photo ID (not where there are none)'
     access: id_card and body
 
   bank:

@@ -1,0 +1,80 @@
+# Generic: a smart lock or garage door opener (August, Yale, myQ) and the
+# account whose app opens it. It stands in for your home, or for whichever
+# place the door opens (a garage that opens into the house is the house),
+# and gives it ways in besides breaking in.
+#
+# The app's account signs in with a phone number or email and a password,
+# and on a phone it doesn't know, a code by text or email (myQ requires
+# one; it also offers signing in with Apple, Google or Amazon). A forgotten
+# password is reset with a code by email; Yale asks for one by text as
+# well, so for Yale this overstates. The app, once signed in, unlocks the
+# door from the phone. Guests you invite open it from their own accounts,
+# for as long as you gave them, and keypad codes are shared with whoever
+# you've told. Apple Home, Google Home or Home Assistant open it too if
+# it's in them, and so does whoever controls that.
+#
+# A lock with a keyway still opens with its key, so a thief with your keys
+# and something with your address on it has your home. Alarms and cameras
+# (Ring Alarm, SimpliSafe) let no one in, so they aren't here.
+template:
+  name: Smart lock or garage door
+  note: A smart lock or garage door (August, Yale, myQ), the app's account that opens it, guests, keypad codes and its key.
+  icon: door-closed
+  checked: 2026-11-24
+  links:
+    'Yale Home: Access your account from a different device': https://support.shopyalehome.com/how-can-i-access-my-yale-account-from-a-different-device-HyUkSoMuV
+    'Yale Home: App FAQ (guests and keypad codes)': https://yalehome.co.uk/support/product-support/apps-integrations/yale-access-app/faq/
+    'Yale: How to reset a forgotten password': https://support.shopyalehome.com/reset-forgotten-password-rkCho3ngD
+    'myQ: Reset your password in the myQ app': https://support.chamberlaingroup.com/s/myq-app/reset-password
+    'myQ: How to set up two-step verification': https://support.chamberlaingroup.com/s/article/myQ-App-How-to-Set-Up-MFA-Two-Step-Verification
+  prefix: lock
+  stands_in:
+    home: Is this your home, or the place the door opens?
+  slots:
+    vault: Where the app's password is kept
+    mail: The email account the app has on file
+    phone_number: The phone number the app has on file
+    phone: The phone with the app
+    idp: The account you sign in with (Apple, Google, Amazon)
+    carried: Where you keep the key
+    head: What you remember
+    hub: What else controls it (Apple Home, Google Home, Home Assistant)
+  optional:
+    lock_sms: true
+    lock_mail_code: true
+    lock_idp: false
+    lock_app: true
+    lock_key: true
+    lock_keypad: false
+    lock_guests: false
+    lock_hub: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  phone_number: {kind: service}
+  phone: {kind: device}
+  idp: {kind: account}
+  carried: {kind: location}
+  head: {kind: location}
+  hub: {kind: account}
+
+  lock_pw: {kind: secret, in: vault}
+  lock_sms: {kind: secret, in: phone_number, note: 'codes by text, on a phone it doesn''t know'}
+  lock_mail_code: {kind: secret, in: mail, note: 'codes by email, on a phone it doesn''t know'}
+  lock_idp: {kind: secret, in: idp, note: 'signing in with Apple, Google or Amazon (myQ)'}
+  lock_app: {kind: secret, in: phone, note: 'the app, signed in'}
+  lock_key: {kind: device, in: carried, note: 'its key, if it has a keyway'}
+  lock_keypad: {kind: secret, in: [head, unknown], note: "a keypad code, which anyone you've told has"}
+  lock_guests: {kind: secret, in: unknown, note: "guests' access, from their own accounts"}
+  lock_hub: {kind: secret, in: hub, note: 'Apple Home, Google Home or Home Assistant'}
+
+  lock:
+    kind: account
+    note: "the app's account, which unlocks the door"
+    access: ((lock_pw or mail) and (lock_sms or lock_mail_code)) or lock_idp or lock_app
+
+  home:
+    kind: location
+    check: breach
+    access: lock or lock_key or lock_keypad or lock_guests or lock_hub

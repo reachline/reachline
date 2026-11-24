@@ -1,0 +1,64 @@
+# Generic: an email alias service (SimpleLogin, addy.io, Firefox Relay) that
+# forwards mail sent to your aliases on to your inbox. Bind the email of
+# each account that uses an alias to `alias`, and its reset emails are only
+# as safe as the weaker of the two ways to them: your inbox, which receives
+# them, and the alias service's account, which chooses where they go.
+#
+# The account signs in with a password and, once you've turned it on, an
+# authenticator app or a security key or passkey, with backup codes for
+# when those are lost (addy.io; Firefox Relay's is a Mozilla account). A
+# forgotten password is reset by email to your inbox. SimpleLogin can also
+# sign in with your Proton account. Past all that, support decides.
+#
+# Aliases on a domain of your own also reach whoever controls its DNS: add
+# `or domain` to the alias's access, with the domain from the registrar
+# template.
+template:
+  name: Email alias service
+  note: An email alias service (SimpleLogin, addy.io, Firefox Relay), its account, and the inbox it forwards to.
+  icon: at-sign
+  checked: 2026-11-24
+  links:
+    'addy.io: Forgotten username or password': https://addy.io/help/what-to-do-if-you-have-forgotten-your-username-or-password/
+    'addy.io: Security settings': https://addy.io/help/security-settings/
+    'SimpleLogin: Disable 2FA': https://simplelogin.io/docs/2fa/2fa-disable/
+    'Firefox Relay: Forgot my Mozilla account password': https://support.mozilla.org/en-US/kb/forgot-password-firefox-relay
+  prefix: alias
+  slots:
+    vault: Where the password is kept
+    mail: The inbox it forwards to
+    authenticator: Your authenticator app
+    hw_key: Your security key or passkey
+    safe: Where the backup codes are kept
+    idp: Your Proton account, if you sign in with it (SimpleLogin)
+  optional:
+    alias_totp: true
+    alias_key: false
+    alias_codes: true
+    alias_idp: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  safe: {kind: location}
+  idp: {kind: account}
+
+  alias_pw: {kind: secret, in: vault}
+  alias_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  alias_key: {kind: secret, in: hw_key, note: a security key or passkey}
+  alias_codes: {kind: secret, in: safe, note: backup codes}
+  alias_idp: {kind: secret, in: idp, note: 'signing in with Proton (SimpleLogin)'}
+
+  alias_account:
+    kind: account
+    note: the alias service's account, which chooses where your aliases forward
+    access: ((alias_pw or mail) and (alias_totp or alias_key)) or alias_idp
+    recovery: (alias_pw or mail) and alias_codes
+
+  alias:
+    kind: service
+    note: 'mail sent to your aliases, such as reset emails'
+    check: breach
+    access: mail or alias_account

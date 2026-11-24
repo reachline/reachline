@@ -1,0 +1,87 @@
+# Generic: a payment app (PayPal, Venmo, Cash App). They differ in the
+# details, so check yours against what's here.
+#
+# Signing in on a device the app doesn't know takes the password and a code
+# by text or email. Venmo takes your linked bank account's or card's numbers
+# instead of the code, and PayPal's 2-step verification an authenticator
+# app. Cash App has no password: leave it out and keep the reset by text,
+# and then a code to your number or email is the way in. A computer or
+# browser the app remembers skips the code, and the app, once signed in,
+# opens with the phone's unlock or its own passcode.
+#
+# A forgotten password is reset by a code or link to your email, and at
+# PayPal by a text or your card's number too, so whoever has your number
+# may need nothing else. Card numbers turn up in breaches and skimmers, so
+# they're kept on you and, as far as you know, perhaps by someone else.
+# Ticked, the card counts both ways, for the code and for the reset, which
+# no one app allows: that overstates a breach, but never understates one.
+# With neither the number nor the email, support or an identity check
+# decides, on your details and your linked bank or card.
+#
+# Sending money may ask for a PIN, which doesn't keep anyone out of the
+# account, so it isn't here.
+template:
+  name: Payment app
+  note: A payment app (PayPal, Venmo, Cash App), how it signs in with a code to your number or email, and how a password is reset.
+  icon: hand-coins
+  checked: 2026-11-24
+  links:
+    'Venmo: Login security': https://help.venmo.com/cs/articles/login-security-vhel151
+    'Venmo: Trouble with a verification code on a new device': https://help.venmo.com/cs/articles/im-having-trouble-with-a-verification-code-when-signing-in-from-a-new-device-vhel115
+    'Venmo: Reset password': https://help.venmo.com/cs/articles/reset-password-vhel230
+    'PayPal: How to reset your password': https://www.paypal.com/us/cshelp/article/i-forgot-my-password-how-do-i-reset-it-help143
+    'PayPal: What is 2-step verification?': https://www.paypal.com/us/cshelp/article/what-is-2-step-verification-help167
+    'PayPal: Multi-factor authentication and remembered devices': https://www.paypal.com/us/cshelp/article/what-is-multi-factor-authentication-and-a-remembered-device-help1156
+    'Cash App: Log in on the web': https://cash.app/help/6801-log-in-and-manage-your-account-on-the-web
+    'Cash App: Keep your account safe': https://cash.app/help/us/en-us/3127-keep-your-account-safe-on-cash-app
+  prefix: pay
+  slots:
+    vault: Where the password is kept
+    phone_number: The phone number the app has on file
+    mail: The email account the app has on file
+    phone: The phone with the app
+    laptop: A computer the app remembers
+    authenticator: Your authenticator app
+    carried: Where your linked card is (your wallet)
+  optional:
+    pay_pw: true
+    pay_sms: true
+    pay_mail_code: true
+    pay_card: false
+    pay_totp: false
+    pay_passkey: false
+    pay_app: true
+    pay_laptop: true
+    pay_reset_sms: true
+    pay_support: true
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  phone_number: {kind: service}
+  mail: {kind: account}
+  phone: {kind: device}
+  laptop: {kind: device}
+  authenticator: {kind: data}
+  carried: {kind: location}
+
+  pay_pw: {kind: secret, in: vault, note: 'a password (Cash App has none)'}
+  pay_sms: {kind: secret, in: phone_number, note: 'codes by text or call'}
+  pay_mail_code: {kind: secret, in: mail, note: 'codes by email'}
+  pay_card: {kind: secret, in: [carried, unknown], note: "your linked card's or bank account's numbers in place of a code (Venmo) or to reset the password (PayPal)"}
+  pay_totp: {kind: secret, in: authenticator, note: 'an authenticator app (PayPal)'}
+  pay_passkey: {kind: secret, in: phone, note: 'a passkey, which signs in alone (PayPal, Cash App)'}
+  pay_app: {kind: secret, in: phone, note: 'the app, signed in'}
+  pay_laptop: {kind: secret, in: laptop, note: 'a computer or browser the app remembers, which skips the code'}
+  pay_reset_sms: {kind: secret, in: phone_number, note: 'a password reset by text (PayPal, and Cash App with no password; Venmo resets by email only)'}
+  pay_support:
+    kind: secret
+    note: 'support or an identity check, with neither your number nor your email'
+    access: unknown
+
+  pay:
+    kind: account
+    check: [lockout, breach]
+    access: >-
+      ((pay_pw or mail or pay_reset_sms or pay_card) and (pay_sms or pay_mail_code or pay_card or pay_totp or pay_laptop))
+      or pay_passkey or pay_app
+    recovery: pay_support

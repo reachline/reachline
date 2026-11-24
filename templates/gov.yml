@@ -1,0 +1,101 @@
+# US federal sign-in: Login.gov and ID.me, and the Social Security and IRS
+# accounts you reach through them. Each agency takes either one, so if you
+# have both, both are ways in. They're separate accounts with their own
+# passwords and second steps; tick the second steps you've set up on
+# either, since they're kept in the same places.
+#
+# Both sign in with email, a password and a second step, which neither lets
+# you turn off, and reset a forgotten password by email.
+#
+# Login.gov encrypts your verified identity with your password. Reset it
+# without the personal key you were given when you verified, and you
+# verify again before an agency will take it: photo ID, your SSN and a
+# phone number. With no second step left, the only way back is to delete
+# the account (an email and a day's wait) and start again on the same
+# email, verifying again.
+#
+# ID.me recovers a lost second step once you've signed in, by whatever it
+# asks for: a selfie, a video call with an agent, your ID, or your email or
+# personal details, so the details count here as far as you know. Without
+# the email, an agent decides.
+template:
+  name: US government sign-in
+  note: Login.gov or ID.me, and the Social Security and IRS accounts you reach through them.
+  icon: id-card
+  checked: 2026-11-24
+  links:
+    'Login.gov: How do I sign in if I lost my phone or personal key?': https://www.login.gov/help/trouble-signing-in/how-to-sign-in/
+    'Login.gov: How do I delete my account?': https://www.login.gov/help/manage-your-account/delete-your-account/
+    'Login.gov: Verify my identity': https://www.login.gov/help/verify-your-identity/overview/
+    'ID.me: MFA recovery process if you can’t sign in': https://help.id.me/hc/en-us/articles/34192861849623-ID-me-multi-factor-authentication-MFA-recovery-process-if-you-can-t-sign-in
+    'ID.me: Sign in if you can’t access your email': https://help.id.me/hc/en-us/articles/15669309972759-Sign-in-if-you-can-t-access-your-ID-me-email
+    'SSA: my Social Security': https://www.ssa.gov/myaccount/
+    'IRS: Creating an account for IRS.gov': https://www.irs.gov/help/creating-an-account-for-irsgov
+  prefix: gov
+  slots:
+    vault: Where the passwords are kept
+    mail: The email account they have on file
+    phone_number: The phone number for text messages
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    phone: The phone you unlock with your face or fingerprint
+    safe: Where the backup codes and personal key are kept
+    id_card: Your photo ID
+    body: Turning up in person
+    head: What you remember
+  optional:
+    gov_login: true
+    gov_idme: false
+    gov_sms: true
+    gov_totp: false
+    gov_key: false
+    gov_face: false
+    gov_codes: false
+    gov_personal_key: true
+    gov_ssa: true
+    gov_irs: true
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  phone_number: {kind: service}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  phone: {kind: device}
+  safe: {kind: location}
+  id_card: {kind: device}
+  body: {kind: location}
+  head: {kind: location}
+
+  gov_pw: {kind: secret, in: vault, note: their passwords}
+  gov_sms: {kind: secret, in: phone_number, note: 'codes by text or call'}
+  gov_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  gov_key: {kind: secret, in: hw_key, note: a security key}
+  gov_face: {kind: secret, in: phone, note: 'face or touch unlock (a passkey)'}
+  gov_codes: {kind: secret, in: safe, note: backup codes}
+  gov_personal_key: {kind: secret, in: safe, note: "Login.gov's personal key"}
+  gov_identity: {kind: secret, in: [head, unknown], note: 'your SSN, date of birth and address, which data breaches may have leaked'}
+
+  gov_login:
+    kind: account
+    note: 'Login.gov, with your verified identity'
+    access: >-
+      (gov_pw or (mail and (gov_personal_key or (id_card and gov_identity))))
+      and (gov_sms or gov_totp or gov_key or gov_face or gov_codes)
+    recovery: mail and id_card and gov_identity
+  gov_idme:
+    kind: account
+    note: ID.me
+    access: (gov_pw or mail) and (gov_sms or gov_totp or gov_key or gov_face or gov_codes)
+    recovery: (gov_pw or mail) and ((id_card and body) or gov_identity)
+
+  gov_ssa:
+    kind: account
+    note: my Social Security
+    check: [lockout, breach]
+    access: gov_login or gov_idme
+  gov_irs:
+    kind: account
+    note: 'your IRS online account'
+    check: [lockout, breach]
+    access: gov_login or gov_idme
