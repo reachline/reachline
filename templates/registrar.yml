@@ -1,0 +1,73 @@
+# Generic: a domain registrar (Namecheap, Porkbun, Squarespace Domains,
+# GoDaddy, Gandi, Cloudflare Registrar). Whoever gets into the account
+# controls the domain: its DNS, and so where its mail goes, and its transfer
+# to another registrar. A password reset goes to the account's email, and
+# then asks for the second factor if there is one.
+#
+# The transfer lock most registrars turn on by default stops a transfer only
+# until someone in the account turns it off, so it isn't covered. A registry
+# lock, which few offer, holds every change until the registrar confirms it
+# with you outside the account.
+#
+# If your email address is on this domain, whoever controls the domain gets
+# your mail, and with it the password resets sent there, this registrar's
+# included. Give that mail account `needs: registrar_domain` for the domain
+# lapsing; a lapse is the lockout `gone: registrar_domain`.
+template:
+  name: Domain registrar
+  note: A domain registrar account (Namecheap, Porkbun, Squarespace, GoDaddy, Gandi, Cloudflare Registrar) and the domain it controls.
+  checked: 2026-11-24
+  prefix: registrar
+  stands_in:
+    registrar_domain: Is this your domain?
+  slots:
+    vault: Where the password is kept
+    mail: The email account on your registrar account
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    phone_number: The phone number for codes
+    safe: Where the backup codes are kept
+    head: What you remember
+  optional:
+    registrar_totp: true
+    registrar_key: false
+    registrar_sms: false
+    registrar_mail_code: false
+    registrar_codes: false
+    registrar_support: true
+    registrar_registry_lock: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  phone_number: {kind: service}
+  safe: {kind: location}
+  head: {kind: location}
+
+  registrar_pw: {kind: secret, in: vault}
+  registrar_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  registrar_key: {kind: secret, in: hw_key, note: a security key}
+  registrar_sms: {kind: secret, in: phone_number, note: codes by text}
+  registrar_mail_code: {kind: secret, in: mail, note: codes by email}
+  registrar_codes: {kind: secret, in: safe, note: backup codes}
+  registrar_support:
+    kind: service
+    note: "support, which turns off two-factor authentication once it's satisfied it's you"
+    # What it asks for differs, and it decides.
+    access: unknown
+  registrar_registry_lock: {kind: secret, in: head, note: 'a registry lock, so every change waits for the registrar to confirm it with you'}
+
+  registrar_domain:
+    kind: service
+    note: the domain
+    check: [lockout, breach]
+    in: registrar
+    lock: registrar_registry_lock
+
+  registrar:
+    kind: account
+    # The password, or a reset by email; then any second factor.
+    access: (registrar_pw or mail) and (registrar_totp or registrar_key or registrar_sms or registrar_mail_code)
+    recovery: ((registrar_pw or mail) and registrar_codes) or (mail and registrar_support)

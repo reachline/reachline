@@ -1,0 +1,67 @@
+# Generic: a mobile carrier (T-Mobile, Verizon, AT&T, Google Fi, Mint,
+# Visible), and so your phone number. Whoever gets into the account gets the
+# number: the account moves it to a new SIM or eSIM, or gives out the
+# transfer PIN that ports it to another carrier. A store does the same for
+# anyone whose photo ID passes for yours, and phone support for anyone with
+# the account PIN.
+#
+# A SIM lock and a port lock refuse SIM changes and ports until they're
+# turned off in the account: T-Mobile's SIM Protection and Port Out
+# Protection, Verizon's SIM Protection and Number Lock, AT&T's Wireless
+# Account Lock. With both on, leave out the store and support; whoever gets
+# into the account can still turn them off. A SIM swap that gets past all of
+# this is the `sim_swap` breach: `has: phone_number`.
+#
+# An eSIM moves to a new phone from the old one, unlocked, so the phone is a
+# way to the number too. A SIM with no PIN works in any phone.
+template:
+  name: Mobile carrier
+  note: A mobile carrier account (T-Mobile, Verizon, AT&T, Google Fi, Mint, Visible), and how your number can be moved to a new SIM or carrier.
+  checked: 2026-11-24
+  prefix: carrier
+  stands_in:
+    phone_number: Is this your phone number?
+  slots:
+    vault: Where the password and account PIN are kept
+    mail: The email account on your carrier account
+    phone: Your phone, with the carrier's app and your SIM or eSIM
+    sim: Your SIM, or the eSIM's texts on the locked phone
+    id_card: Your photo ID
+    body: Turning up in person
+  optional:
+    carrier_sms: true
+    carrier_mail_code: false
+    carrier_app: true
+    carrier_esim: false
+    carrier_store: true
+    carrier_call: true
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  phone: {kind: device}
+  sim: {kind: device}
+  id_card: {kind: device}
+  body: {kind: location}
+
+  carrier_pw: {kind: secret, in: vault}
+  carrier_sms: {kind: secret, in: phone_number, note: 'codes by text'}
+  carrier_mail_code: {kind: secret, in: mail, note: 'codes by email'}
+  carrier_app: {kind: secret, in: phone, note: "the carrier's app, signed in"}
+  carrier_esim: {kind: secret, in: phone, note: 'an eSIM, which the phone, unlocked, moves to a new phone'}
+  carrier_store: {kind: secret, note: 'a new SIM from a store, with photo ID (not with a SIM lock)', access: id_card and body}
+  carrier_call:
+    kind: secret
+    in: vault
+    note: 'the account PIN, which gets a new SIM or a transfer PIN from phone support (not with a SIM and port lock)'
+
+  phone_number:
+    kind: service
+    access: sim or carrier_esim or carrier or carrier_store or carrier_call
+
+  carrier:
+    kind: account
+    check: [lockout, breach]
+    access: (carrier_pw and (carrier_sms or carrier_mail_code)) or carrier_app
+    # A reset by a code to your number or email.
+    recovery: phone_number or mail

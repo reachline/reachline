@@ -1,0 +1,72 @@
+# Generic: a self-custody crypto wallet with a BIP39 recovery phrase, on a
+# hardware wallet (Ledger, Trezor) or in an app (MetaMask, Exodus, Phantom).
+# The coins are on the chain, so they're never gone, and whoever has the
+# phrase moves them; no one can reset it or undo a transfer.
+#
+# A hardware wallet signs only with its PIN, and wipes itself after too many
+# wrong ones (Ledger after 3, Trezor after 10 or 16), so a stolen one is
+# safe while the PIN is. An app is as safe as the phone it's on.
+#
+# A passphrase (the "25th word") opens a different wallet from the same
+# phrase, and Trezor never stores it, so every way in asks for it. Ledger can
+# attach it to a second PIN on the device instead: then add the hardware
+# wallet to where the passphrase is. Forget it and the coins behind it are
+# gone; write it down apart from the phrase.
+#
+# Ledger Recover (a subscription) keeps the phrase in three encrypted shares
+# with Ledger, Coincover and EscrowTech, and restores it to any Ledger once
+# you've signed in by email and passed two identity checks, a video call with
+# your ID and an automated one, which takes hours to days. It's yours alone:
+# an heir can't use it. It doesn't keep the passphrase.
+#
+# A backup split into shares (Trezor's multi-share backup) is any two of
+# three: write the phrase as (a and b) or (a and c) or (b and c).
+template:
+  name: Crypto wallet
+  note: A self-custody crypto wallet with a recovery phrase (BIP39), on a hardware wallet (Ledger, Trezor) or an app, with Ledger Recover.
+  checked: 2026-11-24
+  links:
+    PIN protection on Trezor devices: https://trezor.io/guides/trezor-devices/trezor-fundamentals/pin-protection-on-trezor-devices
+    Trezor passphrase and hidden wallet issues: https://trezor.io/support/technical/passphrase/
+    What is Ledger Recover?: https://www.ledger.com/academy/what-is-ledger-recover
+    'Ledger Recover: how to restore access to your assets': https://support.ledger.com/article/9568409959581-zd
+  prefix: wallet
+  slots:
+    safe: Where the recovery phrase is kept
+    home: Where the hardware wallet is kept
+    head: What you remember
+    phone: The phone with the wallet app
+    mail: The email you signed up to Ledger Recover with
+    id_card: Your photo ID
+    body: Turning up in person
+  optional:
+    wallet_hw: true
+    wallet_app: false
+    wallet_passphrase: false
+    wallet_recover: false
+
+things:
+  safe: {kind: location}
+  home: {kind: location}
+  head: {kind: location}
+  phone: {kind: device}
+  mail: {kind: account}
+  id_card: {kind: device}
+  body: {kind: location}
+
+  wallet_seed: {kind: secret, in: safe, note: 'the recovery phrase, 12 or 24 words on paper or metal'}
+  wallet_pin: {kind: secret, in: head, note: "the hardware wallet's PIN"}
+  wallet_hw: {kind: device, in: home, lock: wallet_pin, note: 'a hardware wallet (Ledger, Trezor)'}
+  wallet_app: {kind: secret, in: phone, note: 'a wallet app on your phone (MetaMask, Exodus, Phantom)'}
+  wallet_passphrase: {kind: secret, in: head, note: 'a passphrase (the "25th word"), which every way in asks for'}
+  wallet_recover:
+    kind: service
+    note: 'Ledger Recover, which restores the phrase to a Ledger after two identity checks'
+    access: mail and id_card and body
+
+  wallet:
+    kind: data
+    note: the coins
+    check: [lockout, breach]
+    access: wallet_seed or wallet_hw or wallet_app or wallet_recover
+    lock: wallet_passphrase
