@@ -1,0 +1,104 @@
+# A Proton account (Mail, Drive, Pass) with two-factor authentication. Your
+# mail, files and passwords are end-to-end encrypted with keys your password
+# opens, so getting the account back isn't getting them back. A reset by the
+# recovery email or phone gets you in, but what was there stays locked
+# unless you have a data recovery method: the recovery phrase (which resets
+# the password too), a recovery file, or the backup kept in a signed-in
+# browser. Proton can't reset your password for you. Whether a reset also
+# asks for the second factor isn't documented, so it's unknown here, even
+# without one.
+#
+# With the password, a lost second factor is replaced by a recovery code, or
+# by a code to the recovery email or phone. Emergency Access (paid plans)
+# lets a contact with a Proton address into the whole account once the wait
+# you chose (a day to a month) runs out, unless you deny their request.
+#
+# Two-password mode, a legacy option, isn't covered: there the mailbox
+# password, not the login password, is what opens your data.
+template:
+  name: Proton
+  note: A Proton account (Mail, Drive, Pass) and how its end-to-end encrypted data is recovered.
+  checked: 2026-11-23
+  links:
+    Proton Account recovery explained: https://proton.me/support/set-account-recovery-methods
+    Reset your Proton Account password: https://proton.me/support/reset-password
+    Two-factor authentication (2FA): https://proton.me/support/two-factor-authentication-2fa
+    Emergency access: https://proton.me/support/emergency-access
+    Two-password mode: https://proton.me/support/switch-two-password-mode
+  prefix: proton
+  stands_in:
+    proton: Is this your email?
+    proton_pass: Is Proton Pass your password manager?
+  slots:
+    vault: Where the password is kept
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    safe: Where the recovery phrase and codes are kept
+    laptop: The computer with the recovery file and a signed-in browser
+    recovery_mail: Your recovery email's account
+    phone_number: Your recovery phone number
+    partner: Your emergency contact (often your partner)
+  optional:
+    proton_totp: true
+    proton_key: false
+    proton_codes: true
+    proton_recovery_mail: true
+    proton_recovery_phone: false
+    proton_phrase: false
+    proton_file: false
+    proton_device: false
+    proton_emergency: false
+    proton_archive: true
+    proton_drive: false
+    proton_pass: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  safe: {kind: location}
+  laptop: {kind: device}
+  recovery_mail: {kind: account}
+  phone_number: {kind: service}
+  partner: {kind: location}
+
+  proton_pw: {kind: secret, in: vault}
+  proton_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  proton_key: {kind: secret, in: hw_key, note: a security key}
+  proton_codes: {kind: secret, in: safe, note: '2FA recovery codes'}
+  proton_recovery_mail: {kind: secret, in: recovery_mail, note: 'a recovery email, which resets the password but not your data'}
+  proton_recovery_phone: {kind: secret, in: phone_number, note: 'a recovery phone, which resets the password but not your data'}
+  proton_phrase: {kind: secret, in: safe, note: 'a recovery phrase, which resets the password and restores your data'}
+  proton_file: {kind: secret, in: laptop, note: 'a recovery file, which restores your data'}
+  proton_device: {kind: secret, in: laptop, note: "device data backup in a signed-in browser, which restores your data"}
+  proton_emergency: {kind: secret, in: partner, note: 'Emergency Access for a trusted contact (paid plans)'}
+  proton_unanswered: {kind: state, note: "an emergency access request isn't denied within its wait"}
+
+  # Your end-to-end encrypted data opens with the password that encrypted it, or a data recovery method.
+  proton_archive:
+    kind: data
+    note: your mail so far, end-to-end encrypted
+    check: [lockout, breach]
+    in: proton
+    lock: proton_pw or proton_phrase or proton_file or proton_device or proton_emergency
+  proton_drive:
+    kind: data
+    note: Proton Drive
+    check: [lockout, breach]
+    in: proton
+    lock: proton_pw or proton_phrase or proton_file or proton_device or proton_emergency
+  proton_pass:
+    kind: service
+    note: Proton Pass
+    check: breach
+    in: proton
+    lock: proton_pw or proton_phrase or proton_file or proton_device or proton_emergency
+
+  proton:
+    kind: account
+    check: [lockout, breach]
+    access: (proton_pw and (proton_totp or proton_key)) or (proton_emergency and proton_unanswered)
+    # A lost second factor: a recovery code, or a code to a recovery method. Or a reset.
+    recovery: >-
+      (proton_pw and (proton_codes or proton_recovery_mail or proton_recovery_phone))
+      or ((proton_recovery_mail or proton_recovery_phone or proton_phrase) and unknown)

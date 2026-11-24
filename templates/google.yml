@@ -1,24 +1,50 @@
-# A Google account with 2-Step Verification. A passkey skips the second step.
-# Backup codes stand in for the second step. Account recovery weighs a
-# recovery email or phone with how familiar the device and place look, and
-# isn't guaranteed, so it's unknown here.
+# A Google account with 2-Step Verification. The password takes a second
+# step: a prompt on a signed-in phone, an authenticator, a text or call, a
+# security key or a backup code. A passkey signs in alone. Advanced
+# Protection allows only passkeys and security keys, and no backup codes or
+# recovery contacts: leave those out if you're enrolled.
+#
+# Account recovery weighs what you can show (a code to the recovery email or
+# phone, a recovery contact confirming a number, a familiar computer and place)
+# and isn't guaranteed, so each is unknown here. On a new Android phone, your
+# number and the old phone's screen lock sign you in with no password, if
+# "Skip password when possible" is on and that phone was signed in within 14
+# days.
+#
+# Password Manager is end-to-end encrypted only with on-device encryption,
+# which locks it to a signed-in device's screen lock. Inactive Account Manager
+# sends a trusted contact a download of your data once you've been inactive
+# for the time you chose; never the account itself.
 template:
   name: Google
-  note: A Google account (Gmail, Drive, Photos) with 2-Step Verification.
-  checked: 2026-10-30
+  note: A Google account (Gmail, Drive, Photos, Password Manager) with 2-Step Verification.
+  checked: 2026-11-23
   links:
     Turn on 2-Step Verification: https://support.google.com/accounts/answer/185839
     Tips to complete account recovery steps: https://support.google.com/accounts/answer/7299973
+    Add, manage & use recovery contacts: https://support.google.com/accounts/answer/16590793
+    Sign in with your phone number instead of a username: https://support.google.com/accounts/answer/7222352?co=GENIE.Platform%3DAndroid
+    Protect your data with your Android screen lock: https://support.google.com/android/answer/18631590
+    About Inactive Account Manager: https://support.google.com/accounts/answer/3036546
   prefix: google
+  stands_in:
+    google: Is this your email?
+    google_passwords: Is Google Password Manager your password manager?
   slots:
     vault: Where the password is kept
-    phone: The phone, signed in to Google or with your authenticator app
+    phone: Your phone, signed in to Google
+    authenticator: Your authenticator app
+    phone_pin: Your Android phone's screen lock
+    laptop: A computer you usually sign in to Google on
     phone_number: The phone number for codes and recovery
     hw_key: Your security key
     safe: Where the backup codes are kept
     recovery_mail: Your recovery email's account
+    contact: Your recovery contact
+    partner: Your trusted contact for Inactive Account Manager (often your partner)
   optional:
-    google_prompt: true
+    google_phone: true
+    google_laptop: true
     google_totp: false
     google_sms: true
     google_key: false
@@ -26,27 +52,75 @@ template:
     google_passkey: false
     google_recovery_mail: true
     google_recovery_phone: true
+    google_contact: false
+    google_mobile_signin: false
+    google_drive: true
+    google_photos: true
+    google_passwords: false
+    google_ode: false
+    google_iam: false
 
 things:
   vault: {kind: service, note: 'your password manager, unlocked'}
   phone: {kind: device}
+  authenticator: {kind: data}
+  phone_pin: {kind: secret}
+  laptop: {kind: device}
   phone_number: {kind: service}
   hw_key: {kind: device}
   safe: {kind: location}
   recovery_mail: {kind: account}
+  contact: {kind: location}
+  partner: {kind: location}
 
   google_pw: {kind: secret, in: vault}
-  google_prompt: {kind: secret, in: phone, note: Google prompts on a signed-in phone}
-  google_totp: {kind: secret, in: phone, note: an authenticator app}
+  google_phone: {kind: secret, in: phone, note: 'your phone, signed in to Google, which gets prompts'}
+  google_laptop: {kind: secret, in: laptop, note: "a computer signed in to Google, familiar to account recovery"}
+  google_totp: {kind: secret, in: authenticator, note: an authenticator app}
   google_sms: {kind: secret, in: phone_number, note: codes by text or voice call}
   google_key: {kind: secret, in: hw_key, note: a security key}
-  google_codes: {kind: secret, in: safe, note: backup codes}
-  google_passkey: {kind: secret, in: phone, note: 'a passkey, which skips the second step'}
+  google_codes: {kind: secret, in: safe, note: 'backup codes (not with Advanced Protection)'}
+  google_passkey: {kind: secret, in: phone, note: 'a passkey, which signs in without the password'}
   google_recovery_mail: {kind: secret, in: recovery_mail, note: a recovery email}
   google_recovery_phone: {kind: secret, in: phone_number, note: a recovery phone}
+  google_contact: {kind: secret, in: contact, note: 'a recovery contact (not with Advanced Protection)'}
+  google_mobile_signin:
+    kind: secret
+    note: "signing in on a new Android phone with your number and the old phone's screen lock"
+    access: phone_number and phone_pin
+  google_iam: {kind: secret, in: partner, note: "Inactive Account Manager, which sends a trusted contact your data"}
+  google_inactive: {kind: state, note: "you haven't used Google for the time you set in Inactive Account Manager"}
+  google_ode:
+    kind: secret
+    note: "Password Manager's on-device encryption, so only a signed-in device or its screen lock opens it"
+    access: google_phone or phone_pin
+
+  google_drive:
+    kind: data
+    note: Google Drive
+    check: [lockout, breach]
+    in: google
+    access: google_phone or google_laptop or (google_iam and google_inactive)
+  google_photos:
+    kind: data
+    note: Google Photos
+    check: [lockout, breach]
+    in: google
+    access: google_phone or google_laptop or (google_iam and google_inactive)
+  google_passwords:
+    kind: service
+    note: Google Password Manager
+    check: breach
+    in: google
+    access: google_phone
+    lock: google_ode
 
   google:
     kind: account
     check: [lockout, breach]
-    access: (google_pw and (google_prompt or google_totp or google_sms or google_key or google_codes)) or google_passkey
-    recovery: (google_recovery_mail and unknown) or (google_recovery_phone and unknown)
+    access: >-
+      (google_pw and (google_phone or google_totp or google_sms or google_key or google_codes))
+      or google_passkey
+    recovery: >-
+      (google_recovery_mail and unknown) or (google_recovery_phone and unknown)
+      or (google_contact and unknown) or (google_laptop and unknown) or google_mobile_signin

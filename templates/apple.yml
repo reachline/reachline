@@ -1,0 +1,134 @@
+# An Apple Account with two-factor authentication. A new device or the web
+# takes the password and a code, shown on a trusted device or sent to a
+# trusted phone number. A trusted device changes the password with its own
+# passcode, though Stolen Device Protection (on by default since iOS 26.4)
+# asks the iPhone for Face ID instead when it's away from familiar places.
+#
+# Without a trusted device: a recovery contact's code, or Apple's account
+# recovery, which waits days and weighs what you can show (the trusted number,
+# the account's email, the card on file). A recovery key turns account
+# recovery off: the key and the trusted number reset the password instead.
+# Security keys replace the codes, and then only a key or a trusted device
+# gets you back in; Apple warns that losing them all may be for good. So with
+# a recovery key or security keys, leave out what they turn off.
+#
+# Getting the account back isn't always getting the data back. Passwords and
+# Keychain are always end-to-end encrypted, and with Advanced Data Protection
+# so are iCloud Drive and Photos: then only a trusted device, the passcode of
+# one, the recovery key or a recovery contact opens them, and Apple can't. A
+# Legacy Contact, with the access key and a death certificate, gets the data
+# but never the account, and not the Keychain.
+template:
+  name: Apple
+  note: An Apple Account (iCloud Mail, Drive, Photos, Passwords) with two-factor authentication.
+  checked: 2026-11-23
+  links:
+    Two-factor authentication for Apple Account: https://support.apple.com/en-us/102660
+    If you forgot your password and can't sign in: https://support.apple.com/en-us/102656
+    About recovery keys: https://support.apple.com/en-us/109345
+    Set up a recovery contact: https://support.apple.com/en-us/102641
+    What to expect during account recovery: https://support.apple.com/en-us/118574
+    About Security Keys for Apple Account: https://support.apple.com/en-us/102637
+    About Stolen Device Protection for iPhone: https://support.apple.com/en-us/120340
+    iCloud data security overview: https://support.apple.com/en-us/102651
+    How to add a Legacy Contact: https://support.apple.com/en-us/102631
+  prefix: apple
+  stands_in:
+    apple: Is this your email?
+    apple_passwords: Is Apple Passwords your password manager?
+  slots:
+    vault: Where the password is kept
+    phone: Your iPhone, signed in to the account
+    phone_pin: Your iPhone's passcode
+    face: Your Face ID or Touch ID
+    laptop: Your Mac, signed in to the account
+    phone_number: The trusted phone number
+    hw_key: Your security keys
+    safe: Where the recovery key is kept
+    contact: Your recovery contact
+    partner: Your Legacy Contact (often your partner)
+    died: That you've died, with a death certificate to show
+  optional:
+    apple_iphone: true
+    apple_no_sdp: false
+    apple_mac: false
+    apple_sms: true
+    apple_key: false
+    apple_rk: false
+    apple_contact: false
+    apple_account_recovery: true
+    apple_drive: true
+    apple_photos: true
+    apple_passwords: false
+    apple_adp: false
+    apple_legacy: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  phone: {kind: device}
+  phone_pin: {kind: secret}
+  face: {kind: secret}
+  laptop: {kind: device}
+  phone_number: {kind: service}
+  hw_key: {kind: device}
+  safe: {kind: location}
+  contact: {kind: location}
+  partner: {kind: location}
+  died: {kind: state}
+
+  apple_pw: {kind: secret, in: vault}
+  apple_iphone: {kind: secret, in: phone, note: 'your iPhone, signed in: a trusted device'}
+  apple_no_sdp: {kind: secret, in: phone, note: "Stolen Device Protection off, so the iPhone's passcode does what Face ID does"}
+  apple_mac: {kind: secret, in: laptop, note: 'your Mac, signed in: a trusted device'}
+  apple_sms: {kind: secret, in: phone_number, note: 'codes by text or call to the trusted number (not with security keys)'}
+  apple_key: {kind: secret, in: hw_key, note: 'security keys, which replace the codes'}
+  apple_rk: {kind: secret, in: safe, note: 'a recovery key, which turns account recovery off'}
+  apple_contact: {kind: secret, in: contact, note: "a recovery contact's code (not with security keys)"}
+  apple_legacy: {kind: secret, in: partner, note: "a Legacy Contact's access key, which opens your data once you've died"}
+  apple_account_recovery:
+    kind: service
+    note: "Apple's account recovery, which takes days (not with a recovery key or security keys)"
+    # Apple decides, on the factors you can show and the wait.
+    access: unknown
+
+  # End-to-end encrypted data opens with a trusted device, the passcode of
+  # one, the recovery key or a recovery contact, even once you're signed in.
+  apple_adp:
+    kind: secret
+    note: 'Advanced Data Protection, which end-to-end encrypts Drive and Photos'
+    access: apple_iphone or apple_mac or phone_pin or apple_rk or apple_contact or apple_legacy
+
+  apple_drive:
+    kind: data
+    note: iCloud Drive
+    check: [lockout, breach]
+    in: apple
+    # Signed-in devices show it too.
+    access: apple_iphone or apple_mac or (apple_legacy and died)
+    lock: apple_adp
+  apple_photos:
+    kind: data
+    note: iCloud Photos
+    check: [lockout, breach]
+    in: apple
+    # Signed-in devices show it too.
+    access: apple_iphone or apple_mac or (apple_legacy and died)
+    lock: apple_adp
+  apple_passwords:
+    kind: service
+    note: 'Apple Passwords (iCloud Keychain), on your devices and in iCloud'
+    check: breach
+    in: [apple, apple_mac]
+    # Stolen Device Protection asks the iPhone for Face ID, not its passcode.
+    access: apple_iphone and (face or apple_no_sdp)
+    lock: apple_iphone or apple_mac or phone_pin or apple_rk or apple_contact
+
+  apple:
+    kind: account
+    check: [lockout, breach]
+    access: apple_pw and (apple_iphone or apple_mac or apple_sms or apple_key)
+    # A trusted device or a security key resets the password; with Stolen
+    # Device Protection the iPhone wants Face ID, not its passcode.
+    recovery: >-
+      (apple_iphone and (face or apple_no_sdp)) or apple_mac or apple_key
+      or (apple_rk and apple_sms) or apple_contact or apple_account_recovery

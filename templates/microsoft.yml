@@ -1,0 +1,100 @@
+# A Microsoft account (Outlook.com, OneDrive, Xbox, Windows sign-in). New
+# accounts are passwordless by default since May 2025, and older ones can
+# remove the password: then leave the password out.
+#
+# Without two-step verification, a code sent to your security info (an
+# email or a phone) signs in alone, in place of the password; with it, the
+# code is a second step after the password. Tick whichever matches. The
+# Authenticator app, Windows Hello, a passkey and a security key sign in
+# alone either way.
+#
+# A forgotten password is reset with a code to your security info, or two
+# with two-step verification, or with the 25-character recovery code. With
+# two-step verification and nothing left, Microsoft says it can't help; the
+# account recovery form is only for accounts without it. There's no legacy
+# contact. If a Windows PC's BitLocker key is saved to this account, the
+# account is a way into that PC's drive.
+template:
+  name: Microsoft
+  note: A Microsoft account (Outlook.com, OneDrive, Xbox, Windows) with or without a password.
+  checked: 2026-11-23
+  links:
+    How to use two-step verification with your Microsoft account: https://support.microsoft.com/en-us/account-billing/how-to-use-two-step-verification-with-your-microsoft-account-c7910146-672f-01e9-50a0-93b4585e7eb4
+    How to go passwordless with your Microsoft account: https://support.microsoft.com/en-us/accounts-billing/security/how-to-go-passwordless-with-your-microsoft-account
+    Reset a forgotten Microsoft account password: https://support.microsoft.com/en-gb/help/4026971/microsoft-account-how-to-reset-your-password
+    How to get a Microsoft account recovery code: https://support.microsoft.com/en-US/accounts-billing/manage/how-to-get-a-microsoft-account-recovery-code
+    Help with the Microsoft account recovery form: https://support.microsoft.com/en-us/accounts-billing/manage/help-with-the-microsoft-account-recovery-form
+    Pushing passkeys forward (passwordless by default): https://www.microsoft.com/en-us/security/blog/2025/05/01/pushing-passkeys-forward-microsofts-latest-updates-for-simpler-safer-sign-ins/
+  prefix: microsoft
+  stands_in:
+    microsoft: Is this your email?
+  slots:
+    vault: Where the password is kept
+    phone: The phone with Microsoft Authenticator
+    authenticator: Your authenticator app
+    laptop: Your Windows PC, signed in with Windows Hello
+    phone_number: The phone number in your security info
+    recovery_mail: The email in your security info
+    hw_key: Your security key
+    safe: Where the recovery code is kept
+  optional:
+    microsoft_pw: true
+    microsoft_app: true
+    microsoft_hello: false
+    microsoft_passkey: false
+    microsoft_key: false
+    microsoft_totp: false
+    microsoft_sms: false
+    microsoft_mail_code: false
+    microsoft_sms_alone: false
+    microsoft_mail_alone: true
+    microsoft_codes: false
+    microsoft_form: true
+    microsoft_onedrive: true
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  phone: {kind: device}
+  authenticator: {kind: data}
+  laptop: {kind: device}
+  phone_number: {kind: service}
+  recovery_mail: {kind: account}
+  hw_key: {kind: device}
+  safe: {kind: location}
+
+  microsoft_pw: {kind: secret, in: vault, note: "a password (none if you've gone passwordless)"}
+  microsoft_app: {kind: secret, in: phone, note: 'the Microsoft Authenticator app, which approves sign-ins'}
+  microsoft_hello: {kind: secret, in: laptop, note: 'Windows Hello on your PC'}
+  microsoft_passkey: {kind: secret, in: phone, note: a passkey}
+  microsoft_key: {kind: secret, in: hw_key, note: a security key}
+  microsoft_totp: {kind: secret, in: authenticator, note: 'codes from an authenticator app, after the password'}
+  microsoft_sms: {kind: secret, in: phone_number, note: 'codes by text, after the password (two-step verification on)'}
+  microsoft_mail_code: {kind: secret, in: recovery_mail, note: 'codes by email, after the password (two-step verification on)'}
+  microsoft_sms_alone: {kind: secret, in: phone_number, note: 'codes by text, which sign in alone (two-step verification off)'}
+  microsoft_mail_alone: {kind: secret, in: recovery_mail, note: 'codes by email, which sign in alone (two-step verification off)'}
+  microsoft_codes: {kind: secret, in: safe, note: 'a recovery code, which resets the password'}
+  microsoft_form:
+    kind: service
+    note: "Microsoft's account recovery form (not with two-step verification)"
+    # Microsoft weighs what you remember about the account and answers by email.
+    access: unknown
+
+  microsoft_onedrive:
+    kind: data
+    note: OneDrive
+    check: [lockout, breach]
+    in: microsoft
+    access: microsoft_hello
+
+  microsoft:
+    kind: account
+    check: [lockout, breach]
+    access: >-
+      (microsoft_pw and (microsoft_totp or microsoft_sms or microsoft_mail_code))
+      or microsoft_app or microsoft_hello or microsoft_passkey or microsoft_key
+      or microsoft_sms_alone or microsoft_mail_alone
+    # Two-step verification wants two of the security info's codes to reset the password.
+    recovery: >-
+      microsoft_codes or microsoft_form
+      or (microsoft_sms and (microsoft_mail_code or microsoft_app or microsoft_totp))
+      or (microsoft_mail_code and (microsoft_app or microsoft_totp))

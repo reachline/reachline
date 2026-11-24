@@ -1,0 +1,69 @@
+# A Fastmail account. Two-step verification takes an authenticator or a
+# security key after the password, and needs a recovery phone first, which
+# can then get codes by text as a backup. A passkey signs in alone.
+#
+# Account recovery takes a recovery code, or a code to a recovery email or
+# phone; with two-step verification it wants a second, separate factor too.
+# A reset waits 24 hours, and emails you so you can reject it. With no
+# second factor and no recovery code, you may be locked out for good. With
+# two-step verification, your phone is the text backup, so don't also tick
+# it as a recovery phone.
+#
+# If your address is on your own domain, give fastmail `needs: domain`: when
+# the domain lapses, mail to it stops, whatever else you can reach.
+template:
+  name: Fastmail
+  note: A Fastmail account with two-step verification.
+  checked: 2026-11-23
+  links:
+    Using two-step verification (2FA): https://www.fastmail.help/hc/en-us/articles/360058752374-Using-two-step-verification-2FA
+    'Multiple ways in: keeping password reset secure': https://www.fastmail.com/blog/multiple-ways-in-keeping-password-reset-secure/
+    Introducing passkey support to Fastmail: https://www.fastmail.com/blog/introducing-passkeys/
+  prefix: fastmail
+  stands_in:
+    fastmail: Is this your email?
+  slots:
+    vault: Where the password is kept
+    phone: The phone with your passkey
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    phone_number: Your recovery phone number
+    recovery_mail: Your recovery email's account
+    safe: Where the recovery code is kept
+  optional:
+    fastmail_totp: true
+    fastmail_key: false
+    fastmail_sms: true
+    fastmail_passkey: false
+    fastmail_code: true
+    fastmail_recovery_mail: false
+    fastmail_recovery_phone: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  phone: {kind: device}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  phone_number: {kind: service}
+  recovery_mail: {kind: account}
+  safe: {kind: location}
+
+  fastmail_pw: {kind: secret, in: vault}
+  fastmail_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  fastmail_key: {kind: secret, in: hw_key, note: a security key}
+  fastmail_sms: {kind: secret, in: phone_number, note: 'codes by text to the recovery phone, a backup second step'}
+  fastmail_passkey: {kind: secret, in: phone, note: 'a passkey, which signs in alone'}
+  fastmail_code: {kind: secret, in: safe, note: a recovery code}
+  fastmail_recovery_mail: {kind: secret, in: recovery_mail, note: a recovery email}
+  fastmail_recovery_phone: {kind: secret, in: phone_number, note: 'a recovery phone (without two-step verification)'}
+
+  fastmail:
+    kind: account
+    check: [lockout, breach]
+    access: (fastmail_pw and (fastmail_totp or fastmail_key or fastmail_sms)) or fastmail_passkey
+    # A recovery factor, and with two-step verification a second, separate
+    # one: the password, or a second step.
+    recovery: >-
+      (fastmail_pw and fastmail_code)
+      or ((fastmail_code or fastmail_recovery_mail or fastmail_recovery_phone)
+      and (fastmail_totp or fastmail_key or fastmail_sms))

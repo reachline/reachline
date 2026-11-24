@@ -1,0 +1,76 @@
+# A Yahoo account (Yahoo Mail). Either Account Key, which approves sign-ins
+# in the Yahoo app with no password, or a password with 2-step verification
+# (an approval in the app, a text or call, an authenticator or a security
+# key); not both. Without 2-step verification, a code by text to your phone,
+# or by email to your alternate address, signs in with no password: tick
+# those only if you don't use it.
+#
+# A forgotten password: change it in a Yahoo app you're still signed in to,
+# or use the Sign-in Helper with a code to the recovery phone or email.
+# Whether the Helper also asks for the second step isn't documented, so it's
+# unknown here. A lost security key is replaced with its backup code.
+template:
+  name: Yahoo
+  note: A Yahoo account (Yahoo Mail) with Account Key or 2-step verification.
+  checked: 2026-11-23
+  links:
+    Add two-step verification for extra security: https://help.yahoo.com/kb/SLN5013.html
+    2-Step Verification with a Security Key: https://help.yahoo.com/kb/-step-verification-security-key-sln35380.html
+    Fix issues with Yahoo Account Key: https://help.yahoo.com/kb/SLN25921.html
+    Reset or change your Yahoo password: https://help.yahoo.com/kb/SLN27051.html
+    Why do I need to provide recovery contact info?: https://help.yahoo.com/kb/recovery-contact-info-sln2064.html
+  prefix: yahoo
+  stands_in:
+    yahoo: Is this your email?
+  slots:
+    vault: Where the password is kept
+    phone: The phone with the Yahoo app
+    authenticator: Your authenticator app
+    phone_number: Your phone number
+    recovery_mail: Your alternate email's account
+    hw_key: Your security key
+    safe: Where the security key's backup code is kept
+  optional:
+    yahoo_pw: true
+    yahoo_push: true
+    yahoo_sms: false
+    yahoo_totp: false
+    yahoo_key: false
+    yahoo_codes: false
+    yahoo_account_key: false
+    yahoo_sms_alone: false
+    yahoo_mail_alone: false
+    yahoo_recovery_phone: true
+    yahoo_recovery_mail: true
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  phone: {kind: device}
+  authenticator: {kind: data}
+  phone_number: {kind: service}
+  recovery_mail: {kind: account}
+  hw_key: {kind: device}
+  safe: {kind: location}
+
+  yahoo_pw: {kind: secret, in: vault, note: 'a password (none with Account Key)'}
+  yahoo_push: {kind: secret, in: phone, note: 'approving in the Yahoo app, after the password (2-step verification)'}
+  yahoo_sms: {kind: secret, in: phone_number, note: 'codes by text or call, after the password (2-step verification)'}
+  yahoo_totp: {kind: secret, in: authenticator, note: 'an authenticator app (2-step verification)'}
+  yahoo_key: {kind: secret, in: hw_key, note: 'a security key (2-step verification)'}
+  yahoo_codes: {kind: secret, in: safe, note: "the security key's backup code"}
+  yahoo_account_key: {kind: secret, in: phone, note: 'Account Key: approving in the Yahoo app, with no password'}
+  yahoo_sms_alone: {kind: secret, in: phone_number, note: 'codes by text, which sign in alone (no 2-step verification)'}
+  yahoo_mail_alone: {kind: secret, in: recovery_mail, note: 'codes to your alternate email, which sign in alone (no 2-step verification)'}
+  yahoo_recovery_phone: {kind: secret, in: phone_number, note: 'a recovery phone, for the Sign-in Helper'}
+  yahoo_recovery_mail: {kind: secret, in: recovery_mail, note: 'a recovery email, for the Sign-in Helper'}
+
+  yahoo:
+    kind: account
+    check: [lockout, breach]
+    access: >-
+      (yahoo_pw and (yahoo_push or yahoo_sms or yahoo_totp or yahoo_key))
+      or yahoo_account_key or yahoo_sms_alone or yahoo_mail_alone
+    # A signed-in Yahoo app changes the password.
+    recovery: >-
+      yahoo_push or yahoo_account_key or yahoo_codes
+      or ((yahoo_recovery_phone or yahoo_recovery_mail) and unknown)
