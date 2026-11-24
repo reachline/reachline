@@ -1,0 +1,76 @@
+# A Bitwarden account. On a device that's logged in, the master password
+# unlocks it. A new device takes the master password and two-step login, or
+# without two-step login, a code emailed to the account's address. A passkey
+# set up for vault encryption logs in and unlocks alone, in the web app and
+# Chromium browser extensions, bypassing two-step login.
+#
+# Nobody can reset the master password. The two-step recovery code, with the
+# master password, turns two-step login off. Emergency access (Premium) lets
+# a trusted contact view or take over the vault once the wait you set runs
+# out, unless you reject their request. Without the master password or a
+# contact, the vault is gone. PIN and biometric unlock aren't covered: they
+# only reopen an app that's already logged in.
+template:
+  name: Bitwarden
+  note: A Bitwarden account, its two-step login and emergency access.
+  checked: 2026-11-23
+  links:
+    Forgot master password: https://bitwarden.com/help/forgot-master-password/
+    New device login protection: https://bitwarden.com/help/new-device-verification/
+    Two-step login recovery codes: https://bitwarden.com/help/two-step-recovery-code/
+    Log in with passkeys: https://bitwarden.com/help/login-with-passkeys/
+    Emergency access: https://bitwarden.com/help/emergency-access/
+  prefix: bitwarden
+  stands_in:
+    bitwarden: Is Bitwarden your password manager?
+  slots:
+    pm_master: Your master password
+    laptop: A computer logged in to Bitwarden
+    phone: A phone logged in to Bitwarden
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    safe: Where the recovery code is kept
+    mail: The email account on your Bitwarden account
+    partner: Your emergency contact (often your partner)
+  optional:
+    bitwarden_laptop: true
+    bitwarden_phone: true
+    bitwarden_new_device: true
+    bitwarden_totp: false
+    bitwarden_key: false
+    bitwarden_mail_code: false
+    bitwarden_codes: false
+    bitwarden_passkey: false
+    bitwarden_emergency: false
+
+things:
+  pm_master: {kind: secret}
+  laptop: {kind: device}
+  phone: {kind: device}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  safe: {kind: location}
+  mail: {kind: account}
+  partner: {kind: location}
+
+  bitwarden_laptop: {kind: secret, in: laptop, note: 'Bitwarden on a computer, logged in'}
+  bitwarden_phone: {kind: secret, in: phone, note: 'Bitwarden on a phone, logged in'}
+  bitwarden_new_device: {kind: secret, in: mail, note: 'a code by email on a new device (without two-step login)'}
+  bitwarden_totp: {kind: secret, in: authenticator, note: 'two-step login: an authenticator app'}
+  bitwarden_key: {kind: secret, in: hw_key, note: 'two-step login: a security key'}
+  bitwarden_mail_code: {kind: secret, in: mail, note: 'two-step login: codes by email'}
+  bitwarden_codes: {kind: secret, in: safe, note: 'a two-step login recovery code'}
+  bitwarden_passkey: {kind: secret, in: hw_key, note: 'a passkey for vault encryption, which logs in and unlocks alone'}
+  bitwarden_emergency: {kind: secret, in: partner, note: 'emergency access for a trusted contact (Premium)'}
+  bitwarden_unanswered: {kind: state, note: "an emergency access request isn't rejected within its wait"}
+
+  bitwarden:
+    kind: service
+    note: Bitwarden, unlocked
+    check: breach
+    access: >-
+      ((bitwarden_laptop or bitwarden_phone) and pm_master)
+      or (pm_master and (bitwarden_new_device or bitwarden_totp or bitwarden_key or bitwarden_mail_code))
+      or bitwarden_passkey or (bitwarden_emergency and bitwarden_unanswered)
+    # A lost second step: the recovery code turns two-step login off.
+    recovery: pm_master and bitwarden_codes

@@ -1,0 +1,61 @@
+# Generic: a KeePass database (KeePassXC, KeePass, KeePassDX, Strongbox,
+# MacPass). There's no service and no account: a file, opened with its master
+# password, and a key file or a hardware key (YubiKey challenge-response) if
+# you set them. Nobody can recover any of them, so what matters is where the
+# copies are: a device, a folder synced through cloud storage, an offline
+# backup. A synced copy follows the original, deletions included, so it's
+# not a backup. A key file or hardware key with no second copy is a single
+# point of failure. Quick unlock (Touch ID, biometrics) only reopens a
+# database already opened on that device, so it isn't covered.
+template:
+  name: KeePass
+  note: A KeePass database file (KeePassXC, KeePass, KeePassDX, Strongbox), its copies and what opens it.
+  checked: 2026-11-23
+  links:
+    KeePassXC User Guide, creating your first database: https://keepassxc.org/docs/KeePassXC_UserGuide#_creating_your_first_database
+    KeePassXC User Guide, creating a YubiKey backup: https://keepassxc.org/docs/KeePassXC_UserGuide#_creating_a_yubikey_backup
+  prefix: keepass
+  stands_in:
+    keepass: Is KeePass your password manager?
+  slots:
+    pm_master: The database's master password
+    laptop: A computer with a copy of the database
+    phone: A phone with a copy of the database
+    storage: The cloud storage the database syncs through
+    hw_key: Your hardware key
+    safe: Where the offline backup is kept
+  optional:
+    keepass_laptop: true
+    keepass_phone: false
+    keepass_synced: false
+    keepass_backup: false
+    keepass_keyfile: false
+    keepass_keyfile_backup: false
+    keepass_hw: false
+    keepass_hw_backup: false
+
+things:
+  pm_master: {kind: secret}
+  laptop: {kind: device}
+  phone: {kind: device}
+  storage: {kind: account}
+  hw_key: {kind: device}
+  safe: {kind: location}
+
+  keepass_laptop: {kind: data, in: laptop, note: 'the database file on a computer'}
+  keepass_phone: {kind: data, in: phone, note: 'the database file on a phone'}
+  keepass_synced: {kind: data, in: storage, note: 'the database file, synced through cloud storage'}
+  keepass_backup: {kind: data, in: safe, note: 'an offline backup of the database file'}
+  keepass_keyfile: {kind: secret, in: [laptop, phone], note: 'a key file, on your devices'}
+  keepass_keyfile_backup: {kind: secret, in: safe, note: 'a backup copy of the key file'}
+  keepass_hw: {kind: secret, in: hw_key, note: 'a hardware key (YubiKey challenge-response)'}
+  keepass_hw_backup: {kind: secret, in: safe, note: 'a second hardware key, programmed the same'}
+
+  keepass:
+    kind: service
+    note: the KeePass database, open
+    check: breach
+    # Any copy of the file, the master password, and what else you set.
+    access: >-
+      (keepass_laptop or keepass_phone or keepass_synced or keepass_backup) and pm_master
+      and (keepass_keyfile or keepass_keyfile_backup) and (keepass_hw or keepass_hw_backup)

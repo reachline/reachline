@@ -1,0 +1,74 @@
+# A Dashlane account, with a Master Password or passwordless (a PIN on each
+# device): tick the one you have. On a device that's logged in, it unlocks
+# with that. A new device takes a code emailed to you, or with 2FA a token
+# from your authenticator (or a 2FA recovery code), then the Master
+# Password. A passwordless account adds a device only from another one
+# that's logged in, which reaches nothing new, so it isn't covered.
+#
+# Nobody can reset the Master Password. An account recovery key, with a
+# check that it's you, gets you back in either way; biometric recovery, on
+# a phone or a Mac with Touch ID, does for a Master Password. Each has to be
+# turned on beforehand. Without them, the account can only be reset, which
+# erases it.
+template:
+  name: Dashlane
+  note: A Dashlane account, with a Master Password or passwordless, and how it's recovered.
+  checked: 2026-11-23
+  links:
+    Account recovery options for Dashlane: https://support.dashlane.com/hc/en-us/articles/11282971791634-Account-recovery-options-for-Dashlane
+    Create a passwordless account protected by a PIN: https://support.dashlane.com/hc/en-us/articles/10975547141266-Passwordless-login-for-your-Dashlane-account
+    Biometric recovery for mobile devices: https://support.dashlane.com/hc/en-us/articles/360010264499-Biometric-recovery-for-mobile-devices
+    Use Dashlane on a new device: https://support.dashlane.com/hc/en-us/articles/209463589-Use-Dashlane-on-a-new-device
+    Use 2FA recovery codes for your Dashlane account: https://support.dashlane.com/hc/en-us/articles/40037329480082-Use-2FA-recovery-codes-for-your-Dashlane-account
+  prefix: dashlane
+  stands_in:
+    dashlane: Is Dashlane your password manager?
+  slots:
+    pm_master: Your Master Password
+    head: What you remember
+    laptop: A computer logged in to Dashlane
+    phone: A phone logged in to Dashlane
+    authenticator: Your authenticator app
+    face: Your face or fingerprint
+    safe: Where the recovery key and codes are kept
+    mail: The email account on your Dashlane account
+  optional:
+    dashlane_mp: true
+    dashlane_pin: false
+    dashlane_laptop: true
+    dashlane_phone: true
+    dashlane_new_device: true
+    dashlane_totp: false
+    dashlane_codes: false
+    dashlane_rk: false
+    dashlane_biometric: false
+
+things:
+  pm_master: {kind: secret}
+  head: {kind: location}
+  laptop: {kind: device}
+  phone: {kind: device}
+  authenticator: {kind: data}
+  face: {kind: secret}
+  safe: {kind: location}
+  mail: {kind: account}
+
+  dashlane_mp: {kind: secret, access: pm_master, note: 'a Master Password (not with a passwordless account)'}
+  dashlane_pin: {kind: secret, in: head, note: 'a PIN on each device (a passwordless account)'}
+  dashlane_laptop: {kind: secret, in: laptop, note: 'Dashlane on a computer, logged in'}
+  dashlane_phone: {kind: secret, in: phone, note: 'Dashlane on a phone, logged in'}
+  dashlane_new_device: {kind: secret, in: mail, note: 'a code by email on a new device (without 2FA)'}
+  dashlane_totp: {kind: secret, in: authenticator, note: '2FA: an authenticator app'}
+  dashlane_codes: {kind: secret, in: safe, note: '2FA recovery codes'}
+  dashlane_rk: {kind: secret, in: safe, note: 'an account recovery key'}
+  dashlane_biometric: {kind: secret, in: phone, lock: face, note: 'biometric recovery, for a Master Password'}
+
+  dashlane:
+    kind: service
+    note: Dashlane, unlocked
+    check: breach
+    access: >-
+      ((dashlane_laptop or dashlane_phone) and (dashlane_mp or dashlane_pin))
+      or (dashlane_mp and (dashlane_new_device or dashlane_totp or dashlane_codes))
+    # The recovery key asks you to verify it's you, by email here.
+    recovery: (dashlane_rk and mail) or dashlane_biometric

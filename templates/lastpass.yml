@@ -1,0 +1,79 @@
+# A LastPass account. On a device that's logged in, the master password
+# unlocks it. A new device takes the master password, a link emailed to the
+# account's address, and multifactor authentication if it's on. Passwordless
+# login (the LastPass Authenticator, biometrics, a security key) only works
+# on a device that's already been set up, so it isn't covered.
+#
+# Nobody can reset the master password. Account recovery sends a code by
+# email (or by text, with SMS recovery), then uses a secret kept by a browser
+# you've logged in with before (clearing its cache removes it), a one-time
+# recovery password you wrote down, or the phone app behind its biometrics;
+# multifactor authentication is asked for too. Changing the master password
+# voids these. Emergency access (Premium, Families) lets a trusted contact
+# into the vault once the wait you set runs out, unless you deny it.
+template:
+  name: LastPass
+  note: A LastPass account, its account recovery and emergency access.
+  checked: 2026-11-23
+  links:
+    How does account recovery work for LastPass?: https://support.lastpass.com/help/how-does-account-recovery-work-for-lastpass
+    About account recovery options in LastPass: https://support.lastpass.com/help/about-account-recovery-options-in-lastpass
+    How do I verify login attempts for LastPass?: https://support.lastpass.com/s/document-item?language=en_US&bundleId=lastpass&topicId=LastPass%2Ffaq_verify_trusted_devices.html
+    Set up and manage emergency access: https://support.lastpass.com/help/set-up-and-manage-emergency-access-lp030013
+  prefix: lastpass
+  stands_in:
+    lastpass: Is LastPass your password manager?
+  slots:
+    pm_master: Your master password
+    laptop: A computer whose browser is logged in to LastPass
+    phone: A phone with the LastPass app
+    authenticator: Your authenticator app
+    face: Your face or fingerprint
+    hw_key: Your security key
+    safe: Where the one-time recovery passwords are kept
+    mail: The email account on your LastPass account
+    phone_number: The phone number for SMS recovery
+    partner: Your emergency contact (often your partner)
+  optional:
+    lastpass_laptop: true
+    lastpass_phone: true
+    lastpass_totp: false
+    lastpass_key: false
+    lastpass_mobile_recovery: false
+    lastpass_otp: false
+    lastpass_sms: false
+    lastpass_emergency: false
+
+things:
+  pm_master: {kind: secret}
+  laptop: {kind: device}
+  phone: {kind: device}
+  authenticator: {kind: data}
+  face: {kind: secret}
+  hw_key: {kind: device}
+  safe: {kind: location}
+  mail: {kind: account}
+  phone_number: {kind: service}
+  partner: {kind: location}
+
+  lastpass_laptop: {kind: secret, in: laptop, note: 'LastPass in a browser, logged in, which keeps a recovery secret'}
+  lastpass_phone: {kind: secret, in: phone, note: 'the LastPass app, logged in'}
+  lastpass_totp: {kind: secret, in: authenticator, note: 'multifactor authentication: an authenticator app'}
+  lastpass_key: {kind: secret, in: hw_key, note: 'multifactor authentication: a security key'}
+  lastpass_mobile_recovery: {kind: secret, in: phone, lock: face, note: 'account recovery in the phone app, behind its biometrics'}
+  lastpass_otp: {kind: secret, in: safe, note: 'a one-time recovery password, written down'}
+  lastpass_sms: {kind: secret, in: phone_number, note: "SMS recovery: account recovery's code by text"}
+  lastpass_emergency: {kind: secret, in: partner, note: 'emergency access for a trusted contact (Premium, Families)'}
+  lastpass_unanswered: {kind: state, note: "an emergency access request isn't denied within its wait"}
+
+  lastpass:
+    kind: service
+    note: LastPass, unlocked
+    check: breach
+    access: >-
+      ((lastpass_laptop or lastpass_phone) and pm_master)
+      or (pm_master and mail and (lastpass_totp or lastpass_key))
+      or (lastpass_emergency and lastpass_unanswered)
+    recovery: >-
+      ((lastpass_laptop or lastpass_otp) and (mail or lastpass_sms) and (lastpass_totp or lastpass_key))
+      or (lastpass_mobile_recovery and (lastpass_totp or lastpass_key))

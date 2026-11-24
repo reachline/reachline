@@ -13,7 +13,7 @@ template:
   slots:
     vault: Where the password is kept
     mail: The account's email
-    phone: The phone with your authenticator app
+    authenticator: Your authenticator app
     hw_key: Your security key
     safe: Where the backup codes are kept
     laptop: A computer that has signed in to Cloudflare before
@@ -26,13 +26,13 @@ template:
 things:
   vault: {kind: service, note: 'your password manager, unlocked'}
   mail: {kind: account}
-  phone: {kind: device}
+  authenticator: {kind: data}
   hw_key: {kind: device}
   safe: {kind: location}
   laptop: {kind: device}
 
   cloudflare_pw: {kind: secret, in: vault}
-  cloudflare_totp: {kind: secret, in: phone, note: an authenticator app}
+  cloudflare_totp: {kind: secret, in: authenticator, note: an authenticator app}
   cloudflare_key: {kind: secret, in: hw_key, note: a security key}
   cloudflare_mail_code: {kind: secret, in: mail, note: codes by email}
   cloudflare_codes: {kind: secret, in: safe, note: backup codes}

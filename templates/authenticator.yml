@@ -1,0 +1,53 @@
+# Generic: an authenticator app (Google Authenticator, Microsoft
+# Authenticator, Authy, Ente Auth, 2FAS, Aegis). Its codes come from secrets
+# it keeps on the phone, and wherever it backs them up. That's where the apps
+# differ:
+#
+# - Synced to an account: Google Authenticator to your Google account,
+#   Microsoft Authenticator to your Microsoft account, 2FAS to iCloud or
+#   Google Drive, Authy and Ente Auth to accounts of their own. Signing in to
+#   it on a new phone brings the codes back.
+# - The sync encrypted with a password of its own (Authy, Ente Auth, 2FAS if
+#   you set one), so the account alone doesn't give the codes away.
+# - Exported to a file (Aegis, 2FAS, Ente Auth), encrypted if you set a
+#   password.
+# - None of these: moving to a new phone takes the old one, so losing it
+#   leaves every account it protects to its recovery codes.
+#
+# Codes synced to an account they also protect are a loop: a Google account
+# whose second step is Google Authenticator, synced to that same account,
+# gains nothing from the sync. If your password manager keeps your codes,
+# choose it as the authenticator in other templates rather than adding this.
+template:
+  name: Authenticator app
+  note: An authenticator app's codes (Google Authenticator, Microsoft Authenticator, Authy, Ente Auth, 2FAS, Aegis) and where they're backed up.
+  checked: 2026-11-23
+  prefix: authenticator
+  stands_in:
+    authenticator: Is this the authenticator your accounts use?
+  slots:
+    phone: The phone with the app
+    sync_account: The account it syncs to (Google, Microsoft, iCloud, or the app's own)
+    vault: Where the backup password is kept
+    storage: Where the backup file is kept
+  optional:
+    authenticator_synced: true
+    authenticator_sync_pw: false
+    authenticator_file: false
+    authenticator_file_pw: false
+
+things:
+  phone: {kind: device}
+  sync_account: {kind: account, todo: how you sign in to it}
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  storage: {kind: account}
+
+  authenticator_synced: {kind: data, in: sync_account, lock: authenticator_sync_pw, note: 'synced to an account'}
+  authenticator_sync_pw: {kind: secret, in: vault, note: 'a password that encrypts the sync (Authy, Ente Auth, 2FAS if you set one)'}
+  authenticator_file: {kind: data, in: storage, lock: authenticator_file_pw, note: 'exported to a backup file'}
+  authenticator_file_pw: {kind: secret, in: vault, note: 'a password that encrypts the backup file'}
+
+  authenticator:
+    kind: data
+    note: "the authenticator app's codes"
+    in: [phone, authenticator_synced, authenticator_file]

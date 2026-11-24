@@ -1,0 +1,76 @@
+# NordPass, in two layers. Your Nord Account (shared with NordVPN and the
+# rest) signs you in, with its password or a code emailed to you, and its
+# multifactor authentication if it's on; the Master Password then opens the
+# vault. On a device that's logged in, the Master Password alone unlocks it.
+# Biometric unlock is a convenience on a device already set up, so it isn't
+# covered, though it can make a new recovery code if you're still in.
+#
+# Nobody can reset the Master Password. The recovery code sets a new one.
+# Without it, the vault can only be reset, which erases it. Emergency access
+# (Premium, Family) lets a contact view the vault 7 days after they ask,
+# unless you decline.
+template:
+  name: NordPass
+  note: A NordPass vault and the Nord Account that signs you in to it.
+  checked: 2026-11-23
+  links:
+    What if I forgot my NordPass Master Password?: https://support.nordpass.com/hc/en-us/articles/360002376657-What-if-I-forgot-my-NordPass-Master-Password
+    Forgot your Master Password and no recovery code?: https://support.nordpass.com/hc/en-us/articles/360002378758-Forgot-your-NordPass-Master-password-and-no-recovery-code
+    Passwords and codes: https://support.nordpass.com/hc/en-us/articles/360008866077-Passwords-and-codes
+    How to give Emergency Access in NordPass: https://support.nordpass.com/hc/en-us/articles/5691777958929-How-to-give-Emergency-Access-in-NordPass
+  prefix: nordpass
+  stands_in:
+    nordpass: Is NordPass your password manager?
+  slots:
+    pm_master: Your Master Password
+    vault: Where your Nord Account password is kept
+    laptop: A computer logged in to NordPass
+    phone: A phone logged in to NordPass
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    safe: Where the recovery code is kept
+    mail: The email account on your Nord Account
+    partner: Your emergency contact (often your partner)
+  optional:
+    nordpass_laptop: true
+    nordpass_phone: true
+    nordpass_account_pw: true
+    nordpass_totp: false
+    nordpass_key: false
+    nordpass_rc: true
+    nordpass_emergency: false
+
+things:
+  pm_master: {kind: secret}
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  laptop: {kind: device}
+  phone: {kind: device}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  safe: {kind: location}
+  mail: {kind: account}
+  partner: {kind: location}
+
+  nordpass_laptop: {kind: secret, in: laptop, note: 'NordPass on a computer, logged in'}
+  nordpass_phone: {kind: secret, in: phone, note: 'NordPass on a phone, logged in'}
+  nordpass_account_pw: {kind: secret, in: vault, note: 'a Nord Account password (or sign in with a code by email)'}
+  nordpass_totp: {kind: secret, in: authenticator, note: 'multifactor authentication: an authenticator app'}
+  nordpass_key: {kind: secret, in: hw_key, note: 'multifactor authentication: a security key'}
+  nordpass_rc: {kind: secret, in: safe, note: 'a recovery code, which sets a new Master Password'}
+  nordpass_emergency: {kind: secret, in: partner, note: 'emergency access for a contact (Premium, Family)'}
+  nordpass_unanswered: {kind: state, note: "an emergency access request isn't declined within 7 days"}
+
+  nordpass_account:
+    kind: account
+    note: your Nord Account, shared with NordVPN and the rest
+    access: (nordpass_account_pw or mail) and (nordpass_totp or nordpass_key)
+
+  nordpass:
+    kind: service
+    note: NordPass, unlocked
+    check: breach
+    access: >-
+      ((nordpass_laptop or nordpass_phone) and pm_master)
+      or (nordpass_account and pm_master)
+      or (nordpass_emergency and nordpass_unanswered)
+    recovery: nordpass_account and nordpass_rc

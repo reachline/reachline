@@ -1,0 +1,67 @@
+# A Keeper account (personal or family). On a device that's logged in, the
+# master password unlocks it. A device Keeper doesn't know must be approved
+# first, by email, or by 2FA if it's on, and then takes 2FA and the master
+# password. Biometric login replaces only the master password, on a device
+# already set up, so it isn't covered.
+#
+# Nobody can reset the master password. The 24-word recovery phrase, with
+# email verification and 2FA, sets a new one. Emergency access lets a
+# contact into the vault once the delay you set (up to three months) runs
+# out after they ask; Keeper's docs don't say whether you can deny it.
+template:
+  name: Keeper
+  note: A Keeper account, its device approval, recovery phrase and emergency access.
+  checked: 2026-11-23
+  links:
+    Web Vault & Desktop App (recovery phrase, emergency access): https://docs.keeper.io/user-guides/web-vault
+    Keeper encryption and security model: https://docs.keeper.io/enterprise-guide/keeper-encryption-model
+    Authentication flow (device approval): https://docs.keeper.io/enterprise-guide/login-api
+  prefix: keeper
+  stands_in:
+    keeper: Is Keeper your password manager?
+  slots:
+    pm_master: Your master password
+    laptop: A computer logged in to Keeper
+    phone: A phone logged in to Keeper
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    safe: Where the recovery phrase is kept
+    mail: The email account on your Keeper account
+    partner: Your emergency contact (often your partner)
+  optional:
+    keeper_laptop: true
+    keeper_phone: true
+    keeper_new_device: true
+    keeper_totp: false
+    keeper_key: false
+    keeper_phrase: false
+    keeper_emergency: false
+
+things:
+  pm_master: {kind: secret}
+  laptop: {kind: device}
+  phone: {kind: device}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  safe: {kind: location}
+  mail: {kind: account}
+  partner: {kind: location}
+
+  keeper_laptop: {kind: secret, in: laptop, note: 'Keeper on a computer, logged in'}
+  keeper_phone: {kind: secret, in: phone, note: 'Keeper on a phone, logged in'}
+  keeper_new_device: {kind: secret, in: mail, note: 'approving a new device by email (without 2FA)'}
+  keeper_totp: {kind: secret, in: authenticator, note: '2FA: an authenticator app'}
+  keeper_key: {kind: secret, in: hw_key, note: '2FA: a security key'}
+  keeper_phrase: {kind: secret, in: safe, note: 'a 24-word recovery phrase'}
+  keeper_emergency: {kind: secret, in: partner, note: 'emergency access for a contact'}
+  keeper_waited: {kind: state, note: "an emergency contact has waited out the delay you set"}
+
+  keeper:
+    kind: service
+    note: Keeper, unlocked
+    check: breach
+    access: >-
+      ((keeper_laptop or keeper_phone) and pm_master)
+      or (pm_master and (keeper_new_device or keeper_totp or keeper_key))
+      or (keeper_emergency and keeper_waited)
+    recovery: keeper_phrase and mail and (keeper_totp or keeper_key)
