@@ -43,10 +43,10 @@ things:
   pm_master_mem: {kind: secret, in: head}
   pm_master_sheet: {kind: secret, in: safe, note: the emergency sheet}
   mail_pw: {kind: secret, in: vault}
-  mail_totp: {kind: secret, in: phone, note: authenticator app}
+  mail_totp: {kind: secret, in: authenticator}
   mail_codes: {kind: secret, in: safe, note: printed recovery codes}
   code_pw: {kind: secret, in: vault}
-  code_totp: {kind: secret, in: phone}
+  code_totp: {kind: secret, in: authenticator}
   bank_pw: {kind: secret, in: vault}
   storage_pw: {kind: secret, in: vault}
   carrier_pw: {kind: secret, in: vault}
@@ -64,6 +64,7 @@ things:
     note: one-way sync from the NAS to cloud storage; deletions sync too
     in: pi
 
+  authenticator: {kind: data, in: phone, note: "the authenticator app's codes, with no backup"}
   documents: {kind: data, in: [docs_nas, docs_cloud], check: [lockout, breach]}
   docs_nas: {kind: data, in: nas}
   docs_cloud: {kind: data, in: storage, mirrors: {of: docs_nas, by: sync_job}}

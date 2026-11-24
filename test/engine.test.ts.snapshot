@@ -1,5 +1,6 @@
 exports[`examples: backup 1`] = `
 baseline
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -76,6 +77,7 @@ burglary
   tax_archive              yes                            REACHED
   vault                    laptop_open, pm_open_laptop    DEPENDS  if laptop_open (state), pm_open_laptop (state)
 domain_lapses
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -124,6 +126,7 @@ domain_lapses
   tax_archive              yes
   vault                    yes
 forgot_master
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -251,6 +254,7 @@ lose_carried
   tax_archive              yes
   vault                    yes
 nas_dies
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -363,6 +367,7 @@ thief_carried
 
 exports[`examples: no plans 1`] = `
 baseline
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -441,6 +446,7 @@ burglary
   tax_archive              old_drive
   vault                    laptop_open, pm_open_laptop    DEPENDS  if laptop_open (state), pm_open_laptop (state)
 domain_lapses
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -490,6 +496,7 @@ domain_lapses
   tax_archive              old_drive
   vault                    yes
 forgot_master
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -621,6 +628,7 @@ lose_carried
   tax_archive              old_drive
   vault                    yes
 nas_dies
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -736,6 +744,7 @@ thief_carried
 
 exports[`examples: spare_key + backup 1`] = `
 baseline
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -810,6 +819,7 @@ burglary
   tax_archive              yes                            REACHED
   vault                    laptop_open, pm_open_laptop    DEPENDS  if laptop_open (state), pm_open_laptop (state)
 domain_lapses
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -861,6 +871,7 @@ domain_lapses
   tax_archive              yes
   vault                    yes
 forgot_master
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -945,6 +956,7 @@ house_fire
   tax_archive              yes
   vault                    yes
 keys_lost
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -1054,6 +1066,7 @@ lose_carried
   tax_archive              yes
   vault                    yes
 nas_dies
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -1154,6 +1167,7 @@ thief_carried
 
 exports[`examples: spare_key 1`] = `
 baseline
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -1230,6 +1244,7 @@ burglary
   tax_archive              old_drive
   vault                    laptop_open, pm_open_laptop    DEPENDS  if laptop_open (state), pm_open_laptop (state)
 domain_lapses
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -1282,6 +1297,7 @@ domain_lapses
   tax_archive              old_drive
   vault                    yes
 forgot_master
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -1368,6 +1384,7 @@ house_fire
   tax_archive              old_drive
   vault                    yes
 keys_lost
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes
@@ -1481,6 +1498,7 @@ lose_carried
   tax_archive              old_drive
   vault                    yes
 nas_dies
+  authenticator            yes
   bank                     yes
   bank_pw                  yes
   body                     yes

@@ -9,7 +9,7 @@ In the app, choose **Add**, then **From a template**, and search by name. Then:
 - **Prefix:** the template's ids start with it (`github_pw`, `github_totp`). Change it to add a second account at the same service.
 - **Stands in:** some of what a template adds may be one of yours already: the Apple Account may be your email, and Apple Passwords your password manager. Say which, and yours takes the template's fields under your own id, so everything that already points at it follows. Fields the template doesn't set, such as a note, stay as they were; anything only your old version used stays too, for you to remove.
 - **Optional things:** tick what you've actually set up, such as an authenticator, SMS codes or a security key. Leaving one out removes it as if it was never set up. Where that leaves no choice for a step, the service doesn't ask for that step, so no second factor means the password alone.
-- **Slots:** the things of yours the template connects to, such as where the password is kept or the phone with your authenticator. Bind each one to your own thing, or leave it and the template creates one. A thing of yours with the slot's id is chosen for you, and the starter model uses those ids. A slot that nothing needs any more, once you've left things out, isn't created.
+- **Slots:** the things of yours the template connects to, such as where the password is kept or your authenticator app. Bind each one to your own thing, or leave it and the template creates one. A thing of yours with the slot's id is chosen for you, and the starter model uses those ids. A slot that nothing needs any more, once you've left things out, isn't created.
 
 A preview shows what's added and which verdicts change. **Add to model** adds it; **Add as a plan** puts it in a new [plan](plans.md) to try first.
 
@@ -27,7 +27,7 @@ template:
   prefix: github
   slots:
     vault: Where the password is kept
-    phone: The phone with your authenticator app
+    authenticator: Your authenticator app
     safe: Where the recovery codes are kept
   optional:
     github_totp: true
@@ -35,11 +35,11 @@ template:
 
 things:
   vault: {kind: service}
-  phone: {kind: device}
+  authenticator: {kind: data}
   safe: {kind: location}
 
   github_pw: {kind: secret, in: vault}
-  github_totp: {kind: secret, in: phone, note: an authenticator app}
+  github_totp: {kind: secret, in: authenticator, note: an authenticator app}
   github_codes: {kind: secret, in: safe, note: recovery codes}
   github:
     kind: account

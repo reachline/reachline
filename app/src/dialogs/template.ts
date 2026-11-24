@@ -134,7 +134,7 @@ export function instantiate(t: Template, c: Choices): Record<string, Fields> {
     map((_, spec) => swapAll(spec, from, mine));
     // A slot of the same id is yours too, so this takes its place.
     things = Object.fromEntries(
-      Object.entries(things).flatMap(([k, spec]) => (k === mine ? [] : [[k === from ? mine : k, spec]])),
+      Object.entries(things).flatMap(([k, spec]) => (k === mine && k !== from ? [] : [[k === from ? mine : k, spec]])),
     );
   }
   return things;

@@ -32,15 +32,17 @@ test('every template loads, with every option and with none', () => {
   }
 });
 
-test('every template adds to the starter model, its slots bound to the starter’s things', () => {
+test('every template adds to the starter model, its slots and stand-ins bound to the starter’s things', () => {
   const starter = parse(readFileSync(new URL('../examples/starter.yml', import.meta.url), 'utf8')) as {
     things: Record<string, unknown>;
   };
   for (const t of templates) {
-    const slots = Object.fromEntries(t.slots.map((s) => [s.id, s.id in starter.things ? s.id : null]));
-    const things = instantiate(t, choices(t, { slots }));
+    const mine = (s: { id: string }): [string, string | null] => [s.id, s.id in starter.things ? s.id : null];
+    const standsIn = Object.fromEntries(t.standsIn.map(mine));
+    const things = instantiate(t, choices(t, { slots: Object.fromEntries(t.slots.map(mine)), standsIn }));
+    // Only what stands in for one of the starter's things takes its id, to update it.
     assert.deepEqual(
-      Object.keys(things).filter((id) => id in starter.things),
+      Object.keys(things).filter((id) => id in starter.things && !Object.values(standsIn).includes(id)),
       [],
     );
     load({ ...starter.things, ...things });
@@ -52,7 +54,7 @@ test('a service with no second factor set up asks for the password alone', () =>
   assert.equal(things.github.access, 'github_pw or mail');
   assert.equal(things.github.recovery, undefined);
   // What nothing needs any more isn't created.
-  assert.ok(!('hw_key' in things) && !('phone' in things));
+  assert.ok(!('hw_key' in things) && !('authenticator' in things));
 });
 
 test('slots bind to your things, and the prefix renames what is the template’s', () => {
@@ -73,4 +75,13 @@ test('a thing that stands in for one of yours takes your id, and what refers to 
   // The vault slot was yours already, so the stand-in takes its place, and the password is in it.
   assert.equal(things.vault.kind, 'service');
   assert.deepEqual(asList(things.apple_pw.in), ['vault']);
+});
+
+test('a stand-in may have the id of the thing of yours it stands in for', () => {
+  const t = templates.find((t) => t.id === 'authenticator')!;
+  const things = instantiate(
+    t,
+    choices(t, { slots: { phone: 'phone' }, standsIn: { authenticator: 'authenticator' } }),
+  );
+  assert.deepEqual(asList(things.authenticator.in), ['phone', 'authenticator_synced']);
 });

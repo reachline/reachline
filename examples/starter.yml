@@ -16,6 +16,7 @@ things:
   laptop_pw: {kind: secret, in: head}
   pm_master: {kind: secret, in: head, todo: is it written down anywhere?}
   mail_pw: {kind: secret, in: vault}
+  authenticator: {kind: data, in: phone, note: "the authenticator app's codes"}
 
   vault:
     kind: service

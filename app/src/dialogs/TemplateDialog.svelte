@@ -45,7 +45,8 @@
     // A thing of yours with the slot's id is most likely the one it means.
     slots = Object.fromEntries(t.slots.map((s) => [s.id, ids.has(s.id) ? s.id : null]));
     include = t.optional.filter((o) => o.on).map((o) => o.id);
-    standsIn = {};
+    // So is one that may stand in, as the starter's authenticator does.
+    standsIn = Object.fromEntries(t.standsIn.flatMap((s) => (ids.has(s.id) ? [[s.id, s.id]] : [])));
   }
 
   const byName = (a: string, b: string) => a.localeCompare(b);
@@ -130,12 +131,15 @@
         <h2 id="{uid}-title">{chosen.name}</h2>
       </header>
       <p>{chosen.note}</p>
-      <p class="hint">Facts checked {chosen.checked}, against:</p>
-      <ul class="links">
-        {#each chosen.links as link (link.url)}<li>
-            <a href={link.url} target="_blank" rel="noreferrer">{link.title}</a>
-          </li>{/each}
-      </ul>
+      <!-- A generic template (a bank, an authenticator) rests on no one service's docs. -->
+      {#if chosen.links.length}
+        <p class="hint">Facts checked {chosen.checked}, against:</p>
+        <ul class="links">
+          {#each chosen.links as link (link.url)}<li>
+              <a href={link.url} target="_blank" rel="noreferrer">{link.title}</a>
+            </li>{/each}
+        </ul>
+      {/if}
 
       <div class="field">
         <label for="{uid}-prefix">Prefix</label>
