@@ -1,0 +1,76 @@
+# An npm account, and the packages it publishes. Two-factor authentication
+# is a security key or passkey; an authenticator app still works where it's
+# set up, but npm no longer offers it. Without either, a sign-in may ask for
+# a code by email. A forgotten password is reset by email, and the second
+# step is still asked for.
+#
+# A recovery code gets you in with the second factor lost, and holds the
+# account for 72 hours: no publishing, no tokens, no 2FA changes. Past that,
+# npm support resets it on what it can verify, such as the account's email
+# or a linked GitHub account.
+#
+# Publishing doesn't need the account: a granular access token set to bypass
+# 2FA publishes from wherever it's kept (it lasts 90 days at most), and
+# trusted publishing lets a CI workflow on GitHub or GitLab publish with no
+# token at all, so whoever controls that repository's workflow does too.
+template:
+  name: npm
+  note: An npm account, its two-factor authentication, and the tokens and CI that publish its packages.
+  checked: 2026-11-24
+  links:
+    About two-factor authentication: https://docs.npmjs.com/about-two-factor-authentication/
+    Recovering your 2FA-enabled account: https://docs.npmjs.com/recovering-your-2fa-enabled-account/
+    Receiving a one-time password over email: https://docs.npmjs.com/receiving-a-one-time-password-over-email
+    Changes to authentication and token management (2025): https://github.blog/changelog/2025-09-29-strengthening-npm-security-important-changes-to-authentication-and-token-management/
+  prefix: npm
+  slots:
+    vault: Where the password is kept
+    mail: The email account on your npm account
+    hw_key: Your security key or passkey
+    authenticator: Your authenticator app
+    safe: Where the recovery codes are kept
+    laptop: Where your access token is kept
+    code_host: The code host whose CI publishes (GitHub, GitLab)
+  optional:
+    npm_key: true
+    npm_totp: false
+    npm_mail_code: false
+    npm_codes: true
+    npm_token: false
+    npm_trusted: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  hw_key: {kind: device}
+  authenticator: {kind: data}
+  safe: {kind: location}
+  laptop: {kind: device}
+  code_host: {kind: account}
+
+  npm_pw: {kind: secret, in: vault}
+  npm_key: {kind: secret, in: hw_key, note: a security key or passkey}
+  npm_totp: {kind: secret, in: authenticator, note: 'an authenticator app (no longer offered)'}
+  npm_mail_code: {kind: secret, in: mail, note: 'codes by email (only without two-factor authentication)'}
+  npm_codes: {kind: secret, in: safe, note: 'recovery codes, which hold the account for 72 hours'}
+  npm_support:
+    kind: service
+    note: 'npm support, which resets two-factor authentication'
+    # It decides, on what you can show.
+    access: unknown
+  npm_token: {kind: secret, in: laptop, note: 'a granular access token that publishes, bypassing 2FA'}
+  npm_trusted: {kind: secret, in: code_host, note: 'trusted publishing from CI (GitHub Actions, GitLab CI/CD)'}
+
+  npm_packages:
+    kind: data
+    note: your packages, as published
+    check: breach
+    in: npm
+    access: npm_token or npm_trusted
+
+  npm:
+    kind: account
+    check: [lockout, breach]
+    # The password, or a reset by email; then the second step.
+    access: (npm_pw or mail) and (npm_key or npm_totp or npm_mail_code)
+    recovery: ((npm_pw or mail) and npm_codes) or npm_support

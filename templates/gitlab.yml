@@ -1,0 +1,65 @@
+# A GitLab.com account. A passkey signs in alone. A password, or a reset by
+# email, takes a second step: an authenticator app, a security key, or a code
+# by email, which GitLab.com asks for at a password sign-in without other
+# two-factor authentication.
+#
+# With a second factor lost, a recovery code gets you in, and an SSH key on
+# the account makes new codes (`ssh git@gitlab.com 2fa_recovery_codes`).
+# Past those, Support resets two-factor authentication for Premium and
+# Ultimate only: a Free account is lost for good, and you start a new one.
+# Signing in through Google or GitHub isn't covered. For GitLab
+# Self-Managed, the instance's admins decide recovery instead.
+template:
+  name: GitLab
+  note: A GitLab.com account with two-factor authentication or a passkey.
+  checked: 2026-11-24
+  links:
+    Two-factor authentication: https://docs.gitlab.com/user/profile/account/two_factor_authentication/
+    Troubleshooting two-factor authentication: https://docs.gitlab.com/user/profile/account/two_factor_authentication_troubleshooting/
+    Passkeys: https://docs.gitlab.com/auth/passkeys/
+  prefix: gitlab
+  slots:
+    vault: Where the password is kept
+    mail: The email account GitLab sends to
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    phone: The phone with your passkey
+    safe: Where the recovery codes are kept
+    laptop: The computer with your SSH key
+  optional:
+    gitlab_totp: true
+    gitlab_key: false
+    gitlab_mail_code: true
+    gitlab_passkey: false
+    gitlab_codes: true
+    gitlab_ssh: true
+    gitlab_support: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  phone: {kind: device}
+  safe: {kind: location}
+  laptop: {kind: device}
+
+  gitlab_pw: {kind: secret, in: vault}
+  gitlab_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  gitlab_key: {kind: secret, in: hw_key, note: a security key}
+  gitlab_mail_code: {kind: secret, in: mail, note: 'codes by email (asked for when nothing else is set up)'}
+  gitlab_passkey: {kind: secret, in: phone, note: 'a passkey, which signs in without the password'}
+  gitlab_codes: {kind: secret, in: safe, note: recovery codes}
+  gitlab_ssh: {kind: secret, in: laptop, note: 'an SSH key on the account, which makes new recovery codes'}
+  gitlab_support:
+    kind: service
+    note: 'Support, which resets two-factor authentication (Premium and Ultimate only)'
+    # It decides, on what you can show.
+    access: unknown
+
+  gitlab:
+    kind: account
+    check: [lockout, breach]
+    # The password, or a reset by email; then any second factor. Or a passkey alone.
+    access: ((gitlab_pw or mail) and (gitlab_totp or gitlab_key or gitlab_mail_code)) or gitlab_passkey
+    recovery: ((gitlab_pw or mail) and gitlab_codes) or ((gitlab_pw or mail) and gitlab_ssh) or gitlab_support

@@ -1,0 +1,45 @@
+# Generic: a WireGuard tunnel into your network, set up by hand or through a
+# front end (wg-easy, PiVPN, a router's VPN server, OPNsense). There's no
+# account and no sign-in: a peer's config holds its private key, and anyone
+# with a copy is that peer until the server drops it. A config exported as
+# a file or QR code is a copy too. Whoever has a shell on the server, or the
+# front end's admin, adds peers.
+#
+# The tunnel needs the server, so it's gone with it until you set it up
+# again.
+template:
+  name: WireGuard
+  note: A WireGuard tunnel (wg-easy, PiVPN, a router's VPN server) and the configs that open it.
+  checked: 2026-11-24
+  prefix: wireguard
+  slots:
+    server: The server or router the tunnel ends on
+    laptop: A computer with a peer's config
+    phone: A phone with a peer's config
+    storage: Where an exported config is kept
+    vault: Where the front end's password is kept
+  optional:
+    wireguard_laptop: true
+    wireguard_phone: true
+    wireguard_export: false
+    wireguard_ui: false
+
+things:
+  server: {kind: device}
+  laptop: {kind: device}
+  phone: {kind: device}
+  storage: {kind: account}
+  vault: {kind: service, note: 'your password manager, unlocked'}
+
+  wireguard_laptop: {kind: secret, in: laptop, note: "a computer's config, with its private key"}
+  wireguard_phone: {kind: secret, in: phone, note: "a phone's config, with its private key"}
+  wireguard_export: {kind: secret, in: storage, note: 'a config exported as a file or QR code'}
+  wireguard_ui: {kind: secret, in: vault, note: "a front end's admin password (wg-easy, a router's admin page)"}
+
+  wireguard:
+    kind: service
+    note: 'the network the tunnel opens'
+    check: [lockout, breach]
+    needs: server
+    # A peer's config; or adding one, from the server or its front end.
+    access: wireguard_laptop or wireguard_phone or wireguard_export or server or wireguard_ui

@@ -1,0 +1,63 @@
+# A NetBird network, in NetBird's cloud or self-hosted. Admins and users
+# sign in through an identity provider (Google, Microsoft, GitHub, an OIDC
+# provider), or with a password of NetBird's own: self-hosted, local users
+# have been built in since v0.62. If your sign-in asks for a second step,
+# add it to the admin's way in.
+#
+# Whoever signs in as an admin can add a device, or make a setup key that
+# adds one, and reach what's on the network. Peer approval (Cloud Business
+# plan, or a commercial licence self-hosted) holds new devices for an admin,
+# which doesn't stop an admin. A reusable setup key is a way in wherever
+# it's kept.
+#
+# Self-hosted, the network needs its management server, and a shell on that
+# server is an admin.
+template:
+  name: NetBird
+  note: A NetBird network (cloud or self-hosted), how admins sign in, and who can add a device to it.
+  checked: 2026-11-24
+  links:
+    Local user management: https://docs.netbird.io/selfhosted/identity-providers/local
+    Approve peers: https://docs.netbird.io/manage/peers/approve-peers
+    Client CLI (setup keys): https://docs.netbird.io/get-started/cli
+  prefix: netbird
+  slots:
+    idp: The account you sign in to NetBird with (Google, Microsoft, GitHub, OIDC)
+    vault: Where the password and setup key are kept
+    server: The server NetBird runs on, self-hosted
+    laptop: A computer on the network
+    phone: A phone on the network
+  optional:
+    netbird_idp: true
+    netbird_pw: false
+    netbird_selfhosted: false
+    netbird_setup_key: false
+    netbird_laptop: true
+    netbird_phone: true
+
+things:
+  idp: {kind: account}
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  server: {kind: device}
+  laptop: {kind: device}
+  phone: {kind: device}
+
+  netbird_idp: {kind: secret, in: idp, note: 'signing in through your identity provider'}
+  netbird_pw: {kind: secret, in: vault, note: "a password of NetBird's own"}
+  netbird_selfhosted: {kind: service, in: server, note: 'self-hosted, on your server'}
+  netbird_setup_key: {kind: secret, in: vault, note: 'a reusable setup key'}
+  netbird_laptop: {kind: secret, in: laptop, note: 'a computer on the network'}
+  netbird_phone: {kind: secret, in: phone, note: 'a phone on the network'}
+
+  netbird:
+    kind: account
+    note: NetBird, signed in as an admin
+    needs: netbird_selfhosted
+    access: netbird_idp or netbird_pw or netbird_selfhosted
+
+  netbird_network:
+    kind: service
+    note: 'your network: the devices on it, and what they serve'
+    check: [lockout, breach]
+    needs: netbird_selfhosted
+    access: netbird_laptop or netbird_phone or netbird or netbird_setup_key

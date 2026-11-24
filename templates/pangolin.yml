@@ -1,0 +1,71 @@
+# Pangolin, the tunneled reverse proxy that puts your apps on the internet
+# behind its own sign-in, self-hosted or in Pangolin Cloud. Its users sign
+# in with a password and two-factor authentication (an authenticator app or
+# a security key), or through an identity provider. A forgotten password is
+# reset with a code by email, or, self-hosted with no mail server, a code in
+# the server's logs; whether the reset still asks for the second step isn't
+# documented, so it's unknown here.
+#
+# Self-hosted, a shell on the server runs `pangctl`, which sets the admin's
+# credentials and turns off anyone's two-factor authentication: the server
+# is the admin. An app can also open without signing in to Pangolin: with
+# its own PIN or password, or a code by email to an address you've
+# allowed; tick what any of your apps use. A shareable link opens one for
+# whoever has it.
+template:
+  name: Pangolin
+  note: Pangolin (self-hosted or Cloud), how you sign in to it, and the other ways into the apps it puts on the internet.
+  checked: 2026-11-24
+  links:
+    Internal CLI (pangctl): https://docs.pangolin.net/self-host/advanced/container-cli-tool
+    HTTP and HTTPS resources: https://docs.pangolin.net/manage/resources/public/http-https
+    Pangolin on GitHub: https://github.com/fosrl/pangolin
+  prefix: pangolin
+  slots:
+    vault: Where the password and app PINs are kept
+    mail: The email account Pangolin sends to
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    safe: Where the backup codes are kept
+    idp: The account you sign in to Pangolin with (Google, OIDC)
+    server: The server Pangolin runs on, self-hosted
+  optional:
+    pangolin_selfhosted: true
+    pangolin_totp: true
+    pangolin_key: false
+    pangolin_codes: true
+    pangolin_idp: false
+    pangolin_app_pin: false
+    pangolin_app_mail: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  safe: {kind: location}
+  idp: {kind: account}
+  server: {kind: device}
+
+  pangolin_selfhosted: {kind: service, in: server, note: 'self-hosted, on your server, whose shell resets anyone (pangctl)'}
+  pangolin_pw: {kind: secret, in: vault}
+  pangolin_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  pangolin_key: {kind: secret, in: hw_key, note: a security key}
+  pangolin_codes: {kind: secret, in: safe, note: backup codes}
+  pangolin_idp: {kind: secret, in: idp, note: 'signing in through an identity provider'}
+  pangolin_app_pin: {kind: secret, in: vault, note: "an app's own PIN or password"}
+  pangolin_app_mail: {kind: secret, in: mail, note: 'a code by email, to an address you allowed'}
+
+  pangolin:
+    kind: account
+    note: Pangolin, signed in as an admin
+    needs: pangolin_selfhosted
+    access: (pangolin_pw and (pangolin_totp or pangolin_key)) or pangolin_idp
+    recovery: (pangolin_pw and pangolin_codes) or (mail and unknown) or pangolin_selfhosted
+
+  pangolin_apps:
+    kind: service
+    note: 'the apps it puts on the internet'
+    check: [lockout, breach]
+    needs: pangolin_selfhosted
+    access: pangolin or pangolin_app_pin or pangolin_app_mail

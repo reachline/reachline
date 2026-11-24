@@ -1,0 +1,89 @@
+# A Backblaze account: Computer Backup, B2 Cloud Storage, or both. It signs
+# in with its email and password and a code by email, the default, or with
+# an authenticator app instead, which falls back to a code by text unless
+# you turn that off. Or through single sign-on (Google, Microsoft). A
+# forgotten password is reset by email. Backup codes stand in for the second
+# step, and past them, support decides. The docs also offer to change the
+# address a sign-in code goes to, before it's entered, so how much the email
+# code adds is unknown here.
+#
+# Computer Backup can be encrypted with a private encryption key of your
+# own: then no one can restore without it, Backblaze included, and a
+# forgotten one means deleting the backup and starting again. It keeps
+# deleted files for 30 days by default, longer if you pay for it, so it's a
+# backup rather than a mirror. If it backs up data in your model, add it to
+# that data's `in`.
+#
+# A B2 application key, on a server or in a backup tool (restic, rclone),
+# reaches the buckets it's scoped to without the account.
+template:
+  name: Backblaze
+  note: A Backblaze account (Computer Backup, B2 Cloud Storage), its sign-in, the backup's private key, and B2 application keys.
+  checked: 2026-11-24
+  links:
+    Account security: https://www.backblaze.com/computer-backup/docs/account-security
+    Resolve two-factor verification issues: https://www.backblaze.com/computer-backup/docs/resolve-two-factor-verification-issues
+    Resolve a forgotten private encryption key: https://www.backblaze.com/computer-backup/docs/resolve-a-forgotten-private-encryption-key
+    New security features, including backup codes: https://www.backblaze.com/blog/new-backblaze-security-features/
+  prefix: backblaze
+  slots:
+    vault: Where the password and private key are kept
+    mail: The account's email
+    authenticator: Your authenticator app
+    phone_number: The phone number for codes
+    idp: The account you sign in with (Google, Microsoft)
+    safe: Where the backup codes are kept
+    server: Where the B2 application key is kept
+  optional:
+    backblaze_mail_code: true
+    backblaze_totp: false
+    backblaze_sms: false
+    backblaze_sso: false
+    backblaze_codes: false
+    backblaze_backup: true
+    backblaze_pek: false
+    backblaze_b2: false
+    backblaze_app_key: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  authenticator: {kind: data}
+  phone_number: {kind: service}
+  idp: {kind: account}
+  safe: {kind: location}
+  server: {kind: device}
+
+  backblaze_pw: {kind: secret, in: vault}
+  backblaze_mail_code: {kind: secret, in: [mail, unknown], note: 'codes by email (the default)'}
+  backblaze_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  backblaze_sms: {kind: secret, in: phone_number, note: "codes by text, the authenticator app's fallback"}
+  backblaze_sso: {kind: secret, in: idp, note: 'single sign-on (Google, Microsoft)'}
+  backblaze_codes: {kind: secret, in: safe, note: backup codes}
+  backblaze_support:
+    kind: service
+    note: 'Backblaze support, past the backup codes'
+    # It decides, on what you can show.
+    access: unknown
+  backblaze_pek: {kind: secret, in: vault, note: "a private encryption key, which no one can recover"}
+  backblaze_app_key: {kind: secret, in: server, note: 'a B2 application key'}
+
+  backblaze_backup:
+    kind: data
+    note: Computer Backup
+    check: [lockout, breach]
+    in: backblaze
+    lock: backblaze_pek
+  backblaze_b2:
+    kind: data
+    note: B2 buckets
+    check: [lockout, breach]
+    in: backblaze
+    access: backblaze_app_key
+
+  backblaze:
+    kind: account
+    check: [lockout, breach]
+    # The password, or a reset by email; then the second step.
+    access: ((backblaze_pw or mail) and (backblaze_mail_code or backblaze_totp or backblaze_sms)) or backblaze_sso
+    recovery: ((backblaze_pw or mail) and backblaze_codes) or backblaze_support

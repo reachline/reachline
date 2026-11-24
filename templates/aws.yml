@@ -1,0 +1,66 @@
+# The root user of an AWS account. It signs in with the account's email and
+# password and an MFA device, which AWS requires of every root user: a
+# passkey or security key, or an authenticator app, up to eight in all. A
+# forgotten password is reset by email, and MFA is still asked for.
+#
+# A lost MFA device is replaced by signing in with alternative factors: a
+# link to the account's email, then a call to its primary contact phone.
+# Without both, AWS Support decides. Support can also turn alternative
+# factors off, if you ask: then leave them out.
+#
+# An IAM user's access keys, on your computer (~/.aws) or in CI, reach
+# whatever their policy allows without MFA, unless the policy asks for it:
+# an administrator's keys are nearly the account. A member account of an
+# AWS Organization may have no root credentials at all; then this is the
+# management account.
+template:
+  name: AWS
+  note: An AWS account's root user, its MFA and how it's recovered, and an IAM user's access keys.
+  checked: 2026-11-24
+  links:
+    Multi-factor authentication for AWS account root user: https://docs.aws.amazon.com/IAM/latest/UserGuide/enable-mfa-for-root.html
+    Reset a lost or forgotten root user password: https://docs.aws.amazon.com/IAM/latest/UserGuide/reset-root-password.html
+    Recover an MFA protected identity in IAM: https://docs.aws.amazon.com/IAM/latest/UserGuide/id_credentials_mfa_lost-or-broken.html
+  prefix: aws
+  slots:
+    vault: Where the password and a synced passkey are kept
+    mail: The account's email
+    phone_number: The account's primary contact phone
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    laptop: The computer with your access keys
+  optional:
+    aws_key: true
+    aws_passkey: false
+    aws_totp: false
+    aws_alt: true
+    aws_access_keys: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  phone_number: {kind: service}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  laptop: {kind: device}
+
+  aws_pw: {kind: secret, in: vault}
+  aws_key: {kind: secret, in: hw_key, note: a security key}
+  aws_passkey: {kind: secret, in: vault, note: 'a synced passkey, in a password manager or your Apple or Google account'}
+  aws_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  aws_alt:
+    kind: secret
+    note: 'alternative factors: a link by email and a call to the primary contact phone (unless Support turned them off)'
+    access: mail and phone_number
+  aws_support:
+    kind: service
+    note: 'AWS Support, when alternative factors fail'
+    # It decides, on what you can show.
+    access: unknown
+  aws_access_keys: {kind: secret, in: laptop, note: "an IAM user's access keys, which reach what its policy allows"}
+
+  aws:
+    kind: account
+    check: [lockout, breach]
+    access: ((aws_pw or mail) and (aws_key or aws_passkey or aws_totp)) or aws_access_keys
+    recovery: aws_alt or aws_support

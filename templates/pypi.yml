@@ -1,0 +1,71 @@
+# A PyPI account, and the projects it uploads. PyPI requires two-factor
+# authentication of everyone: an authenticator app or a security key, with
+# recovery codes made before either is turned on. A forgotten password is
+# reset by email, and the second step is still asked for.
+#
+# With the second factor and the codes lost, account recovery is an issue on
+# PyPI's tracker, answered by a small team, often a week or more apart, on
+# whatever it asks you to show.
+#
+# Uploading doesn't need the account: an API token uploads from wherever
+# it's kept, and a trusted publisher lets a CI workflow (GitHub Actions,
+# GitLab CI/CD) upload with no token at all, so whoever controls that
+# repository's workflow does too.
+template:
+  name: PyPI
+  note: A PyPI account, its two-factor authentication, and the tokens and CI that upload its projects.
+  checked: 2026-11-24
+  links:
+    Two-factor authentication: https://docs.pypi.org/your-account/two-factor-authentication/
+    Account recovery: https://docs.pypi.org/your-account/account-recovery/
+    2FA required for PyPI: https://blog.pypi.org/posts/2024-01-01-2fa-enforced/
+  prefix: pypi
+  slots:
+    vault: Where the password is kept
+    mail: The email account on your PyPI account
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    safe: Where the recovery codes are kept
+    laptop: Where your API token is kept
+    code_host: The code host whose CI uploads (GitHub, GitLab)
+  optional:
+    pypi_totp: true
+    pypi_key: false
+    pypi_codes: true
+    pypi_token: false
+    pypi_trusted: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  safe: {kind: location}
+  laptop: {kind: device}
+  code_host: {kind: account}
+
+  pypi_pw: {kind: secret, in: vault}
+  pypi_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  pypi_key: {kind: secret, in: hw_key, note: a security key}
+  pypi_codes: {kind: secret, in: safe, note: recovery codes}
+  pypi_support:
+    kind: service
+    note: "account recovery through PyPI's issue tracker, a week or more"
+    # It decides, on what you can show.
+    access: unknown
+  pypi_token: {kind: secret, in: laptop, note: 'an API token, which uploads'}
+  pypi_trusted: {kind: secret, in: code_host, note: 'a trusted publisher (GitHub Actions, GitLab CI/CD)'}
+
+  pypi_projects:
+    kind: data
+    note: your projects, as uploaded
+    check: breach
+    in: pypi
+    access: pypi_token or pypi_trusted
+
+  pypi:
+    kind: account
+    check: [lockout, breach]
+    # The password, or a reset by email; then the second step.
+    access: (pypi_pw or mail) and (pypi_totp or pypi_key)
+    recovery: ((pypi_pw or mail) and pypi_codes) or pypi_support

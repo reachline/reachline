@@ -1,0 +1,50 @@
+# A tailnet run by headscale, the self-hosted control server for
+# Tailscale's apps. There's no account and no web console of its own: a
+# shell on its server runs its CLI, which registers devices and makes keys.
+# A new device joins once that admin registers it, or by signing in through
+# an OIDC provider (Authelia, Authentik, Keycloak, Google) if you've set one
+# up. A pre-auth key adds a device too; by default it works once, within an
+# hour, but a reusable one is a way in wherever it's kept. An API key, for a
+# web UI or the CLI from elsewhere, does what the CLI does. Tailnet Lock
+# isn't among headscale's features.
+#
+# The tailnet needs the server: its database holds every device's
+# registration, so lose it without a backup and every device is registered
+# again.
+template:
+  name: headscale
+  note: A tailnet run by headscale, the self-hosted Tailscale control server, and who can add a device to it.
+  checked: 2026-11-24
+  links:
+    Features: https://headscale.net/stable/about/features/
+    Registration methods: https://headscale.net/stable/ref/registration/
+  prefix: headscale
+  slots:
+    server: The server headscale runs on
+    idp: Your OIDC provider's account
+    laptop: A computer on the tailnet, or with an API key
+    phone: A phone on the tailnet
+  optional:
+    headscale_oidc: false
+    headscale_api: false
+    headscale_laptop: true
+    headscale_phone: true
+
+things:
+  server: {kind: device}
+  idp: {kind: account}
+  laptop: {kind: device}
+  phone: {kind: device}
+
+  headscale: {kind: service, in: server, note: "headscale's CLI, from a shell on its server"}
+  headscale_oidc: {kind: secret, in: idp, note: 'signing in through an OIDC provider'}
+  headscale_api: {kind: secret, in: laptop, note: 'an API key, for a web UI or the CLI from elsewhere'}
+  headscale_laptop: {kind: secret, in: laptop, note: 'a computer on the tailnet'}
+  headscale_phone: {kind: secret, in: phone, note: 'a phone on the tailnet'}
+
+  headscale_tailnet:
+    kind: service
+    note: 'your tailnet: the devices on it, and what they serve'
+    check: [lockout, breach]
+    needs: headscale
+    access: headscale_laptop or headscale_phone or headscale or headscale_oidc or headscale_api

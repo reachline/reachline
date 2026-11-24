@@ -1,0 +1,61 @@
+# A Tailscale tailnet. Tailscale has no password of its own: you sign in
+# through an identity provider (Google, Microsoft, GitHub, Apple, an OIDC
+# provider), whose sign-in and recovery are Tailscale's, or with a passkey
+# (beta). A passkey tailnet that's deleted can't be recovered.
+#
+# Whoever signs in as an admin can add a device to the tailnet, and reach
+# what's on it. Tailnet Lock (Personal and Enterprise plans) stops that: a
+# new device joins only once a signing device has signed it, and a
+# disablement secret turns the lock off. Device approval, which Tailnet Lock
+# rules out, doesn't: the admin approves. An auth key adds devices too, from
+# wherever it's kept (a server's config, CI); add it there if you use one.
+#
+# A device stays on the tailnet until its key expires (180 days by
+# default), then signs in again.
+template:
+  name: Tailscale
+  note: A Tailscale tailnet, the identity provider or passkey you sign in with, and Tailnet Lock.
+  checked: 2026-11-24
+  links:
+    Supported SSO identity providers: https://tailscale.com/docs/integrations/identity
+    Using passkeys for Tailscale authentication: https://tailscale.com/docs/integrations/identity/passkeys
+    Tailnet Lock: https://tailscale.com/docs/features/tailnet-lock
+    Key expiry: https://tailscale.com/kb/1028/key-expiry
+  prefix: tailscale
+  slots:
+    idp: The account you sign in to Tailscale with (Google, Microsoft, GitHub, Apple, OIDC)
+    phone: The phone with your passkey
+    laptop: A computer on the tailnet
+    safe: Where the disablement secrets are kept
+  optional:
+    tailscale_idp: true
+    tailscale_passkey: false
+    tailscale_laptop: true
+    tailscale_phone: true
+    tailscale_signer: false
+    tailscale_disablement: false
+
+things:
+  idp: {kind: account}
+  phone: {kind: device}
+  laptop: {kind: device}
+  safe: {kind: location}
+
+  tailscale_idp: {kind: secret, in: idp, note: 'signing in through your identity provider'}
+  tailscale_passkey: {kind: secret, in: phone, note: 'a passkey (beta)'}
+  tailscale_laptop: {kind: secret, in: laptop, note: 'a computer on the tailnet'}
+  tailscale_phone: {kind: secret, in: phone, note: 'a phone on the tailnet'}
+  tailscale_signer: {kind: secret, in: [laptop, phone], note: 'Tailnet Lock: your signing devices'}
+  tailscale_disablement: {kind: secret, in: safe, note: 'Tailnet Lock: a disablement secret'}
+
+  tailscale:
+    kind: account
+    note: Tailscale, signed in as an admin
+    access: tailscale_idp or tailscale_passkey
+
+  tailscale_tailnet:
+    kind: service
+    note: 'your tailnet: the devices on it, and what they serve'
+    check: [lockout, breach]
+    # A device on it, or the admin adding one: with Tailnet Lock, once it's signed.
+    access: tailscale_laptop or tailscale_phone or (tailscale and (tailscale_signer or tailscale_disablement))
