@@ -37,6 +37,8 @@ vault:
 
 Name a device only when it's that device that counts: what's on it, what's signed in on it, or that it's already trusted. Any device you could buy or borrow, an attacker has too, so leave it out. Signing in to the vault from a new device is `pm_master and hw_key`, not `new_device and pm_master and hw_key`.
 
+Where you sign in from is left out the same way. ReachLine has no notion of networks, so a sign-in counts as reachable from anywhere, even a NAS's admin page that only answers at home. That can overstate a breach, but never understates one. Plenty of things are reachable from outside without their owners knowing, through a vendor's remote access, a router opening ports by itself, or an old port forward.
+
 ## Things that never disappear
 
 A thing with no `in` and no `needs` always exists. That's right for most cloud-based things: your mail provider doesn't burn down with your house. It also means such a thing is reached only through `access`, `recovery` or `me`. Give it one of them, or nothing ever reaches it.

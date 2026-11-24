@@ -1,0 +1,64 @@
+# Generic: an encrypted backup (Proxmox Backup Server, restic, Borg, Kopia,
+# Duplicati). The repository sits at its target, a cloud bucket, a NAS,
+# another server or a disk, and only its key opens it: a password (restic,
+# Kopia, Duplicati, Borg's repokey mode), or a key file (PBS, Borg's keyfile
+# mode, with its passphrase if it has one). Nobody can recover a lost key.
+#
+# The key is usually kept on the machine being backed up, where the tool
+# needs it, and it's lost with that machine: PBS keeps it on the Proxmox host,
+# Borg's keyfile mode in its home directory. So the copies that count are
+# the ones elsewhere: in your password manager, or on paper (PBS's paper
+# key, `borg key export --paper`). PBS can also seal the key into each
+# backup with a master key, whose private half then opens them all.
+#
+# The machine also keeps the credentials that reach the target, so whoever
+# holds it reaches the repository. They can usually delete it too, which
+# isn't modelled; append-only or immutable storage is what stops that. Add
+# the backup to the `in` of the data it copies. It keeps old versions, so
+# it's a backup, not a mirror.
+template:
+  name: Encrypted backup
+  note: An encrypted backup (Proxmox Backup Server, restic, Borg, Kopia, Duplicati), where it's stored, and every copy of its key.
+  checked: 2026-11-24
+  links:
+    Proxmox Backup Server, encryption: https://pbs.proxmox.com/docs/backup-client.html
+    Proxmox VE, Proxmox Backup Server storage: https://pve.proxmox.com/pve-docs/chapter-pvesm.html
+    borg init (key modes): https://borgbackup.readthedocs.io/en/stable/usage/init.html
+    restic, preparing a new repository: https://restic.readthedocs.io/en/stable/030_preparing_a_new_repo.html
+  prefix: backup
+  slots:
+    server: The machine it backs up
+    storage: Where it's stored (a cloud bucket, a NAS, another server)
+    vault: Your password manager
+    safe: Where the paper key or master key is kept
+  optional:
+    backup_creds: true
+    backup_encrypted: true
+    backup_key_local: true
+    backup_key_vault: false
+    backup_key_paper: false
+    backup_master: false
+
+things:
+  server: {kind: device}
+  storage: {kind: account}
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  safe: {kind: location}
+
+  backup_creds: {kind: secret, in: server, note: 'credentials for where it is stored, kept on the machine it backs up'}
+  backup_key_local: {kind: secret, in: server, note: 'the key, on the machine it backs up'}
+  backup_key_vault: {kind: secret, in: vault, note: 'the key, in your password manager'}
+  backup_key_paper: {kind: secret, in: safe, note: 'the key, on paper'}
+  backup_master: {kind: secret, in: safe, note: "PBS's master key, which opens the key sealed in each backup"}
+  backup_encrypted:
+    kind: secret
+    note: 'encrypted, so only its key opens it'
+    access: backup_key_local or backup_key_vault or backup_key_paper or backup_master
+
+  backup:
+    kind: data
+    note: the backup
+    check: [lockout, breach]
+    in: storage
+    access: backup_creds
+    lock: backup_encrypted

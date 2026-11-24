@@ -1,0 +1,70 @@
+# A Windows PC. You sign in with Windows Hello (a PIN, your face or a
+# fingerprint) or your password, or find it, as you left it, already
+# unlocked. With a Microsoft account, "I forgot my PIN" at the sign-in
+# screen sets a new PIN once you've signed in to that account.
+#
+# BitLocker encrypts the disk, so only Windows or the recovery key opens it.
+# Device encryption, its automatic form, turns on at the first sign-in with
+# a Microsoft account, even on Windows Home, and saves the recovery key to
+# that account. By default the TPM unlocks the disk at startup with no PIN,
+# so the sign-in is what keeps a thief out; a startup PIN asks first. The
+# recovery key, from account.microsoft.com or printed, opens the disk
+# without signing in at all. Without BitLocker, anyone who starts the PC from
+# a USB stick reads the disk: leave BitLocker out, and the PC has no lock.
+template:
+  name: Windows PC
+  note: A Windows PC with BitLocker or device encryption, what signs in, and where the recovery key is.
+  checked: 2026-11-24
+  links:
+    Device encryption in Windows: https://support.microsoft.com/en-us/windows/device-encryption-in-windows-cf7e2b6f-3e70-4882-9532-18633605b7df
+    Find your BitLocker recovery key: https://support.microsoft.com/en-us/windows/find-your-bitlocker-recovery-key-6b71ad27-0b89-ea08-f143-056f5ab347d6
+    BitLocker countermeasures: https://learn.microsoft.com/en-us/windows/security/operating-system-security/data-protection/bitlocker/countermeasures
+    PIN reset: https://learn.microsoft.com/en-us/windows/security/identity-protection/hello-for-business/pin-reset
+  prefix: windows
+  stands_in:
+    windows: Is this one of your computers?
+  slots:
+    home: Where the PC usually is
+    laptop_pw: Your Windows Hello PIN or password
+    body: Your face or fingerprint, for Windows Hello
+    head: What you remember
+    microsoft: Your Microsoft account
+    safe: Where the printed recovery key is kept
+  optional:
+    windows_bitlocker: true
+    windows_bio: false
+    windows_open: false
+    windows_msa: true
+    windows_startup_pin: false
+    windows_rk_msa: true
+    windows_rk_printed: false
+
+things:
+  home: {kind: location}
+  laptop_pw: {kind: secret}
+  body: {kind: location}
+  head: {kind: location}
+  microsoft: {kind: account}
+  safe: {kind: location}
+
+  windows_bio: {kind: secret, in: body, note: 'Windows Hello face or fingerprint'}
+  windows_open: {kind: state, note: 'unlocked, as you left it'}
+  windows_msa: {kind: secret, in: microsoft, note: 'your Microsoft account, which resets a forgotten PIN'}
+  windows_startup_pin: {kind: secret, in: head, note: 'a BitLocker startup PIN, asked before Windows starts'}
+  windows_rk_msa: {kind: secret, in: microsoft, note: 'the recovery key, saved to your Microsoft account'}
+  windows_rk_printed: {kind: secret, in: safe, note: 'the recovery key, printed or on a USB stick'}
+  windows_signin:
+    kind: secret
+    note: signing in to Windows
+    access: laptop_pw or windows_bio or windows_msa
+    lock: windows_startup_pin
+  windows_bitlocker:
+    kind: secret
+    note: 'BitLocker or device encryption, so only Windows or the recovery key opens the disk'
+    access: windows_signin or windows_open or windows_rk_msa or windows_rk_printed
+
+  windows:
+    kind: device
+    note: a Windows PC
+    in: home
+    lock: windows_bitlocker

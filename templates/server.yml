@@ -1,0 +1,92 @@
+# Generic: a home server or NAS (Synology, QNAP, UGREEN, Unraid, TrueNAS,
+# Proxmox VE, a Linux box). Its admin signs in with a password and, if
+# you've set it up, a second step. Remote access (QuickConnect, myQNAPcloud, Unraid Connect)
+# puts that sign-in on the internet without changing who can pass it.
+#
+# Whoever holds the box can make themselves admin, which is also how you get
+# back in if you forget the password:
+# - Synology, QNAP, UGREEN: a short press of the reset button resets the
+#   admin password and keeps the data; Synology and UGREEN drop its
+#   two-factor authentication too. Synology can be set to keep the admin
+#   password, and QNAP's button can be turned off.
+# - Unraid: the boot USB stick, edited on another computer, clears the root
+#   password.
+# - TrueNAS: the console menu changes the admin password, unless it's set to
+#   ask for a login first ("Show Text Console without Password Prompt" off).
+# - Proxmox VE and other Linux: booting to single-user mode, or from a USB
+#   stick, gives root.
+# Where you've turned yours off, leave the reset out.
+#
+# Without encryption, the disks open in any computer, so holding the box is
+# having what's on it. Encrypted volumes need their key at startup, unless
+# it's kept on the box to unlock them by itself (Synology's Key Manager,
+# TrueNAS's stored keys, a keyfile), which only guards disks taken out on
+# their own: then leave encryption out. Put what's on it, virtual machines
+# included, `in: server`.
+#
+# The credentials it keeps for a sync or backup target (cloud storage,
+# another server) reach that target too.
+template:
+  name: Home Server or NAS
+  note: A home server or NAS (Synology, QNAP, UGREEN, Unraid, TrueNAS, Proxmox VE, Linux), its admin, resetting it from the box, encryption, and its backup target.
+  checked: 2026-11-24
+  links:
+    How do I reset my Synology NAS?: https://kb.synology.com/en-global/DSM/tutorial/How_to_reset_my_Synology_NAS_7
+    What settings are reset by 3 sec/10 sec reset on QTS/QuTS hero?: https://www.qnap.com/en-us/how-to/faq/article/what-settings-are-reset-by-3-sec10-sec-reset-on-qtsquts-hero
+    QNAP general hardware settings (the reset switch): https://docs.qnap.com/operating-system/qts/5.2.x/en-us/configuring-general-hardware-settings-1D403AA4.html
+    Reset the network settings and administrator password on your UGREEN NAS: https://support.ugnas.com/detail/article/en-US/294
+    Unraid user management (reset your password): https://docs.unraid.net/unraid-os/system-administration/secure-your-server/user-management/
+    Managing the TrueNAS console setup menu: https://www.truenas.com/docs/scale/systemsettings/advanced/manageconsole/
+  prefix: server
+  stands_in:
+    server: Is this your server or NAS?
+  slots:
+    home: Where it is
+    vault: Where the admin password and volume key are kept
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    storage: The cloud storage or server it backs up or syncs to
+  optional:
+    server_totp: false
+    server_key: false
+    server_reset: true
+    server_encrypted: false
+    server_offsite: false
+
+things:
+  home: {kind: location}
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  storage: {kind: account}
+
+  server_pw: {kind: secret, in: vault}
+  server_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  server_key: {kind: secret, in: hw_key, note: a security key}
+  server_reset: {kind: secret, in: server, note: "resetting the admin from the box: its reset button, boot stick, console or single-user boot"}
+  server_volume_key: {kind: secret, in: vault, note: "the encrypted volumes' key or passphrase"}
+
+  server_admin:
+    kind: account
+    note: 'the admin, signed in'
+    access: server_pw and (server_totp or server_key)
+    recovery: server_reset
+  # The admin sees the volumes unlocked; holding the box, it takes their key.
+  server_encrypted:
+    kind: secret
+    note: 'encrypted volumes, which ask for their key at startup'
+    access: server_volume_key or server_admin
+
+  server:
+    kind: device
+    note: a home server or NAS
+    in: home
+    access: server_admin
+    lock: server_encrypted
+
+  server_offsite:
+    kind: data
+    note: 'its backup or sync elsewhere, which the credentials it keeps reach'
+    check: breach
+    in: storage
+    access: server

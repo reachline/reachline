@@ -1,0 +1,82 @@
+# A Dropbox account and its files. It signs in with the password, or a reset
+# sent to its email or a recovery email, and with 2-factor authentication
+# on, a code by text or from an authenticator app, a security key, or an
+# approval in the Dropbox app on a signed-in phone. A passkey signs in
+# alone, skipping 2-factor authentication.
+#
+# The desktop app makes its computer trusted: from its menu, dropbox.com
+# opens signed in with no code, and from there 2-factor authentication can
+# be turned off. That computer also holds a synced copy of your files
+# (except those kept online-only), and a sync follows deletions, though
+# Dropbox keeps deleted files for 30 days or more. With the second factor
+# lost, emergency backup codes get you in, and past those, support decides.
+# Signing in with Google or Apple isn't covered.
+template:
+  name: Dropbox
+  note: A Dropbox account and its files, its 2-factor authentication, and the desktop app that's trusted.
+  checked: 2026-11-24
+  links:
+    How to troubleshoot 2-factor authentication issues: https://help.dropbox.com/account-access/issues-2-factor-authentication
+    How to turn 2-factor authentication on and off: https://help.dropbox.com/account-access/enable-2-factor-authentication
+    How to add and manage a recovery email: https://help.dropbox.com/security/add-recovery-email
+  prefix: dropbox
+  slots:
+    vault: Where the password is kept
+    mail: The email account on your Dropbox account
+    recovery_mail: Your recovery email's account
+    phone_number: The phone number for codes
+    authenticator: Your authenticator app
+    hw_key: Your security key
+    phone: The phone with the Dropbox app
+    laptop: The computer with the desktop app
+    safe: Where the backup codes are kept
+  optional:
+    dropbox_recovery_mail: false
+    dropbox_sms: false
+    dropbox_totp: true
+    dropbox_key: false
+    dropbox_phone: true
+    dropbox_passkey: false
+    dropbox_desktop: true
+    dropbox_codes: true
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  mail: {kind: account}
+  recovery_mail: {kind: account}
+  phone_number: {kind: service}
+  authenticator: {kind: data}
+  hw_key: {kind: device}
+  phone: {kind: device}
+  laptop: {kind: device}
+  safe: {kind: location}
+
+  dropbox_pw: {kind: secret, in: vault}
+  dropbox_recovery_mail: {kind: secret, in: recovery_mail, note: 'a recovery email, which resets the password'}
+  dropbox_sms: {kind: secret, in: phone_number, note: codes by text}
+  dropbox_totp: {kind: secret, in: authenticator, note: an authenticator app}
+  dropbox_key: {kind: secret, in: hw_key, note: a security key}
+  dropbox_phone: {kind: secret, in: phone, note: 'the Dropbox app on your phone, which approves a sign-in'}
+  dropbox_passkey: {kind: secret, in: phone, note: 'a passkey, which signs in alone'}
+  dropbox_desktop: {kind: data, in: laptop, note: 'the desktop app: a synced copy of your files, and dropbox.com signed in'}
+  dropbox_codes: {kind: secret, in: safe, note: emergency backup codes}
+  dropbox_support:
+    kind: service
+    note: Dropbox support
+    # It decides, on what you can show.
+    access: unknown
+
+  dropbox_files:
+    kind: data
+    note: your files in Dropbox
+    check: [lockout, breach]
+    in: [dropbox, dropbox_desktop]
+
+  dropbox:
+    kind: account
+    check: [lockout, breach]
+    # The password, or a reset by email; then any second factor. Or a passkey, or the desktop app.
+    access: >-
+      ((dropbox_pw or mail or dropbox_recovery_mail) and (dropbox_sms or dropbox_totp or dropbox_key or dropbox_phone))
+      or dropbox_passkey or dropbox_desktop
+    recovery: ((dropbox_pw or mail or dropbox_recovery_mail) and dropbox_codes) or dropbox_support

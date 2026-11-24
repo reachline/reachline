@@ -1,0 +1,64 @@
+# A Mac. Its lock is your login password; Touch ID, or an Apple Watch you're
+# wearing, unlocked, close by, once the password has unlocked the Mac since
+# it last started; or, as you left it, already unlocked.
+# FileVault ties the disk's encryption to that password. On a Mac with Apple
+# silicon or a T2 chip the disk is encrypted even without FileVault, but
+# then only the Mac's hardware guards the key. An older Intel Mac without
+# FileVault opens to anyone who starts it from another disk: remove its
+# lock.
+#
+# At the login window, a forgotten password is reset with your Apple Account,
+# if you let it unlock the disk when you turned FileVault on, or else with
+# the FileVault recovery key. From macOS Tahoe, the key is also in the
+# Passwords app on your other Apple devices. Past both, the only way back is
+# to erase the Mac, so its files are then only where they're backed up.
+template:
+  name: Mac
+  note: A Mac with FileVault, what unlocks it, and how a forgotten password is reset.
+  checked: 2026-11-24
+  links:
+    Protect data on your Mac with FileVault: https://support.apple.com/guide/mac-help/protect-data-on-your-mac-with-filevault-mh11785/mac
+    Volume encryption with FileVault in macOS: https://support.apple.com/guide/security/volume-encryption-with-filevault-sec4c6dc1b6e/web
+    If you forgot your Mac login password: https://support.apple.com/en-us/102633
+    Unlock your Mac with your Apple Watch: https://support.apple.com/en-us/102442
+  prefix: mac
+  stands_in:
+    mac: Is this one of your computers?
+  slots:
+    home: Where the Mac usually is
+    laptop_pw: Your login password
+    body: Your fingerprint, for Touch ID
+    watch: Your Apple Watch
+    apple: Your Apple Account
+    safe: Where the recovery key is kept
+    apple_passwords: Apple Passwords, on your other devices
+  optional:
+    mac_touch_id: true
+    mac_watch: false
+    mac_open: false
+    mac_apple: true
+    mac_rk: false
+    mac_rk_synced: false
+
+things:
+  home: {kind: location}
+  laptop_pw: {kind: secret}
+  body: {kind: location}
+  watch: {kind: device}
+  apple: {kind: account}
+  safe: {kind: location}
+  apple_passwords: {kind: service}
+
+  mac_since_boot: {kind: state, note: 'unlocked with the password since it last started'}
+  mac_touch_id: {kind: secret, note: "Touch ID, once it's been unlocked since it last started", access: body and mac_since_boot}
+  mac_watch: {kind: secret, note: "an Apple Watch you're wearing, unlocked, once the Mac's been unlocked since it last started", access: watch and mac_since_boot}
+  mac_open: {kind: state, note: 'unlocked, as you left it'}
+  mac_apple: {kind: secret, in: apple, note: 'your Apple Account, which resets the password at the login window (not with a recovery key)'}
+  mac_rk: {kind: secret, in: safe, note: 'a FileVault recovery key, written down (instead of your Apple Account)'}
+  mac_rk_synced: {kind: secret, in: apple_passwords, note: 'the FileVault recovery key, in Apple Passwords (macOS Tahoe and later)'}
+
+  mac:
+    kind: device
+    note: a Mac
+    in: home
+    lock: laptop_pw or mac_touch_id or mac_watch or mac_open or mac_apple or mac_rk or mac_rk_synced

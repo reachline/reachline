@@ -1,0 +1,66 @@
+# An Amazon account (shopping, Prime, Photos, Kindle, Alexa): the payment
+# methods on it, and what it can order and see. It signs in with the
+# password, a passkey, or a code sent to your number or email, and a
+# forgotten password is reset with such a code. With two-step verification
+# on, a code from an authenticator app or by text or call follows, unless
+# the browser is one you told not to ask again.
+#
+# With every 2SV method lost, you upload a photo of a government ID, and
+# Amazon turns 2SV off within a day or two: whoever has your ID and gets
+# past the first step gets in. AWS is a separate account: see its template.
+template:
+  name: Amazon
+  note: An Amazon account (shopping, Prime, Photos) with two-step verification, and its recovery by ID.
+  checked: 2026-11-24
+  links:
+    Recover your account after Two-Step Verification fails: https://www.amazon.com/gp/help/customer/display.html?nodeId=GU3SL3GTHLHPDQ2H
+  prefix: amazon
+  slots:
+    vault: Where the password is kept
+    phone: The phone with your passkey
+    phone_number: The phone number on the account
+    mail: The email account on the account
+    authenticator: Your authenticator app
+    laptop: A browser that doesn't ask for codes
+    id_card: Your photo ID
+  optional:
+    amazon_passkey: false
+    amazon_totp: true
+    amazon_sms: true
+    amazon_trusted: false
+    amazon_photos: false
+
+things:
+  vault: {kind: service, note: 'your password manager, unlocked'}
+  phone: {kind: device}
+  phone_number: {kind: service}
+  mail: {kind: account}
+  authenticator: {kind: data}
+  laptop: {kind: device}
+  id_card: {kind: device}
+
+  amazon_pw: {kind: secret, in: vault}
+  amazon_passkey: {kind: secret, in: phone, note: 'a passkey, in place of the password'}
+  amazon_code:
+    kind: secret
+    note: 'a code to your number or email, which signs in or resets the password'
+    access: phone_number or mail
+  amazon_totp: {kind: secret, in: authenticator, note: 'two-step verification: an authenticator app'}
+  amazon_sms: {kind: secret, in: phone_number, note: 'two-step verification: codes by text or call'}
+  amazon_trusted: {kind: secret, in: laptop, note: "a browser that doesn't ask for 2SV codes"}
+  amazon_id:
+    kind: secret
+    note: 'a photo of your government ID, which turns two-step verification off'
+    access: id_card
+
+  amazon_photos:
+    kind: data
+    note: Amazon Photos
+    check: [lockout, breach]
+    in: amazon
+
+  amazon:
+    kind: account
+    check: [lockout, breach]
+    access: (amazon_pw or amazon_passkey or amazon_code) and (amazon_totp or amazon_sms or amazon_trusted)
+    recovery: (amazon_pw or amazon_passkey or amazon_code) and amazon_id
