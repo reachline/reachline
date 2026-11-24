@@ -392,8 +392,8 @@ test('guided edits, plans and templates', async () => {
     await page.getByRole('button', { name: 'From a template…' }).click();
     await fromTemplate.getByLabel('Search').fill('git');
     await fromTemplate.getByRole('button', { name: /GitHub/ }).click();
-    await github.getByLabel('Where the password is kept').and(page.locator('select')).waitFor();
-    assert.equal(await github.getByLabel('Where the password is kept').inputValue(), 'vault');
+    const vault = github.getByRole('combobox', { name: 'Where the password is kept' });
+    assert.equal((await vault.textContent())?.trim(), 'vault');
   };
   await openGithub();
   await github.getByRole('button', { name: 'Add as a plan' }).click();

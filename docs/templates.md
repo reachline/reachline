@@ -1,6 +1,6 @@
 # Templates
 
-A template adds a common service in one go: GitHub, Google or Cloudflare with its password, second factors and recovery, as the service's own documentation describes them.
+A template adds a common service in one go, such as an Apple, Google or Microsoft account, with its password, second factors, recovery and data, as the service's own documentation describes them.
 
 ## Adding one
 

@@ -5,6 +5,8 @@
   import type { ScenarioChange } from '../../../engine/report.ts';
   import { idProblem, show } from '../lib/edit';
   import { instantiate, readTemplate, type Template } from './template';
+  import Select from '../forms/Select.svelte';
+  import type { SelectGroup } from '../forms/select';
   import Verdicts from '../panel/Verdicts.svelte';
 
   type Things = Record<string, Record<string, unknown>>;
@@ -45,6 +47,32 @@
     include = t.optional.filter((o) => o.on).map((o) => o.id);
     standsIn = {};
   }
+
+  const byName = (a: string, b: string) => a.localeCompare(b);
+  /** Your things in a group for each kind, as the Thing picker has them: `kind` first, or alone. */
+  function yours(kind: string, only = false): SelectGroup[] {
+    const kinds = [...new Set(ids.values())].filter((k) => k !== kind).sort(byName);
+    return [kind, ...(only ? [] : kinds)]
+      .map((k) => ({
+        name: k,
+        kind: k,
+        options: [...ids]
+          .filter(([, t]) => t === k)
+          .map(([id]) => id)
+          .sort(byName)
+          .map((id) => ({ value: id, kind: k, mono: true })),
+      }))
+      .filter((g) => g.options.length);
+  }
+
+  const slotGroups = (s: { id: string; kind: string }): SelectGroup[] => [
+    { options: [{ value: '', label: `A new ${s.kind}: ${s.id}`, kind: s.kind }] },
+    ...yours(s.kind),
+  ];
+  const standsGroups = (s: { kind: string }): SelectGroup[] => [
+    { options: [{ value: '', label: `No, a new ${s.kind}`, kind: s.kind }] },
+    ...yours(s.kind, true),
+  ];
 
   function reset() {
     query = '';
@@ -97,7 +125,10 @@
         <button class="quiet" onclick={() => dialog?.close()}>Cancel</button>
       </div>
     {:else}
-      <h2 id="{uid}-title">{chosen.name}</h2>
+      <header>
+        <button class="quiet back" onclick={() => (chosen = null)}><ArrowLeft />All templates</button>
+        <h2 id="{uid}-title">{chosen.name}</h2>
+      </header>
       <p>{chosen.note}</p>
       <p class="hint">Facts checked {chosen.checked}, against:</p>
       <ul class="links">
@@ -115,17 +146,15 @@
       </div>
 
       {#each standing as s (s.id)}
-        <label class="field"
-          >{s.label}
-          <select
+        <div class="field">
+          <span id="{uid}-stands-{s.id}">{s.label}</span>
+          <Select
+            aria-labelledby="{uid}-stands-{s.id}"
             value={standsIn[s.id] ?? ''}
-            onchange={(e) => (standsIn = { ...standsIn, [s.id]: e.currentTarget.value || null })}
-          >
-            <option value="">No, a new {s.kind}</option>
-            {#each [...ids].filter(([, kind]) => kind === s.kind) as [id] (id)}<option value={id}>Yes, my {id}</option
-              >{/each}
-          </select>
-        </label>
+            groups={standsGroups(s)}
+            onchange={(v: string) => (standsIn = { ...standsIn, [s.id]: v || null })}
+          />
+        </div>
       {/each}
 
       {#if chosen.optional.length}
@@ -141,22 +170,15 @@
         <fieldset>
           <legend>Things you have</legend>
           {#each needed as s (s.id)}
-            <label class="field"
-              >{s.label}
-              <select
+            <div class="field">
+              <span id="{uid}-slot-{s.id}">{s.label}</span>
+              <Select
+                aria-labelledby="{uid}-slot-{s.id}"
                 value={slots[s.id] ?? ''}
-                onchange={(e) => (slots = { ...slots, [s.id]: e.currentTarget.value || null })}
-              >
-                <option value="">A new {s.kind}: {s.id}</option>
-                {#each [...ids].filter(([, kind]) => kind === s.kind) as [id] (id)}<option value={id}>{id}</option
-                  >{/each}
-                <optgroup label="Other kinds">
-                  {#each [...ids].filter(([, kind]) => kind !== s.kind) as [id, kind] (id)}<option value={id}
-                      >{id} ({kind})</option
-                    >{/each}
-                </optgroup>
-              </select>
-            </label>
+                groups={slotGroups(s)}
+                onchange={(v: string) => (slots = { ...slots, [s.id]: v || null })}
+              />
+            </div>
           {/each}
         </fieldset>
       {/if}
@@ -183,8 +205,7 @@
       {/if}
 
       <div class="buttons">
-        <button class="quiet" onclick={() => (chosen = null)}><ArrowLeft />Back</button>
-        <span class="spacer"></span>
+        <button class="quiet" onclick={() => dialog?.close()}>Cancel</button>
         <button disabled={!!problem} onclick={() => add(true)}>Add as a plan</button>
         <button class="primary" disabled={!!problem} onclick={() => add(false)}>Add to model</button>
       </div>
@@ -204,6 +225,22 @@
     margin: 0;
     padding: 0;
     list-style: none;
+  }
+  /* Only the list scrolls, with room inside for the focus ring. */
+  .list {
+    max-height: min(28rem, 50vh);
+    margin-inline: calc(-1 * var(--space-1));
+    padding: var(--space-1);
+    overflow-y: auto;
+  }
+  header {
+    display: grid;
+    justify-items: start;
+    gap: var(--space-1);
+  }
+  /* Its icon lines up with the heading under it. */
+  .back {
+    margin-inline-start: calc(-1 * var(--space-3));
   }
   .pick {
     display: grid;
@@ -231,8 +268,5 @@
   }
   .adds {
     font-size: var(--text-sm);
-  }
-  .spacer {
-    flex: 1;
   }
 </style>

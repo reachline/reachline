@@ -333,8 +333,18 @@ button.select:disabled {
     position-try-fallbacks: flip-block;
   }
 }
-.listbox[popover] [role='option'] {
+.listbox[popover] [role='option']:not(.mono) {
   font-family: inherit;
+}
+/* A group of its options, under a heading: things of one kind, as in a .menu. */
+.listbox .group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  padding: var(--space-2) var(--space-2) var(--space-1);
+  color: var(--muted);
+  font-size: var(--text-sm);
+  font-weight: 600;
 }
 /* A field with an .icon button inside its end (PasswordInput's, to show what's typed). */
 .reveal {
