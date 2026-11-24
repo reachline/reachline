@@ -1,10 +1,10 @@
-// ELK timings and expand-on-click stability, outside the browser.
+// ELK timings, outside the browser.
 //   node bench.ts
 import { readFileSync } from 'node:fs';
 import { createServer } from 'vite';
 import * as build from '../engine/view.ts';
 import type { View } from '../engine/view.ts';
-import type { LayoutOpts, Placement } from './src/graph/layout.ts';
+import type { LayoutOpts, Placement } from './src/graph/place.ts';
 
 const server = await createServer({ server: { middlewareMode: true }, appType: 'custom', logLevel: 'error' });
 const { layout } = (await server.ssrLoadModule('/src/graph/layout.ts')) as typeof import('./src/graph/layout.ts');
@@ -15,7 +15,6 @@ const opts: LayoutOpts = {
   direction: 'RIGHT',
   routing: 'ORTHOGONAL',
   placement: (process.env.PLACE ?? 'BRANDES_KOEPF') as Placement,
-  stable: false,
 };
 
 async function time(view: View, label: string) {
@@ -41,39 +40,4 @@ for (const t of [...ids].sort((a, b) => deepest(b) - deepest(a)).slice(0, 4)) {
   await time(build.waysInView(model, [t], 'all'), `ways into ${t} (all)`);
 }
 
-// Start every thing checked for lockouts at depth 2, then click each `+` in turn (BFS
-// order), relaying out after each click with and without seeding positions.
-console.log('\nexpand-on-click: share of on-screen nodes that move per click');
-for (const stable of [false, true]) {
-  let moved = 0,
-    kept = 0,
-    shift = 0,
-    clicks = 0;
-  for (const t of ids.filter((id) => model.things.get(id)!.check.includes('lockout'))) {
-    const expanded = build.expandToDepth(model, [t], 2);
-    let view = build.waysInView(model, [t], expanded);
-    let placed = await layout(view, { ...opts, stable });
-    for (let step = 0; step < 6; step++) {
-      const next = view.nodes.find((n) => n.more);
-      if (!next) break;
-      expanded.add(next.id);
-      view = build.waysInView(model, [t], expanded);
-      const after = await layout(view, { ...opts, stable }, placed);
-      for (const [id, a] of placed.nodes) {
-        const b = after.nodes.get(id);
-        if (!b) continue;
-        const d = Math.hypot(b.x - a.x, b.y - a.y);
-        if (d > 1) moved++;
-        else kept++;
-        shift += d;
-      }
-      placed = after;
-      clicks++;
-    }
-  }
-  const pct = Math.round((100 * moved) / (moved + kept));
-  console.log(
-    `  stable=${stable}: ${clicks} clicks, ${pct}% of nodes moved, avg shift ${Math.round(shift / (moved + kept))}px`,
-  );
-}
 await server.close();

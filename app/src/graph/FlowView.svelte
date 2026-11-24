@@ -8,7 +8,7 @@
   import RoutedEdge from './flow/RoutedEdge.svelte';
   import ThingNode from './flow/ThingNode.svelte';
   import Zoom from './flow/Zoom.svelte';
-  import type { Placed } from './layout';
+  import type { Placed } from './place';
   import { theme } from '../lib/theme.svelte.ts';
 
   interface Props {

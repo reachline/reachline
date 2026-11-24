@@ -3,7 +3,7 @@
   // made and acted on in one handler: with bind:value as well, the layout can
   // run between the two and miss the restart (as it seemed to in Firefox on Android).
   import { SlidersHorizontal } from '@lucide/svelte';
-  import type { Direction, Placement, Routing } from './layout';
+  import type { Direction, Placement, Routing } from './place';
 
   interface Props {
     direction: Direction;

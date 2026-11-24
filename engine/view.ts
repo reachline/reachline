@@ -52,6 +52,8 @@ export interface View {
 
 export const isJunction = (k: NodeKind) => k === 'and' || k === 'or' || k === 'unknown';
 
+export const edgeId = (source: string, target: string, kind: EdgeKind) => `${source}>${target}:${kind}`;
+
 const FIELDS = REFS.things;
 type Field = (typeof FIELDS)[number];
 
@@ -109,7 +111,7 @@ class Builder {
   }
 
   edge(source: string, target: string, kind: EdgeKind, live = true): VEdge {
-    const id = `${source}>${target}:${kind}`;
+    const id = edgeId(source, target, kind);
     const e = this.edges.get(id);
     if (e) e.live &&= live;
     else this.edges.set(id, { id, source, target, kind, live });

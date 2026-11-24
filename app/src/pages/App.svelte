@@ -51,7 +51,16 @@
   import FlowView from '../graph/FlowView.svelte';
   import LayoutMenu from '../graph/LayoutMenu.svelte';
   import Legend from '../graph/Legend.svelte';
-  import { layout, placeLocally, type Direction, type Placed, type Placement, type Routing } from '../graph/layout';
+  import { layout } from '../graph/layout';
+  import {
+    placeLocally,
+    renamed,
+    resize,
+    type Direction,
+    type Placed,
+    type Placement,
+    type Routing,
+  } from '../graph/place';
   import { KINDS, SCENARIO_KINDS } from '../../../engine/model.ts';
   import type { ScenarioChange } from '../../../engine/report.ts';
   import Plans from '../panel/Plans.svelte';
@@ -248,9 +257,11 @@
 
   /**
    * Text from outside the editor. It waits for the editor, so that it's one
-   * edit in its history, which undo can take back.
+   * edit in its history, which undo can take back. `then` runs as its model
+   * is shown, for state that has to change in the same step (a rename's);
+   * set before that, the view would be built from the old model with new names.
    */
-  async function setText(t: string) {
+  async function setText(t: string, then?: () => void) {
     openEditor();
     try {
       await editorModule;
@@ -260,6 +271,7 @@
     }
     text = t;
     lint(t);
+    then?.();
   }
 
   function openEditor() {
@@ -404,10 +416,14 @@
 
   /** Applies edits to the text, as one step undo can take back. */
   function apply(...edits: Edit[]): boolean {
+    return applyThen(edits);
+  }
+
+  function applyThen(edits: Edit[], then?: () => void): boolean {
     if (text === null) return false;
     editError = '';
     try {
-      void setText(edit(text, ...edits));
+      void setText(edit(text, ...edits), then);
       return true;
     } catch (e) {
       editError = (e as Error).message;
@@ -438,18 +454,21 @@
       setMe: (me, created) => apply(...creating(created), setMe(layer, me)),
       renameThing: (from, to) => {
         const problem = nameProblem(to, (n) => Object.hasOwn(w.things, n));
-        if (problem || !apply(renameThing(from, to))) return problem || editError;
-        if (selected === from) selected = to;
-        if (target === from) target = to;
-        const swap = (ids: Set<string>) => new Set([...ids].map((x) => (x === from ? to : x)));
-        [expanded, forward] = [swap(expanded), swap(forward)];
-        return '';
+        const then = () => {
+          renaming = [from, to];
+          if (selected === from) selected = to;
+          if (target === from) target = to;
+          const swap = (ids: Set<string>) => new Set([...ids].map((x) => (x === from ? to : x)));
+          [expanded, forward] = [swap(expanded), swap(forward)];
+        };
+        return problem || (applyThen([renameThing(from, to)], then) ? '' : editError);
       },
       renameScenario: (from, to) => {
         const problem = nameProblem(to, (n) => Object.hasOwn(w.scenarios, n));
-        if (problem || !apply(renameScenario(from, to))) return problem || editError;
-        if (scenarioName === from) scenarioName = to;
-        return '';
+        const then = () => {
+          if (scenarioName === from) scenarioName = to;
+        };
+        return problem || (applyThen([renameScenario(from, to)], then) ? '' : editError);
       },
       deleteThing: (id) =>
         confirmEdit(
@@ -655,17 +674,18 @@
     }
   });
 
-  // Expanding adds nodes without moving anything; ELK runs only on a fresh
-  // view and on Tidy, and always lays out from scratch.
+  // ELK runs only on a fresh view and on Tidy, and always lays out from
+  // scratch. Otherwise nothing moves but to make room: expanding adds nodes
+  // in place, and nodes that change size (a scenario's status, a rename)
+  // stretch the graph without changing its shape.
   let tidyKey = $state(0);
   let elkNext = false; // the next layout runs ELK
+  let renaming: [string, string] | null = null; // a thing renamed since the last layout
 
   function tidy() {
     elkNext = true;
     tidyKey++;
   }
-
-  const withStatus = (v: View) => v.nodes.some((n) => n.status);
 
   let seq = 0;
   $effect(() => {
@@ -681,13 +701,13 @@
     }
     void tidyKey;
     const opts = { direction, routing, placement };
-    const prev = restarting ? null : untrack(() => shown?.placed);
-    // Nodes are wider while they show a scenario's status, so turning one on or off lays out afresh.
-    const resized = untrack(() => shown && withStatus(shown.view) !== withStatus(v));
-    const local = prev && !elkNext && !resized;
+    let prev = restarting ? null : untrack(() => shown);
+    if (prev && renaming) prev = { ...prev, placed: renamed(prev.placed, prev.view, ...renaming) };
+    renaming = null;
+    const run =
+      !prev || elkNext ? layout(v, opts) : Promise.resolve(placeLocally(v, resize(v, prev.placed), direction));
     elkNext = false;
     const my = ++seq;
-    const run = local ? Promise.resolve(placeLocally(v, prev, direction)) : layout(v, opts);
     void run.then((placed) => {
       if (my !== seq) return;
       shown = { view: v, placed };

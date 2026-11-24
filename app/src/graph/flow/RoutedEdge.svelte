@@ -1,7 +1,7 @@
 <script lang="ts">
   import type { EdgeProps } from '@xyflow/svelte';
   import type { EdgeKind } from '../../../../engine/view.ts';
-  import type { Pt, Routing } from '../layout';
+  import type { Pt, Routing } from '../place';
   import { routePath } from '../shapes';
 
   interface Data extends Record<string, unknown> {

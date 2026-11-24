@@ -19,6 +19,7 @@ export interface Placed {
   edges: Map<string, Pt[]>; // start, bends..., end (absolute)
   routing: Routing;
   ms: number;
+  base?: Placed; // what resize stretched this from, so it stretches from there again
 }
 
 /** The graph's font: nodes are sized for it, and exports draw with it. */

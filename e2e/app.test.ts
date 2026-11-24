@@ -413,6 +413,44 @@ test('guided edits, plans and templates', async () => {
   assert.deepEqual(problems, []);
 });
 
+test('renaming a thing, or choosing a scenario, leaves the graph where it was', async () => {
+  const { page, problems } = await openExample();
+  // Each node's row, from where it's going (it animates there).
+  const rows = () =>
+    page.$$eval('.svelte-flow__node', (els) =>
+      Object.fromEntries(
+        els.map((e) => [
+          (e as HTMLElement).dataset.id!,
+          /, ?(-?[\d.]+)px/.exec((e as HTMLElement).style.transform)![1],
+        ]),
+      ),
+    );
+  await page.locator('.svelte-flow__node').first().waitFor();
+
+  // An expanded one, so what's upstream of it has to stay shown through the rename.
+  const before = await rows();
+  await page.locator('.svelte-flow__node[data-id="docs_nas"]').dblclick();
+  const name = page.getByRole('textbox', { name: 'Name', exact: true });
+  await name.fill('docs_nas_with_a_longer_name');
+  await name.blur();
+  await page.locator('.svelte-flow__node[data-id="docs_nas_with_a_longer_name"]').waitFor();
+  const was = (id: string) => id.replace('docs_nas_with_a_longer_name', 'docs_nas');
+  assert.deepEqual(Object.fromEntries(Object.entries(await rows()).map(([id, y]) => [was(id), y])), before);
+
+  // Separate trees, which a fresh layout would pack differently once a scenario widens their nodes.
+  const count = await page.locator('.svelte-flow__node').count();
+  await page.getByRole('button', { name: 'Where things live' }).click();
+  await page.waitForFunction((n) => document.querySelectorAll('.svelte-flow__node').length > n, count);
+  const where = await rows();
+  await page.getByRole('button', { name: /^Scenario / }).click();
+  await page.getByRole('button', { name: /^house_fire / }).click();
+  // The new layout and the statuses come together.
+  await page.locator('.svelte-flow__node .status').first().waitFor();
+  assert.deepEqual(await rows(), where);
+
+  assert.deepEqual(problems, []);
+});
+
 test('scenarios, and exporting the graph', async () => {
   const { page, problems } = await openExample();
   const undo = page.getByRole('button', { name: 'Undo', exact: true });
