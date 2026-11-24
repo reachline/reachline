@@ -16,6 +16,7 @@
 template:
   name: npm
   note: An npm account, its two-factor authentication, and the tokens and CI that publish its packages.
+  icon: package
   checked: 2026-11-24
   links:
     About two-factor authentication: https://docs.npmjs.com/about-two-factor-authentication/

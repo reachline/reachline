@@ -13,6 +13,7 @@
 template:
   name: Dashlane
   note: A Dashlane account, with a Master Password or passwordless, and how it's recovered.
+  icon: vault
   checked: 2026-11-23
   links:
     Account recovery options for Dashlane: https://support.dashlane.com/hc/en-us/articles/11282971791634-Account-recovery-options-for-Dashlane

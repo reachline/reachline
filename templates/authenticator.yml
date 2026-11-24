@@ -21,6 +21,7 @@
 template:
   name: Authenticator app
   note: An authenticator app's codes (Google Authenticator, Microsoft Authenticator, Authy, Ente Auth, 2FAS, Aegis) and where they're backed up.
+  icon: shield-check
   checked: 2026-11-23
   prefix: authenticator
   stands_in:

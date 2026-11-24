@@ -17,6 +17,7 @@
 template:
   name: Mobile carrier
   note: A mobile carrier account (T-Mobile, Verizon, AT&T, Google Fi, Mint, Visible), and how your number can be moved to a new SIM or carrier.
+  icon: phone
   checked: 2026-11-24
   prefix: carrier
   stands_in:

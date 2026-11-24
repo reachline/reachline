@@ -19,6 +19,7 @@
 template:
   name: Bank
   note: Online banking at a bank or credit union (Chase, Bank of America, Wells Fargo, Citi, Capital One), its second step and how a password is reset.
+  icon: landmark
   checked: 2026-11-24
   prefix: bank
   slots:

@@ -16,6 +16,7 @@
 template:
   name: Domain registrar
   note: A domain registrar account (Namecheap, Porkbun, Squarespace, GoDaddy, Gandi, Cloudflare Registrar) and the domain it controls.
+  icon: globe
   checked: 2026-11-24
   prefix: registrar
   stands_in:

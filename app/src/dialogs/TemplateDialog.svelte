@@ -1,10 +1,21 @@
 <script lang="ts">
   // Adding from a template: pick one, then bind its slots to your things,
   // tick what you've set up, and see what it would change before adding it.
-  import { ArrowLeft } from '@lucide/svelte';
+  import {
+    ArrowLeft,
+    DatabaseBackup,
+    Globe,
+    Landmark,
+    Package,
+    Phone,
+    Server,
+    ShieldCheck,
+    Vault,
+    Wallet,
+  } from '@lucide/svelte';
   import type { ScenarioChange } from '../../../engine/report.ts';
   import { idProblem, show } from '../lib/edit';
-  import { instantiate, readTemplate, type Template } from './template';
+  import { instantiate, readTemplate, type Template, type TemplateIcon } from './template';
   import Select from '../forms/Select.svelte';
   import type { SelectGroup } from '../forms/select';
   import Verdicts from '../panel/Verdicts.svelte';
@@ -26,6 +37,24 @@
   const templates = Object.entries(files)
     .map(([path, text]) => readTemplate(path.slice(path.lastIndexOf('/') + 1, -4), text))
     .sort((a, b) => a.name.localeCompare(b.name));
+  // Each service's logo, by template id; `<id>.dark.svg` is a copy that shows on the dark theme.
+  const logos = import.meta.glob<string>('../../../templates/icons/*.svg', {
+    query: '?url',
+    import: 'default',
+    eager: true,
+  });
+  const logo = (id: string, theme = '') => logos[`../../../templates/icons/${id}${theme}.svg`];
+  const ICON: Record<TemplateIcon, typeof Globe> = {
+    'database-backup': DatabaseBackup,
+    globe: Globe,
+    landmark: Landmark,
+    package: Package,
+    phone: Phone,
+    server: Server,
+    'shield-check': ShieldCheck,
+    vault: Vault,
+    wallet: Wallet,
+  };
 
   const uid = $props.id();
   let query = $state('');
@@ -114,6 +143,16 @@
         {#each found as t (t.id)}
           <li>
             <button class="quiet pick" onclick={() => choose(t)}>
+              <!-- Its name is beside it, so the logo is decoration. -->
+              <span class="mark" aria-hidden="true">
+                {#if logo(t.id)}
+                  <img class="logo" class:on-light={logo(t.id, '.dark')} src={logo(t.id)} alt="" />
+                  {#if logo(t.id, '.dark')}<img class="logo on-dark" src={logo(t.id, '.dark')} alt="" />{/if}
+                {:else if t.icon}
+                  {@const Icon = ICON[t.icon]}
+                  <Icon />
+                {/if}
+              </span>
               <span class="name">{t.name}</span>
               <span class="muted">{t.note}</span>
             </button>
@@ -248,13 +287,25 @@
   }
   .pick {
     display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: var(--space-3);
     /* Buttons centre what's in them; a row of a list starts at the edge. */
-    justify-content: start;
+    justify-content: stretch;
     justify-items: start;
     width: 100%;
     padding: var(--space-2) var(--space-3);
     white-space: normal;
     text-align: start;
+  }
+  /* The mark beside the name and note, the same width for each, logo or icon. */
+  .mark {
+    display: grid;
+    grid-row: span 2;
+    place-items: center;
+    width: 1.5rem;
+  }
+  .pick > :not(.mark) {
+    grid-column: 2;
   }
   .name {
     font-weight: 600;

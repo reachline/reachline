@@ -1,0 +1,8 @@
+ReachLine includes third-party material:
+
+templates/icons/*.svg
+  Service logos from selfh.st/icons (https://github.com/selfhst/icons),
+  licensed CC BY 4.0 (https://creativecommons.org/licenses/by/4.0/).
+  Renamed after the templates that use them, and otherwise unchanged. The
+  marks belong to their owners, and are shown only to name the service each
+  template describes.

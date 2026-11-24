@@ -256,6 +256,31 @@ button.quiet:disabled {
   width: 1.15em;
   height: 1.15em;
 }
+/*
+ * A service's logo, beside its template's name and nowhere else. An image
+ * can't follow the theme, so a logo too dark for the dark theme has an
+ * .on-dark copy that takes its place there.
+ */
+.logo {
+  width: 1.5rem;
+  height: 1.5rem;
+  object-fit: contain;
+}
+.logo.on-dark,
+:root[data-theme='dark'] .logo.on-light {
+  display: none;
+}
+:root[data-theme='dark'] .logo.on-dark {
+  display: block;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) .logo.on-light {
+    display: none;
+  }
+  :root:not([data-theme='light']) .logo.on-dark {
+    display: block;
+  }
+}
 
 /* Fields. */
 :where(input:not([type='radio'], [type='checkbox'], [type='file']), select, textarea) {

@@ -85,3 +85,17 @@ test('a stand-in may have the id of the thing of yours it stands in for', () => 
   );
   assert.deepEqual(asList(things.authenticator.in), ['phone', 'authenticator_synced']);
 });
+
+test('every template has a logo or an icon, and every logo is a template’s', () => {
+  const icons = readdirSync(new URL('icons/', DIR));
+  const ids = new Set(templates.map((t) => t.id));
+  for (const f of icons) {
+    assert.match(f, /^[a-z0-9_]+(\.dark)?\.svg$/, `templates/icons/${f}`);
+    assert.ok(ids.has(f.split('.')[0]), `templates/icons/${f} belongs to no template`);
+    assert.ok(icons.includes(`${f.split('.')[0]}.svg`), `templates/icons/${f} is a dark copy of no logo`);
+  }
+  for (const t of templates) {
+    const logo = icons.includes(`${t.id}.svg`);
+    assert.ok(logo !== !!t.icon, `templates/${t.id}.yml needs a logo in templates/icons or an icon, not both`);
+  }
+});

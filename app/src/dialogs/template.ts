@@ -7,9 +7,25 @@ import { idsIn, prune, swap, validId } from '../lib/edit.ts';
 
 type Fields = Record<string, unknown>;
 
+/** Icons for a template with no logo in templates/icons (a generic one): Lucide's, by name. */
+export const ICONS = [
+  'database-backup',
+  'globe',
+  'landmark',
+  'package',
+  'phone',
+  'server',
+  'shield-check',
+  'vault',
+  'wallet',
+] as const;
+export type TemplateIcon = (typeof ICONS)[number];
+
 export interface Template {
   /** The file's name, without .yml. */
   id: string;
+  /** Its icon, if it has no logo. */
+  icon: TemplateIcon | null;
   name: string;
   note: string;
   /** When its facts were last checked against the service's own docs. */
@@ -40,6 +56,9 @@ export function readTemplate(id: string, text: string): Template {
   if (!str(head.name)) throw bad('template.name is missing');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(str(head.checked))) throw bad('template.checked must be a date (YYYY-MM-DD)');
   if (!validId(prefix)) throw bad('template.prefix must be an id');
+  const icon = head.icon === undefined ? null : str(head.icon);
+  if (icon !== null && !(ICONS as readonly string[]).includes(icon))
+    throw bad(`template.icon must be one of ${ICONS.join(', ')}`);
   if (!Object.values(obj(head.links)).every((u) => str(u).startsWith('https://')))
     throw bad('template.links must map titles to https URLs');
   const known = (what: string) => (k: string) => {
@@ -50,6 +69,7 @@ export function readTemplate(id: string, text: string): Template {
   Object.keys(obj(head.stands_in)).forEach(known('stands_in'));
   return {
     id,
+    icon: icon as TemplateIcon | null,
     name: str(head.name),
     note: str(head.note),
     checked: str(head.checked),

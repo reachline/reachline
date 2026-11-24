@@ -29,6 +29,7 @@
 template:
   name: Home Server or NAS
   note: A home server or NAS (Synology, QNAP, UGREEN, Unraid, TrueNAS, Proxmox VE, Linux), its admin, resetting it from the box, encryption, and its backup target.
+  icon: server
   checked: 2026-11-24
   links:
     How do I reset my Synology NAS?: https://kb.synology.com/en-global/DSM/tutorial/How_to_reset_my_Synology_NAS_7

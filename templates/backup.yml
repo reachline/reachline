@@ -19,6 +19,7 @@
 template:
   name: Encrypted backup
   note: An encrypted backup (Proxmox Backup Server, restic, Borg, Kopia, Duplicati), where it's stored, and every copy of its key.
+  icon: database-backup
   checked: 2026-11-24
   links:
     Proxmox Backup Server, encryption: https://pbs.proxmox.com/docs/backup-client.html

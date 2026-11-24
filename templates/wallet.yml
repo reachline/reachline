@@ -24,6 +24,7 @@
 template:
   name: Crypto wallet
   note: A self-custody crypto wallet with a recovery phrase (BIP39), on a hardware wallet (Ledger, Trezor) or an app, with Ledger Recover.
+  icon: wallet
   checked: 2026-11-24
   links:
     PIN protection on Trezor devices: https://trezor.io/guides/trezor-devices/trezor-fundamentals/pin-protection-on-trezor-devices

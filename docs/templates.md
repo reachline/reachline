@@ -57,7 +57,14 @@ things:
 | `slots` | Things the user probably has, each with a label saying which of theirs it means. Use the starter's ids where they fit, so the template binds to them unasked. |
 | `optional` | Things the user may not have set up, labelled by their `note`. `true` means ticked to start with. |
 | `stands_in` | Things that may be one the user already has, each with a question, such as `apple: Is this your email?`. They choose from their things of the same kind. |
+| `icon` | For a template with no logo, such as a generic bank: one of the [Lucide](https://lucide.dev) icons listed in `app/src/dialogs/template.ts`. |
 
 Where a service's settings rule each other out (security keys that turn off text codes), say so in the labels rather than enforcing it.
 
 Under `things:`, give each slot a `kind` and little else, since it's usually replaced by the user's own thing. Give the service's things ids that start with the prefix. The template file is never rewritten by the app, so comments are fine, and are a good place to say how the service's recovery really works. `test/template.test.ts` checks that each template loads with every option and with none, and adds cleanly to the starter.
+
+### Logos
+
+A template for one service shows its logo in the dialog: `templates/icons/<id>.svg`, named after the template's file. Take it from [selfh.st/icons](https://selfh.st/icons/), the standard version. If it's too dark to see on a dark background, add the light version as `<id>.dark.svg`, which takes its place in the dark theme. A template with no logo there, or a generic one, names an `icon` instead. Every template needs one or the other.
+
+The logos are from [selfh.st/icons](https://github.com/selfhst/icons), licensed [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), renamed and otherwise unchanged. The marks themselves belong to their owners, and are shown only to name the service each template describes.
