@@ -154,7 +154,7 @@
 <Confirm
   question={deleting && {
     title: `Delete ${deleting.name}?`,
-    text: "It goes with all of its history. This can't be undone.",
+    text: "It will be removed along with all of its history. This can't be undone.",
     action: 'Delete',
   }}
   onconfirm={() => deleting && remove(deleting)}

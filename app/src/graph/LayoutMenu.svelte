@@ -15,7 +15,6 @@
     ontidy: () => void;
     stats?: { nodes: number; edges: number; ms: number };
   }
-  /* eslint-disable @typescript-eslint/no-useless-default-assignment -- $bindable() is how Svelte marks a prop bindable */
   let {
     direction = $bindable(),
     routing = $bindable(),
@@ -24,7 +23,6 @@
     ontidy,
     stats,
   }: Props = $props();
-  /* eslint-enable @typescript-eslint/no-useless-default-assignment */
 
   const uid = $props.id();
 </script>
@@ -33,7 +31,6 @@
   ><SlidersHorizontal /><span class="wide-only">Layout</span></button
 >
 <div id="layout" class="popup" popover>
-  <h2>Layout</h2>
   {@render choice(
     'Direction',
     [
@@ -104,9 +101,6 @@
   }
   .segmented button {
     flex: 1 1 auto;
-  }
-  #layout h2 {
-    font-size: var(--text-md);
   }
   .stats {
     font-size: var(--text-sm);

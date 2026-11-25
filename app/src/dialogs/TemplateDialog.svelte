@@ -14,6 +14,7 @@
     KeyRound,
     Landmark,
     Phone,
+    Search,
     Server,
     ShieldCheck,
     Wallet,
@@ -144,121 +145,139 @@
   }
 </script>
 
-<dialog bind:this={dialog} class="wide" aria-labelledby="{uid}-title" onclose={reset}>
+{#snippet mark(t: Template)}
+  <span class="mark" aria-hidden="true">
+    {#if logo(t.id)}
+      <img class="logo" class:on-light={logo(t.id, '.dark')} src={logo(t.id)} alt="" />
+      {#if logo(t.id, '.dark')}<img class="logo on-dark" src={logo(t.id, '.dark')} alt="" />{/if}
+    {:else if t.icon}
+      {@const Icon = ICON[t.icon]}
+      <Icon />
+    {/if}
+  </span>
+{/snippet}
+
+<dialog bind:this={dialog} class="long" aria-labelledby="{uid}-title" onclose={reset}>
   <div>
     {#if !chosen}
-      <h2 id="{uid}-title">Add from a template</h2>
-      <label class="field">Search <input type="search" bind:value={query} /></label>
-      <ul class="list">
-        {#each found as t (t.id)}
-          <li>
-            <button class="quiet pick" onclick={() => choose(t)}>
-              <!-- Its name is beside it, so the logo is decoration. -->
-              <span class="mark" aria-hidden="true">
-                {#if logo(t.id)}
-                  <img class="logo" class:on-light={logo(t.id, '.dark')} src={logo(t.id)} alt="" />
-                  {#if logo(t.id, '.dark')}<img class="logo on-dark" src={logo(t.id, '.dark')} alt="" />{/if}
-                {:else if t.icon}
-                  {@const Icon = ICON[t.icon]}
-                  <Icon />
-                {/if}
-              </span>
-              <span class="name">{t.name}</span>
-              <span class="muted">{t.note}</span>
-            </button>
-          </li>
-        {:else}
-          <li class="muted">No template matches.</li>
-        {/each}
-      </ul>
-      <div class="buttons">
-        <button class="quiet" onclick={() => dialog?.close()}>Cancel</button>
+      <!-- Cancel is in the heading, in both views: here, picking one is the action. -->
+      <header class="search">
+        <h2 id="{uid}-title">Add from a template</h2>
+        <button class="quiet close" onclick={() => dialog?.close()}>Cancel</button>
+        <label class="field inline">
+          <Search aria-hidden="true" /><span class="visually-hidden">Search</span>
+          <input type="search" placeholder="Search" bind:value={query} />
+        </label>
+      </header>
+      <div class="body">
+        <ul class="list">
+          {#each found as t (t.id)}
+            <li>
+              <button class="quiet pick" onclick={() => choose(t)}>
+                <!-- Its name is beside it, so the logo is decoration. -->
+                {@render mark(t)}
+                <span class="name">{t.name}</span>
+                <span class="muted note">{t.note}</span>
+              </button>
+            </li>
+          {:else}
+            <li class="muted">No template matches.</li>
+          {/each}
+        </ul>
       </div>
     {:else}
-      <header>
-        <button class="quiet back" onclick={() => (chosen = null)}><ArrowLeft />All templates</button>
+      <header class="chosen">
+        <button class="quiet icon back" aria-label="All templates" title="All templates" onclick={() => (chosen = null)}
+          ><ArrowLeft /></button
+        >
+        {@render mark(chosen)}
         <h2 id="{uid}-title">{chosen.name}</h2>
+        <button class="quiet close" onclick={() => dialog?.close()}>Cancel</button>
       </header>
-      <p>{chosen.note}</p>
-      <!-- A generic template (a bank, an authenticator) rests on no one service's docs. -->
-      {#if chosen.links.length}
-        <p class="hint">Facts checked {chosen.checked}, against:</p>
-        <ul class="links">
-          {#each chosen.links as link (link.url)}<li>
-              <a href={link.url} target="_blank" rel="noreferrer">{link.title}</a>
-            </li>{/each}
-        </ul>
-      {/if}
+      <div class="body">
+        <div class="about">
+          <p>{chosen.note}</p>
+          <!-- A generic template (a bank, an authenticator) rests on no one service's docs. -->
+          {#if chosen.links.length}
+            <details>
+              <summary>Sources, checked {chosen.checked}</summary>
+              <ul class="links">
+                {#each chosen.links as link (link.url)}<li>
+                    <a href={link.url} target="_blank" rel="noreferrer">{link.title}</a>
+                  </li>{/each}
+              </ul>
+            </details>
+          {/if}
+        </div>
 
-      <div class="field">
-        <label for="{uid}-prefix">Prefix</label>
-        <input id="{uid}-prefix" bind:value={prefix} class="mono" aria-describedby="{uid}-prefix-hint" />
-        <span class="hint" id="{uid}-prefix-hint">
-          New ids start with it; another account of the same kind can take another, such as {chosen.prefix}_work.
-        </span>
+        {#if chosen.optional.length}
+          <fieldset class="ticks">
+            <legend><h3>What you've set up</h3></legend>
+            {#each chosen.optional as o (o.id)}
+              <label class="check"><input type="checkbox" bind:group={include} value={o.id} /> {o.label}</label>
+            {/each}
+          </fieldset>
+        {/if}
+
+        {#if standing.length || needed.length}
+          <fieldset>
+            <legend><h3>Things you have</h3></legend>
+            {#each standing as s (s.id)}
+              <div class="field">
+                <span id="{uid}-stands-{s.id}">{s.label}</span>
+                <Select
+                  aria-labelledby="{uid}-stands-{s.id}"
+                  value={standsIn[s.id] ?? ''}
+                  groups={standsGroups(s)}
+                  onchange={(v: string) => (standsIn = { ...standsIn, [s.id]: v || null })}
+                />
+              </div>
+            {/each}
+            {#each needed as s (s.id)}
+              <div class="field">
+                <span id="{uid}-slot-{s.id}">{s.label}</span>
+                <Select
+                  aria-labelledby="{uid}-slot-{s.id}"
+                  value={slots[s.id] ?? ''}
+                  groups={slotGroups(s)}
+                  onchange={(v: string) => (slots = { ...slots, [s.id]: v || null })}
+                />
+              </div>
+            {/each}
+          </fieldset>
+        {/if}
+
+        <div class="field">
+          <label for="{uid}-prefix">Prefix</label>
+          <input id="{uid}-prefix" bind:value={prefix} class="mono" aria-describedby="{uid}-prefix-hint" />
+          <span class="hint" id="{uid}-prefix-hint">
+            New ids start with it; another account of the same kind can take another, such as {chosen.prefix}_work.
+          </span>
+        </div>
+
+        {#if problem}
+          <p class="error" role="alert">{problem}</p>
+        {:else}
+          <section class="card preview" aria-labelledby="{uid}-adds">
+            <h3 id="{uid}-adds">Adds</h3>
+            <ul class="adds">
+              {#each Object.entries(things) as [id, spec] (id)}
+                <li>
+                  <span class="mono">{id}</span>
+                  <span class="muted">{replaced.has(id) ? `your ${String(spec.kind)}, updated` : spec.kind}</span>
+                  {#if spec.access}<span class="mono"> · {show('access', spec.access)}</span>{/if}
+                </li>
+              {/each}
+            </ul>
+            <h3>Verdicts</h3>
+            {#if verdicts}<Verdicts changes={verdicts} />{:else}<p class="muted">
+                Can't tell until the model loads.
+              </p>{/if}
+          </section>
+        {/if}
       </div>
 
-      {#each standing as s (s.id)}
-        <div class="field">
-          <span id="{uid}-stands-{s.id}">{s.label}</span>
-          <Select
-            aria-labelledby="{uid}-stands-{s.id}"
-            value={standsIn[s.id] ?? ''}
-            groups={standsGroups(s)}
-            onchange={(v: string) => (standsIn = { ...standsIn, [s.id]: v || null })}
-          />
-        </div>
-      {/each}
-
-      {#if chosen.optional.length}
-        <fieldset>
-          <legend>What you've set up</legend>
-          {#each chosen.optional as o (o.id)}
-            <label class="check"><input type="checkbox" bind:group={include} value={o.id} /> {o.label}</label>
-          {/each}
-        </fieldset>
-      {/if}
-
-      {#if needed.length}
-        <fieldset>
-          <legend>Things you have</legend>
-          {#each needed as s (s.id)}
-            <div class="field">
-              <span id="{uid}-slot-{s.id}">{s.label}</span>
-              <Select
-                aria-labelledby="{uid}-slot-{s.id}"
-                value={slots[s.id] ?? ''}
-                groups={slotGroups(s)}
-                onchange={(v: string) => (slots = { ...slots, [s.id]: v || null })}
-              />
-            </div>
-          {/each}
-        </fieldset>
-      {/if}
-
-      {#if problem}
-        <p class="error" role="alert">{problem}</p>
-      {:else}
-        <section class="preview" aria-labelledby="{uid}-adds">
-          <h3 id="{uid}-adds">Adds</h3>
-          <ul class="adds">
-            {#each Object.entries(things) as [id, spec] (id)}
-              <li>
-                <span class="mono">{id}</span>
-                <span class="muted">{replaced.has(id) ? `your ${String(spec.kind)}, updated` : spec.kind}</span>
-                {#if spec.access}<span class="mono"> · {show('access', spec.access)}</span>{/if}
-              </li>
-            {/each}
-          </ul>
-          <h3>Verdicts</h3>
-          {#if verdicts}<Verdicts changes={verdicts} />{:else}<p class="muted">
-              Can't tell until the model loads.
-            </p>{/if}
-        </section>
-      {/if}
-
       <div class="buttons">
-        <button class="quiet" onclick={() => dialog?.close()}>Cancel</button>
         <button disabled={!!problem} onclick={() => add(true)}>Add as a plan</button>
         <button class="primary" disabled={!!problem} onclick={() => add(false)}>Add to model</button>
       </div>
@@ -267,8 +286,10 @@
 </dialog>
 
 <style>
-  .wide {
+  /* One size for both views, so it doesn't jump as the list filters or a template opens. */
+  .long {
     width: min(40rem, calc(100% - 2 * var(--space-4)));
+    height: min(48rem, calc(100% - 2 * var(--space-4)));
   }
   .list,
   .links,
@@ -279,25 +300,34 @@
     padding: 0;
     list-style: none;
   }
-  /* Only the list scrolls, with room inside for the focus ring. */
-  .list {
-    max-height: min(28rem, 50vh);
-    margin-inline: calc(-1 * var(--space-1));
-    padding: var(--space-1);
-    overflow-y: auto;
-  }
-  header {
+  .search {
     display: grid;
-    justify-items: start;
-    gap: var(--space-1);
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: var(--space-4) var(--space-2);
   }
-  /* Its icon lines up with the heading under it. */
+  .search > label {
+    grid-column: 1 / -1;
+  }
+  .search input {
+    flex: 1;
+    min-width: 0;
+  }
+  /* Rows, the name and logo aligned with the heading above. */
+  .list {
+    gap: 0;
+    margin-inline: calc(-1 * var(--space-3));
+  }
+  .list li + li {
+    border-top: 1px solid var(--border);
+  }
+  /* Its arrow lines up with what's under it. */
   .back {
-    margin-inline-start: calc(-1 * var(--space-3));
+    margin-inline-start: calc(-1 * var(--space-2));
   }
   .pick {
     display: grid;
-    grid-template-columns: auto 1fr;
+    grid-template-columns: auto minmax(0, 1fr);
     column-gap: var(--space-3);
     /* Buttons centre what's in them; a row of a list starts at the edge. */
     justify-content: stretch;
@@ -307,12 +337,18 @@
     white-space: normal;
     text-align: start;
   }
-  /* The mark beside the name and note, the same width for each, logo or icon. */
+  /* The mark beside the name and note, the same size for each, logo or icon. */
   .mark {
     display: grid;
-    grid-row: span 2;
     place-items: center;
     width: 1.5rem;
+  }
+  .mark :global(.lucide) {
+    width: 1.375rem;
+    height: 1.375rem;
+  }
+  .pick > .mark {
+    grid-row: span 2;
   }
   .pick > :not(.mark) {
     grid-column: 2;
@@ -320,16 +356,65 @@
   .name {
     font-weight: 600;
   }
+  /* A line of it to scan by (two on phones); all of it is on the template's page. */
+  .note {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 1;
+    line-clamp: 1;
+  }
+  @media (max-width: 760px) {
+    .note {
+      -webkit-line-clamp: 2;
+      line-clamp: 2;
+    }
+  }
+  .chosen + .body {
+    gap: var(--space-6);
+  }
+  .about {
+    display: grid;
+    gap: var(--space-2);
+    justify-items: start;
+  }
+  .about summary {
+    margin-inline-start: calc(-1 * var(--space-2));
+    color: var(--muted);
+    font-size: var(--text-sm);
+  }
+  .links {
+    font-size: var(--text-sm);
+  }
+  fieldset {
+    gap: var(--space-3);
+  }
+  legend {
+    margin-bottom: var(--space-2);
+  }
+  /* Rows 25px apart, so each is a 24px target (WCAG 2.5.8). */
+  .ticks {
+    gap: var(--space-1);
+  }
+  /* The box centred on the first line of its words. */
   .check {
     display: flex;
-    align-items: baseline;
+    align-items: start;
     gap: var(--space-2);
+  }
+  /* Its em and lh are its label's, not a control's own. */
+  .check input {
+    flex: none;
+    font: inherit;
+    width: 1em;
+    height: 1em;
+    margin: calc((1lh - 1em) / 2) 0 0;
   }
   .preview {
     display: grid;
     gap: var(--space-2);
-    max-height: 40vh;
-    overflow-y: auto;
+    padding: var(--space-4);
+    background: var(--bg);
   }
   .adds {
     font-size: var(--text-sm);

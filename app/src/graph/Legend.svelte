@@ -26,7 +26,6 @@
 
 <button class="quiet" popovertarget="legend" title="Legend"><Shapes /><span class="wide-only">Legend</span></button>
 <div id="legend" class="popup" popover>
-  <h2>Legend</h2>
   <div class="grid">
     {#each KINDS as k (k)}
       <KindIcon kind={k} />
@@ -54,7 +53,6 @@
   #legend {
     max-width: 20rem;
   }
-  h2,
   h3 {
     margin-bottom: var(--space-2);
     font-size: var(--text-md);

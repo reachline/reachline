@@ -474,8 +474,8 @@
         confirmEdit(
           `Delete ${id}?`,
           layer === null
-            ? `It goes from the model and every plan. Ways in that need it go too; where it's one of several options, the others stay.`
-            : `The plan removes it, and what refers to it.`,
+            ? `It will be removed from the model and every plan. Ways in that need it will be removed too; where it's one of several options, the others stay.`
+            : `The plan will remove it, and what refers to it.`,
           removeThing(layer, id),
           () => {
             if (selected === id) selected = null;
@@ -484,7 +484,7 @@
       deleteScenario: (name) =>
         confirmEdit(
           `Delete ${name}?`,
-          'The scenario goes, and nothing else changes.',
+          'The scenario will be removed, and nothing else changes.',
           removeScenario(layer, name),
           () => {
             scenarioName = '';
@@ -567,7 +567,7 @@
   function applyPlanNamed(name: string) {
     confirmEdit(
       `Apply ${name}?`,
-      'Its changes become part of the model, and the plan goes. These are the changes to the model:',
+      'Its changes become part of the model, and the plan will be removed. These are the changes to the model:',
       applyPlan(name),
       () => setOn(on.filter((n) => n !== name)),
       { action: 'Apply', of: null, verdicts: false },
@@ -577,7 +577,7 @@
   function deletePlanNamed(name: string) {
     confirmEdit(
       `Delete ${name}?`,
-      'The plan and everything in it goes. The model doesn’t change.',
+      'The plan and everything in it will be removed. The model doesn’t change.',
       removePlan(name),
       () => setOn(on.filter((n) => n !== name)),
       { of: null, verdicts: false },

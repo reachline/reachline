@@ -74,8 +74,16 @@ async function chooseThing(page: Page, id: string) {
 
 /** WCAG 2.2 AA, as far as axe can tell, once what's fading in has (it would judge the faded colours). */
 async function passesAxe(page: Page, where: string) {
-  // One cut short (a hover ending, say) rejects; it's settled all the same.
-  await page.evaluate(() => Promise.allSettled(document.getAnimations().map((a) => a.finished)));
+  // One cut short (a hover ending, say) rejects; it's settled all the same. One that follows
+  // scrolling (a long dialog's edges) never finishes, and fades nothing in.
+  await page.evaluate(() =>
+    Promise.allSettled(
+      document
+        .getAnimations()
+        .filter((a) => a.timeline === document.timeline)
+        .map((a) => a.finished),
+    ),
+  );
   const { violations } = await new AxeBuilder({ page })
     .withTags(['wcag2a', 'wcag2aa', 'wcag21a', 'wcag21aa', 'wcag22aa'])
     .analyze();

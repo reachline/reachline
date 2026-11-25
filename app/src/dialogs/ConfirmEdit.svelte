@@ -30,23 +30,17 @@
     {/if}
     {#if asking.verdicts}
       <h3>Verdicts</h3>
-      <div class="scroll"><Verdicts changes={asking.verdicts} /></div>
+      <Verdicts changes={asking.verdicts} />
     {/if}
   {/if}
 </Confirm>
 
 <style>
-  .scroll {
-    max-height: 30vh;
-    overflow-y: auto;
-  }
   .changes {
     display: grid;
     gap: var(--space-2);
-    max-height: 40vh;
     margin: 0;
     padding-left: var(--space-4);
-    overflow-y: auto;
     font-size: var(--text-sm);
   }
 </style>

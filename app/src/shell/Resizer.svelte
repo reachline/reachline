@@ -9,7 +9,6 @@
     usual: number;
     wide: number;
   }
-  // eslint-disable-next-line @typescript-eslint/no-useless-default-assignment -- $bindable() is how Svelte marks a prop bindable
   let { width = $bindable(), min, max, usual, wide }: Props = $props();
 
   let drag: { x: number; w: number; moved: boolean } | null = null;

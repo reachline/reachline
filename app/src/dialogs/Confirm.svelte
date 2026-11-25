@@ -21,14 +21,18 @@
   });
 </script>
 
-<dialog bind:this={dialog} aria-labelledby="{uid}-title" aria-describedby="{uid}-text" {onclose}>
+<dialog bind:this={dialog} class="long" aria-labelledby="{uid}-title" aria-describedby="{uid}-text" {onclose}>
   {#if question}
     <div>
-      <h2 id="{uid}-title">{question.title}</h2>
-      <p id="{uid}-text">{question.text}</p>
-      {@render children?.()}
+      <header>
+        <h2 id="{uid}-title">{question.title}</h2>
+        <button class="quiet close" onclick={() => dialog?.close()}>Cancel</button>
+      </header>
+      <div class="body">
+        <p id="{uid}-text">{question.text}</p>
+        {@render children?.()}
+      </div>
       <div class="buttons">
-        <button class="quiet" onclick={() => dialog?.close()}>Cancel</button>
         <button
           class={question.danger === false ? 'primary' : 'danger'}
           onclick={() => {
