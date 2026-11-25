@@ -86,6 +86,6 @@ test('fields, focus and what the graph draws have a contrast of at least 3:1 (WC
     ['brand-end', 'surface'],
     ...graph.map((k): [string, string] => [k, 'bg']),
   ];
-  assert.ok(graph.length >= 9, 'every graph colour is checked');
+  assert.ok(graph.length >= 8, 'every graph colour is checked');
   assert.deepEqual(below(3, lines), []);
 });

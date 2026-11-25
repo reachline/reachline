@@ -3,7 +3,7 @@
   import { Handle, Position, type NodeProps } from '@xyflow/svelte';
   import type { VNode } from '../../../../engine/view.ts';
   import { opens, verdict, type Side } from '../nodes';
-  import { END, FLAG, GLYPH, ICON, ICON_SIZE, KIND_ICONS, outline } from '../shapes';
+  import { END, FLAG, GLYPH, ICON, ICON_SIZE, KIND_ICONS, outline, ROOT_WEIGHT } from '../shapes';
   import type { Kind } from '../../../../engine/model.ts';
 
   interface Data {
@@ -42,10 +42,10 @@
   style:--icon-gap="{ICON - ICON_SIZE}px"
   style:--glyph="{GLYPH}px"
   style:--flag="{FLAG}px"
+  style:--root-weight={ROOT_WEIGHT}
   aria-hidden="true"
 >
   <svg class="outline" {width} {height}>
-    {#if data.selected}<path class="halo" {d} />{/if}
     <path {d} />
   </svg>
   <svg class="kind" viewBox="0 0 24 24" width={ICON_SIZE} height={ICON_SIZE}>
@@ -173,7 +173,7 @@
     --stroke: var(--gone-stroke);
     color: var(--muted);
   }
-  .st-gone .outline path:not(.halo) {
+  .st-gone .outline path {
     stroke-dasharray: 4 3;
   }
   .st-start {
@@ -181,15 +181,13 @@
     --stroke: var(--start-stroke);
     color: var(--start-text);
   }
-  .root {
-    --sw: 3px;
+  /* A root's name is bold (and sized so, in place.ts). */
+  .root .label {
+    font-weight: var(--root-weight);
   }
-  /* Selected: a ring in the text colour around the shape. Focus is the usual ring, around the box. */
-  .outline .halo {
-    fill: none;
-    stroke: var(--text);
-    stroke-width: calc(var(--sw) + 6px);
-    stroke-dasharray: none;
+  /* Selected: its outline bold, in its own colour, as its edges are (RoutedEdge). Focus is the usual ring, around the box. */
+  .sel {
+    --sw: 3px;
   }
   @keyframes appear {
     from {

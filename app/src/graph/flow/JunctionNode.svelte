@@ -37,9 +37,9 @@
     background: var(--warning-bg);
     border: 1.5px dashed var(--maybe-stroke);
   }
-  /* Selected: a ring in the text colour, as on things. */
+  /* Selected: its outline bold, in its own colour, as on things. */
   .sel {
-    box-shadow: 0 0 0 3px var(--text);
+    border-width: 3px;
   }
   @keyframes appear {
     from {

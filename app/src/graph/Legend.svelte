@@ -76,26 +76,26 @@
     stroke: var(--e-in);
   }
   .e-access {
-    stroke: var(--e-access);
+    stroke: var(--e-reach);
   }
   .e-recovery {
-    stroke: var(--e-recovery);
+    stroke: var(--e-reach);
     stroke-dasharray: 6 4;
   }
   .e-lock {
-    stroke: var(--e-lock);
+    stroke: var(--e-gate);
     stroke-dasharray: 12 3;
   }
   .e-needs {
-    stroke: var(--e-needs);
+    stroke: var(--e-exist);
     stroke-dasharray: 2 3;
   }
   .e-mirror {
-    stroke: var(--e-mirror);
-    stroke-dasharray: 8 3 2 3;
+    stroke: var(--e-exist);
+    stroke-dasharray: 10 3 2 3;
   }
   .e-part {
-    stroke: var(--e-access);
+    stroke: var(--e-reach);
     stroke-width: 1;
   }
   .e-dead {

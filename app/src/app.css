@@ -78,15 +78,17 @@
   --start-text: light-dark(#ffffff, #111111);
 
   /*
-   * edges. Grey means only one thing: a dead edge, which can't carry access in
-   * the scenario. A part of an AND/OR is drawn as the edge it leads into.
+   * edges. The hue is what an edge does to its target, and the dash which kind
+   * it is (so the dash alone tells them apart); see RoutedEdge. The hues share
+   * one OKLCH lightness and chroma per theme, `in` the quiet one, and keep off
+   * the status colours. Grey means only one thing: a dead edge, which can't
+   * carry access in the scenario. A part of an AND/OR is drawn as the edge it
+   * leads into.
    */
-  --e-in: light-dark(#5b6c90, #8b9cc0);
-  --e-access: light-dark(#3f4652, #b9bec7);
-  --e-recovery: light-dark(#9333ea, #c084fc);
-  --e-lock: light-dark(#0e7490, #72b3bc);
-  --e-needs: light-dark(#c2410c, #f9af72);
-  --e-mirror: light-dark(#be185d, #f08cc0);
+  --e-in: light-dark(#5e6a7a, #a5b2c4); /* in: it's kept there, and reached through there */
+  --e-reach: light-dark(#376aaa, #85b4f0); /* access, recovery: a way to reach it */
+  --e-gate: light-dark(#007c7d, #57c5c5); /* lock: needed by every way in */
+  --e-exist: light-dark(#825396, #c99edd); /* needs, mirror: it goes when that does */
 
   /* the text editor (its keys are --accent, its current line --hover) */
   --syn-string: light-dark(#a16207, #e0b341);

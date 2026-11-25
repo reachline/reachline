@@ -79,6 +79,16 @@ export function edgesOf(view: View, id: string): Set<string> {
   return ids;
 }
 
+/** Each kind of edge's colour in app.css (--e-*), by what it does to its target. */
+export const EDGE_HUE: Record<Exclude<EdgeKind, 'part'>, string> = {
+  in: 'in',
+  access: 'reach',
+  recovery: 'reach',
+  lock: 'gate',
+  needs: 'exist',
+  mirror: 'exist',
+};
+
 /**
  * The kind each edge is drawn as, by its id. A part of an AND/OR is drawn as
  * the edge its junction leads into (through any junctions between), so a

@@ -5,7 +5,7 @@
 import type { ELK, ElkNode } from 'elkjs/lib/elk-api.js';
 import { edgeId, isJunction, type View, type VNode } from '../../../engine/view.ts';
 import { verdict } from './nodes.ts';
-import { END, FONT, ICON, statusWidth, type Box, type Placed, type Pt, type Routing } from './shapes.ts';
+import { END, FONT, ICON, ROOT_WEIGHT, statusWidth, type Box, type Placed, type Pt, type Routing } from './shapes.ts';
 
 export type { Box, Placed, Pt, Routing };
 
@@ -34,7 +34,7 @@ export function sizeOf(n: VNode): { w: number; h: number } {
   // Outside a browser (bench.ts, the tests), estimate the text width.
   if (typeof document === 'undefined') return { w: n.label.length * 7 + extra, h: THING_H };
   ctx ??= document.createElement('canvas').getContext('2d')!;
-  ctx.font = FONT;
+  ctx.font = n.root ? `${ROOT_WEIGHT} ${FONT}` : FONT;
   return { w: Math.ceil(ctx.measureText(n.label).width) + extra, h: THING_H };
 }
 

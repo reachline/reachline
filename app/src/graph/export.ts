@@ -2,7 +2,7 @@
 // PNG from that), and Mermaid from its view, as the CLI writes it.
 import { toMermaid } from '../../../engine/mermaid.ts';
 import { isJunction, type EdgeKind, type View, type VNode } from '../../../engine/view.ts';
-import { drawnAs, verdict } from './nodes.ts';
+import { drawnAs, EDGE_HUE, verdict } from './nodes.ts';
 import {
   END,
   FLAG,
@@ -12,6 +12,7 @@ import {
   ICON_SIZE,
   KIND_ICONS,
   outline,
+  ROOT_WEIGHT,
   routePath,
   statusWidth,
   type Box,
@@ -24,18 +25,17 @@ export type Colors = (name: string) => string;
 const esc = (s: string) => s.replace(/[&<>"]/g, (ch) => `&#${ch.charCodeAt(0)};`);
 
 const PAD = 16;
-const DASH: Partial<Record<EdgeKind, string>> = { recovery: '6 4', lock: '12 3', needs: '2 3', mirror: '8 3 2 3' };
+const DASH: Partial<Record<EdgeKind, string>> = { recovery: '6 4', lock: '12 3', needs: '2 3', mirror: '10 3 2 3' };
 
 /** What ThingNode's styles give a node. */
 function look(n: VNode, kind: string, c: Colors) {
-  let [fill, stroke, text, width, dash] = [c('surface'), c('node-stroke'), c('text'), 1.5, ''];
+  let [fill, stroke, text, dash] = [c('surface'), c('node-stroke'), c('text'), ''];
   if (n.status === 'has') fill = c(kind === 'breach' ? 'bad-fill' : 'good-fill');
   else if (n.status === 'maybe') fill = c('warning-bg');
   else if (n.status === 'lost') fill = c('bad-fill');
   else if (n.status === 'gone') [fill, stroke, text, dash] = [c('gone-fill'), c('gone-stroke'), c('muted'), '4 3'];
   else if (n.status === 'start') [fill, stroke, text] = [c('start-fill'), c('start-stroke'), c('start-text')];
-  if (n.root) width = 3;
-  return { fill, stroke, text, width, dash };
+  return { fill, stroke, text, dash };
 }
 
 /**
@@ -66,8 +66,10 @@ export function toSvg(view: View, placed: Placed, kind: string, vertical: boolea
   const as = drawnAs(view);
   const edges = view.edges.map((e) => {
     const k = as.get(e.id)!;
-    const color = c(e.live ? `e-${k}` : 'gone-stroke');
-    const d = routePath(placed.edges.get(e.id) ?? [], placed.routing) || straight(box(e.source), box(e.target));
+    const color = c(e.live ? `e-${EDGE_HUE[k]}` : 'gone-stroke');
+    const d =
+      routePath(placed.edges.get(e.id) ?? [], placed.routing, e.kind !== 'part') ||
+      straight(box(e.source), box(e.target));
     const dash = DASH[k] ? ` stroke-dasharray="${DASH[k]}"` : '';
     const head = e.kind === 'part' ? '' : ` marker-end="url(#${arrow(color)})"`;
     return `<path d="${d}" fill="none" stroke="${color}" stroke-width="${e.kind === 'part' || !e.live ? 1 : 1.4}"${dash}${head}/>`;
@@ -112,8 +114,8 @@ export function toSvg(view: View, placed: Placed, kind: string, vertical: boolea
     };
     const chevrons = (n.more ? chevron(true) : '') + (n.moreOut ? chevron(false) : '');
     return (
-      `<g transform="translate(${x},${y})"><path d="${outline(w, h)}" fill="${s.fill}" stroke="${s.stroke}" stroke-width="${s.width}"${dash}/>` +
-      `${icon}<text x="${END + ICON}" y="${cy}" dominant-baseline="central" fill="${s.text}">${esc(n.label)}</text>${status}${flag}${chevrons}</g>`
+      `<g transform="translate(${x},${y})"><path d="${outline(w, h)}" fill="${s.fill}" stroke="${s.stroke}" stroke-width="1.5"${dash}/>` +
+      `${icon}<text x="${END + ICON}" y="${cy}" dominant-baseline="central"${n.root ? ` font-weight="${ROOT_WEIGHT}"` : ''} fill="${s.text}">${esc(n.label)}</text>${status}${flag}${chevrons}</g>`
     );
   });
 
@@ -125,7 +127,6 @@ export function toSvg(view: View, placed: Placed, kind: string, vertical: boolea
   const svg = [
     `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="${x0} ${y0} ${width} ${height}" font-family="${esc(FONT_FAMILY)}" font-size="12">`,
     `<defs>${defs.join('')}</defs>`,
-    `<rect x="${x0}" y="${y0}" width="${width}" height="${height}" fill="${c('bg')}"/>`,
     ...edges,
     ...nodes,
     '</svg>',

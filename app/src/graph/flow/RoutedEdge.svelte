@@ -17,7 +17,9 @@
   let { data, markerEnd, sourceX, sourceY, targetX, targetY }: EdgeProps = $props();
   const d = $derived(data as Data);
   // Draw ELK's own route; fall back to a straight line if it has none.
-  const path = $derived(routePath(d.points, d.routing) || `M${sourceX},${sourceY} L${targetX},${targetY}`);
+  const path = $derived(
+    routePath(d.points, d.routing, d.kind !== 'part') || `M${sourceX},${sourceY} L${targetX},${targetY}`,
+  );
 </script>
 
 <!-- A lit edge has a gap in the background's colour around it where others cross it. -->
@@ -41,23 +43,23 @@
     stroke: var(--e-in);
   }
   .k-access {
-    stroke: var(--e-access);
+    stroke: var(--e-reach);
   }
   .k-recovery {
-    stroke: var(--e-recovery);
+    stroke: var(--e-reach);
     stroke-dasharray: 6 4;
   }
   .k-lock {
-    stroke: var(--e-lock);
+    stroke: var(--e-gate);
     stroke-dasharray: 12 3;
   }
   .k-needs {
-    stroke: var(--e-needs);
+    stroke: var(--e-exist);
     stroke-dasharray: 2 3;
   }
   .k-mirror {
-    stroke: var(--e-mirror);
-    stroke-dasharray: 8 3 2 3;
+    stroke: var(--e-exist);
+    stroke-dasharray: 10 3 2 3;
   }
   .part {
     stroke-width: 1;

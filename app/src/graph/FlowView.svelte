@@ -2,7 +2,7 @@
   import { Background, MarkerType, Panel, SvelteFlow, type Edge, type Node } from '@xyflow/svelte';
   import '@xyflow/svelte/dist/style.css';
   import { isJunction, type View } from '../../../engine/view.ts';
-  import { describe, drawnAs, edgesOf, opens, type Side } from './nodes';
+  import { describe, drawnAs, EDGE_HUE, edgesOf, opens, type Side } from './nodes';
   import { untrack, type Snippet } from 'svelte';
   import JunctionNode from './flow/JunctionNode.svelte';
   import RoutedEdge from './flow/RoutedEdge.svelte';
@@ -138,7 +138,7 @@
               type: MarkerType.ArrowClosed,
               width: 14,
               height: 14,
-              color: e.live ? `var(--e-${e.kind})` : 'var(--gone-stroke)',
+              color: e.live ? `var(--e-${EDGE_HUE[e.kind]})` : 'var(--gone-stroke)',
             },
     })),
   );

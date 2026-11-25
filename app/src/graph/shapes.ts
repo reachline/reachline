@@ -25,6 +25,8 @@ export interface Placed {
 /** The graph's font: nodes are sized for it, and exports draw with it. */
 export const FONT_FAMILY = 'ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif';
 export const FONT = `12px ${FONT_FAMILY}`;
+/** A root's name is bold: what the view is of. */
+export const ROOT_WEIGHT = 600;
 /** Each end of a thing: room for a chevron (ThingNode), whether or not it has one. */
 export const END = 16;
 /** The kind's icon before a thing's name: its size, and the room it takes with a gap. */
@@ -62,10 +64,21 @@ export function outline(w: number, h: number): string {
   return `M${x0 + r},${y0} H${x1 - r} Q${x1},${y0} ${x1},${y0 + r} V${y1 - r} Q${x1},${y1} ${x1 - r},${y1} H${x0 + r} Q${x0},${y1} ${x0},${y1 - r} V${y0 + r} Q${x0},${y0} ${x0 + r},${y0} Z`;
 }
 
-/** SVG path for an ELK route. Spline routes are cubic Bézier control points. */
-export function routePath(pts: Pt[], routing: Routing): string {
+/** How far an edge's flat end reaches into its node, under it, to meet the border where it curves (ELK ends edges on the box). */
+const TUCK = 3;
+const tuck = (p: Pt, from: Pt): Pt => {
+  const len = Math.hypot(p.x - from.x, p.y - from.y);
+  return len < 1 ? p : { x: p.x + ((p.x - from.x) / len) * TUCK, y: p.y + ((p.y - from.y) / len) * TUCK };
+};
+
+/**
+ * SVG path for an ELK route. Spline routes are cubic Bézier control points.
+ * Its start is flat, so it's tucked into its node; so is its end unless an arrowhead's there.
+ */
+export function routePath(pts: Pt[], routing: Routing, arrow = true): string {
   if (pts.length < 2) return '';
-  const [s, ...rest] = pts;
+  const n = pts.length;
+  const [s, ...rest] = pts.map((p, i) => (i === 0 ? tuck(p, pts[1]) : i === n - 1 && !arrow ? tuck(p, pts[n - 2]) : p));
   if (routing === 'SPLINES' && rest.length % 3 === 0) {
     let d = `M${s.x},${s.y}`;
     for (let i = 0; i < rest.length; i += 3) {
